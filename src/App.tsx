@@ -1,6 +1,8 @@
 import { useEffect, useReducer, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import CapturePanel from "./CapturePanel";
+import LiveTelemetryPanel from "./LiveTelemetryPanel";
 import {
   initialTelemetryState,
   telemetryReducer,
@@ -12,7 +14,7 @@ export default function App() {
     telemetryReducer,
     initialTelemetryState,
   );
-  const [port, setPort] = useState(5300);
+  const [port, setPort] = useState(20440);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,7 +103,7 @@ export default function App() {
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RACELAB / V0.2.2</p>
+          <p className="eyebrow">RACELAB / V0.4</p>
           <h1>Telemetry Link</h1>
           <p className="subtitle">
             Raw UDP capture. Rust counts every received datagram; this view
@@ -193,11 +195,15 @@ export default function App() {
         </pre>
       </section>
 
+      <LiveTelemetryPanel listenerRunning={stats?.running ?? false} />
+      <CapturePanel listenerRunning={stats?.running ?? false} />
+
       <section className="next panel">
-        <p className="eyebrow">RAW TRANSPORT ONLY</p>
+        <p className="eyebrow">RAW CAPTURE + FH6 ADAPTER</p>
         <p>
-          Session totals remain visible after stopping and reset on restart. FH6
-          parsing awaits real packet samples.
+          Raw capture preserves every datagram independently of FH6 validation.
+          Gear displays the original numeric code; unknown FH6 bytes stay
+          opaque.
         </p>
       </section>
     </main>

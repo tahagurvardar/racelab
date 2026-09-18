@@ -1,16 +1,16 @@
 {
   "name": "racelab",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit",
-    "format": "prettier --write src/App.tsx src/telemetry-state.ts tests/telemetry-state.test.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "format:check": "prettier --check src/App.tsx src/telemetry-state.ts tests/telemetry-state.test.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
-    "test:frontend": "node --experimental-strip-types --test tests/telemetry-state.test.mjs",
+    "format": "prettier --write src/App.tsx src/CapturePanel.tsx src/LiveTelemetryPanel.tsx src/live-state.ts src/capture-state.ts src/telemetry-state.ts tests/*.test.mjs scripts/extract-fh6-fixtures.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check src/App.tsx src/CapturePanel.tsx src/LiveTelemetryPanel.tsx src/live-state.ts src/capture-state.ts src/telemetry-state.ts tests/*.test.mjs scripts/extract-fh6-fixtures.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "test:frontend": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:udp": "cargo test --manifest-path src-tauri/Cargo.toml --test udp_load -- --ignored --nocapture",
     "tauri": "tauri"
   },

@@ -1,19 +1,40 @@
 # RaceLab
 
-RaceLab is a desktop telemetry platform for racing games. Its transport treats every UDP datagram as opaque bytes. FH6 packet parsing requires real captures and is not implemented.
+RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.4 adds a separate FH6 adapter backed by real capture evidence.
 
-## V0.2.2: blocking UDP ingress
+## V0.4: FH6 adapter and offline validation
 
-**Validation status: ready to freeze the narrow V0.2.2 baseline.** All 14 requested load runs passed: 14,000/14,000 packets, zero sequence gaps and zero receive errors, with the 4 MiB request unchanged. Removing SO_RCVTIMEO eliminated the previously observed failure in this tested matrix; it does not prove the historical root cause. See [the V0.2.2 validation report](docs/V0.2.2-VALIDATION.md) for per-run results, earlier transient test failures and remaining risks.
+The 324-byte FH6 Car Dash adapter produces a game-independent `TelemetryFrame`, preserves FH6-only/unknown bytes separately, zeroes inactive canonical telemetry, and reports unsupported sizes, non-finite values and physical/timestamp validation failures. The engineering UI adds only speed km/h, RPM, the raw gear code, throttle %, brake % and steering %. Raw capture continues independently of parsing. UDP ingress is unchanged.
+
+All six private real captures passed offline validation: **18,165 packets**, 14,237 active / 3,928 inactive, zero invalid packets, capture drops or timestamp regressions. Maximum active speed-versus-velocity error was **0.0000103002 m/s**. The repository includes only **18 anonymized real packets** in six minimal fixtures; full captures remain private.
+
+See [exact offsets and validation policies](docs/FH6-PROTOCOL.md), [fixture provenance/redactions](src-tauri/tests/fixtures/fh6/README.md), and [V0.4 validation results and changed files](docs/V0.4-VALIDATION.md).
+
+```powershell
+cargo run --manifest-path src-tauri/Cargo.toml --example validate_fh6 -- 'C:\private\capture.rlcap'
+cargo test --manifest-path src-tauri/Cargo.toml --test fh6
+```
+
+## V0.3: real telemetry capture
+
+V0.2.2 UDP ingress is frozen and unchanged. Manual FH6 verification supplied by the user observed continuous 324-byte datagrams at approximately 70 packets/sec from `127.0.0.1:5200`, bound to port `20440`, with zero receive errors.
+
+V0.3 attaches `RawCaptureSink` through the existing `PacketSink` seam. **Start Capture / Stop Capture** records named sessions to lossless binary `.rlcap` files with timestamps, source addresses, original lengths, exact datagram bytes and a JSON summary. A 4,096-frame queue feeds a dedicated disk writer; ingress never waits for disk I/O. Queue overflow drops newest frames, increments the visible dropped capture counter and marks the dataset as having loss. Stop drains and syncs the file before reporting Saved. Capture remains independent of listener stop/restart.
+
+Captures normally live in `%LOCALAPPDATA%\com.tahagurvardar.racelab\captures`; the capture panel displays the actual full path. See the [binary format and replay API](docs/RAW-CAPTURE-FORMAT.md), [first-six-dataset recording instructions](docs/FIRST-SIX-FH6-DATASETS.md), and [historical V0.3 validation report](docs/V0.3-VALIDATION.md). No UI redesign, database, AI, charts, accounts or driving analysis is included.
+
+## Frozen V0.2.2 transport
+
+**Frozen baseline validation.** All 14 requested load runs passed: 14,000/14,000 packets, zero sequence gaps and zero receive errors, with the 4 MiB request unchanged. Removing SO_RCVTIMEO eliminated the previously observed failure in this tested matrix; it does not prove the historical root cause. See [the V0.2.2 validation report](docs/V0.2.2-VALIDATION.md) for per-run results, earlier transient test failures and remaining risks.
 
 `Game / test sender -> dedicated Rust UDP thread -> backend session statistics -> 4 Hz Tauri snapshots -> React`
 
 - Rust owns running status, bound port, packet and byte totals, packets/sec, last source, packet size/timestamp, raw bytes, and receive errors.
-- The receive loop does no event delivery, JSON serialization, or hex formatting. A short mutex protects counters and the latest datagram; there is no per-packet queue or history.
+- The receive loop does no event delivery, JSON serialization, or hex formatting. A short mutex protects counters and the latest datagram. V0.3's queue/history belongs exclusively to the attached capture sink.
 - `PacketSink::on_packet(&CapturedPacket)` is the game-agnostic consumer seam. Construct `Listener::new(buffer, Some(sink))` to attach a future adapter without editing the UDP loop. The callback receives borrowed raw bytes, source address, wall-clock milliseconds, and monotonic microseconds relative to session start, sampled immediately after reception. Product statistics update first, and their lock is released before the callback. Consumers must return promptly and must not call listener start/stop from the callback. Expensive consumers need their own bounded handoff with an explicit overflow policy; there is no implicit queue. A panicking sink is detached for the session and reported through `last_error`; counting continues.
 - A separate publisher takes a snapshot every 250 ms and releases the statistics lock before formatting and Tauri delivery. React displays snapshots; it does not count packets or compute rates.
 - PPS uses packet counts divided by actual elapsed monotonic time in approximately one-second windows. The receive loop and publisher advance the windows. Idle PPS settles to zero within approximately two seconds; stop immediately reports zero. Wall-clock timestamps are for display only.
-- Raw retention is bounded to one datagram (65,535-byte buffer); IPC includes only the first 32 bytes as hex. Zero-length datagrams count as packets.
+- Ingress's latest-packet state is bounded to one datagram (65,535-byte buffer); IPC includes only the first 32 bytes as hex. The optional capture session stores the full bytes separately. Zero-length datagrams count as packets.
 - Async commands dispatch bind/join work to the blocking pool. A lifecycle mutex serializes start/stop; starting the same active port and repeated stops are idempotent. Changing an active port requires stopping first.
 - The receive socket blocks in `recv_from` without SO_RCVTIMEO, polling or sleeps. Stop sets an atomic flag, sends a private loopback wake datagram, then joins the worker and releases the socket. Each session reserves its wake source socket and generates a fresh 256-bit OS-random nonce; the receiver matches both source and nonce before counters or consumers. Control packets never become telemetry. Wake-send failures surface as lifecycle errors and retain the worker for another stop attempt instead of joining a potentially blocked thread. Final totals remain visible. A successful restart clears all session data and errors. Port `0` is available to Rust callers for an OS-assigned test port; the UI accepts `1..65535`.
 - Session IDs identify restarts; globally increasing snapshot revisions prevent stale command/event responses from overwriting newer frontend state. Subscribing before fetching the initial snapshot supports remount/reload.
@@ -33,14 +54,14 @@ pnpm install
 pnpm tauri dev
 ```
 
-Leave the UDP port at `5300` and click **Start listener**.
+Leave the UDP port at `20440` and click **Start listener**. Enter an explicit capture label and use **Start Capture**, then **Stop Capture** to save raw traffic.
 
 ## Synthetic traffic
 
 Run from a second PowerShell window while the app listens:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\send-test-udp.ps1 -Port 5300 -Count 1000 -Hz 60
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\send-test-udp.ps1 -Port 20440 -Count 1000 -Hz 60 -PayloadBytes 324
 ```
 
 Use `-Hz 10`, `-Hz 20`, `-Hz 60`, or `-Hz 120`. The sender uses absolute stopwatch deadlines, reports actual achieved rate, and defaults to 128-byte datagrams. `-PayloadBytes` accepts `64..65507`. The synthetic ASCII content is a test protocol only, not an FH6 layout.
@@ -67,12 +88,12 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm test:udp
 ```
 
-The paced test is explicitly ignored by the fast default Rust test suite; `pnpm test:udp` runs it. Rust tests also cover injected sequence gaps and duplicates, rate math, error state, bind recovery, same/different-port restart, concurrent lifecycle calls, snapshot contention during ingestion, monotonic capture times, sink panic isolation, zero-length packets, bounded previews, maximum-size IPv4 datagrams, and a 1,000-packet burst. Frontend reducer tests cover recovery and stale responses (requires Node with TypeScript stripping, tested with Node 24). Formatting covers the changed frontend/package/test files and all Rust code.
+The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). Formatting covers the changed frontend/package/test files and all Rust code.
 
 ## Limits and next evidence
 
-UDP has no delivery guarantee. Counters describe datagrams received by this process; they cannot detect packets dropped by the OS or network before `recv_from`. The product requests `SO_RCVBUF = 4 MiB`; tests can leave that option untouched with `ReceiveBuffer::SystemDefault`. On Windows, `receive_buffer_bytes` is the value Winsock accepted/read back. It is not a guaranteed OS allocation or proof of actual queue capacity. The earlier 989/1000 result has no sequence evidence and cannot be attributed to receive buffering. Loopback synthetic results do not establish loss-free performance with game traffic, bursty large payloads, CPU contention, or real network conditions. Only the latest raw datagram is retained; there is no capture history or persistence.
+UDP has no delivery guarantee. Counters describe datagrams received by this process; they cannot detect packets dropped by the OS or network before `recv_from`. The product requests `SO_RCVBUF = 4 MiB`; tests can leave that option untouched with `ReceiveBuffer::SystemDefault`. On Windows, `receive_buffer_bytes` is the value Winsock accepted/read back. It is not a guaranteed OS allocation or proof of actual queue capacity. The earlier 989/1000 result has no sequence evidence and cannot be attributed to receive buffering. Loopback synthetic results do not establish loss-free performance with game traffic, bursty large payloads, CPU contention, or real network conditions. Persistence occurs only between Start Capture and Stop Capture; interrupted recordings are not guaranteed complete and fail full validation without a valid footer.
 
-The listener binds IPv4 on all local interfaces. Real FH6 traffic still needs packet-size/sample evidence and testing on the target machine. No game parser, SQLite, AI, accounts, charts, or backend service is included.
+The listener binds IPv4 on all local interfaces. Real FH6 ingress and capture were manually verified and six recordings are now validated offline. The FH6 adapter accepts only the supplied 324-byte layout; unresolved fields remain opaque. No SQLite, AI, accounts, charts, driving analysis, F1 adapter or backend service is included.
 
 See `docs/ROADMAP.md` and `docs/adr/0001-capture-before-parser.md` for scope and the capture-before-parser decision.

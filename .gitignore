@@ -6,3 +6,8 @@ src-tauri/target/
 .env
 .env.*
 !.env.example
+
+# Private captures stay outside the repository. Only reviewed minimal fixtures are allowed.
+*.rlcap
+*.summary.json
+!src-tauri/tests/fixtures/fh6/*.rlcap

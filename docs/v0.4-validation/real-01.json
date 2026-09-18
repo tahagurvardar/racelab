@@ -1,0 +1,49 @@
+{
+  "packets": 2328,
+  "active_packets": 659,
+  "inactive_packets": 1669,
+  "invalid_packets": 0,
+  "decode_failures": 0,
+  "physical_failures": 0,
+  "timestamp_regressions": 0,
+  "timestamp_wraps": 0,
+  "inactive_resets": 0,
+  "explicit_resets": 0,
+  "dropped_capture_frames": 0,
+  "capture_duration_us": 32823237,
+  "sizes": {
+    "324": 2328
+  },
+  "speed_error_max_mps": 5.33258821278082e-6,
+  "rpm": {
+    "min": 907.2639770507812,
+    "max": 7327.6650390625
+  },
+  "rpm_to_max_ratio": {
+    "min": 0.11340806635013816,
+    "max": 0.9159586889396295
+  },
+  "throttle": {
+    "min": 0.0,
+    "max": 255.0
+  },
+  "brake": {
+    "min": 0.0,
+    "max": 255.0
+  },
+  "steering": {
+    "min": -127.0,
+    "max": 127.0
+  },
+  "gear_codes": {
+    "0": 103,
+    "1": 127,
+    "2": 21,
+    "3": 280,
+    "4": 99,
+    "11": 29
+  },
+  "issue_samples": [],
+  "omitted_issue_packets": 0,
+  "valid": true
+}

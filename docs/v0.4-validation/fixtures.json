@@ -1,0 +1,285 @@
+[
+  {
+    "fixture": "sample-01.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 7579312,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 1.687427626961835E-06,
+      "rpm": {
+        "min": 5720.572265625,
+        "max": 5725.9609375
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.715071969648419,
+        "max": 0.7157455540439173
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "brake": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "steering": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "gear_codes": {
+        "4": 2
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  },
+  {
+    "fixture": "sample-02.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 16487990,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 3.5323691207622687E-06,
+      "rpm": {
+        "min": 6455.77978515625,
+        "max": 6909.77978515625
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.8069729656817417,
+        "max": 0.863723000319214
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "brake": {
+        "min": 0.0,
+        "max": 255.0
+      },
+      "steering": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "gear_codes": {
+        "5": 2
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  },
+  {
+    "fixture": "sample-03.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 25567576,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 1.1081061899176348E-06,
+      "rpm": {
+        "min": 6170.56494140625,
+        "max": 6175.79052734375
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.7713210884528128,
+        "max": 0.7719742870936811
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "brake": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "steering": {
+        "min": 127.0,
+        "max": 127.0
+      },
+      "gear_codes": {
+        "5": 2
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  },
+  {
+    "fixture": "sample-04.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 4832715,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 2.2913085224729457E-06,
+      "rpm": {
+        "min": 4263.35546875,
+        "max": 4269.14697265625
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.5329197588621575,
+        "max": 0.5336436972922957
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "brake": {
+        "min": 255.0,
+        "max": 255.0
+      },
+      "steering": {
+        "min": -127.0,
+        "max": -127.0
+      },
+      "gear_codes": {
+        "3": 1,
+        "11": 1
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  },
+  {
+    "fixture": "sample-05.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 6219991,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 2.2847709431061958E-06,
+      "rpm": {
+        "min": 7271.1376953125,
+        "max": 7272.27490234375
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.9088927666581827,
+        "max": 0.9090349176238511
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 255.0
+      },
+      "brake": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "steering": {
+        "min": -127.0,
+        "max": -127.0
+      },
+      "gear_codes": {
+        "4": 2
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  },
+  {
+    "fixture": "sample-06.rlcap",
+    "report": {
+      "packets": 3,
+      "active_packets": 2,
+      "inactive_packets": 1,
+      "invalid_packets": 0,
+      "decode_failures": 0,
+      "physical_failures": 0,
+      "timestamp_regressions": 0,
+      "timestamp_wraps": 0,
+      "inactive_resets": 0,
+      "explicit_resets": 0,
+      "dropped_capture_frames": 0,
+      "capture_duration_us": 36207621,
+      "sizes": {
+        "324": 3
+      },
+      "speed_error_max_mps": 2.83977700377136E-06,
+      "rpm": {
+        "min": 6796.814453125,
+        "max": 6810.72216796875
+      },
+      "rpm_to_max_ratio": {
+        "min": 0.8496023251967317,
+        "max": 0.8513407906132755
+      },
+      "throttle": {
+        "min": 0.0,
+        "max": 255.0
+      },
+      "brake": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "steering": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "gear_codes": {
+        "6": 2
+      },
+      "issue_samples": [],
+      "omitted_issue_packets": 0,
+      "valid": true
+    }
+  }
+]
