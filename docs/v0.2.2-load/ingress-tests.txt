@@ -1,0 +1,35 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.81s
+     Running unittests src\lib.rs (src-tauri\target\debug\deps\racelab_lib-adda0360599865f9.exe)
+
+running 12 tests
+test ingress::tests::full_size_datagram_is_retained_without_truncation ... ok
+test ingress::tests::rate_uses_elapsed_monotonic_time_and_decays_when_idle ... ok
+test ingress::tests::bind_failure_surfaces_and_next_start_recovers ... ok
+test ingress::tests::receive_failure_is_counted_and_stops_session ... ok
+test ingress::tests::private_wake_is_filtered_before_stats_and_sinks ... ok
+test ingress::tests::burst_is_counted_without_any_snapshot_consumer ... ok
+
+thread 'udp-ingress' (15496) panicked at src\ingress.rs:762:17:
+injected consumer failure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test ingress::tests::sink_panic_is_reported_and_does_not_stop_authoritative_counting ... ok
+test ingress::tests::restart_on_a_different_port_resets_the_session_and_releases_old_port ... ok
+test ingress::tests::stop_restart_is_idempotent_and_resets_all_session_fields ... ok
+
+thread 'ingress::tests::idle_stop_wakes_promptly_across_repeated_sessions' (10684) panicked at src\ingress.rs:450:13:
+idle stop took 531.8035ms
+test ingress::tests::idle_stop_wakes_promptly_across_repeated_sessions ... FAILED
+
+thread '<unnamed>' (1956) panicked at src\ingress.rs:440:40:
+called `Result::unwrap()` on an `Err` value: SendError { .. }
+test ingress::tests::concurrent_lifecycle_requests_leave_no_orphan_socket ... ok
+test ingress::tests::snapshot_contention_preserves_packets_and_monotonic_capture_times ... ok
+
+failures:
+
+failures:
+    ingress::tests::idle_stop_wakes_promptly_across_repeated_sessions
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.07s
+
+error: test failed, to rerun pass `--lib`

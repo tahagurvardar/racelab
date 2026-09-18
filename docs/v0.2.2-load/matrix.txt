@@ -1,0 +1,76 @@
+✓ Lockfile passes supply-chain policies (verified 3h ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+Done in 5.1s using pnpm v12.4.2
+$ cargo test --manifest-path src-tauri/Cargo.toml --test udp_load -- --ignored --nocapture
+   Compiling racelab v0.2.2 (C:\Users\PC\Desktop\racelab-v0.1\src-tauri)
+warning: linker stdout: C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `racelab` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3m 00s
+     Running tests\udp_load.rs (src-tauri\target\debug\deps\udp_load-102e930282c29da4.exe)
+
+running 1 test
+BEGIN 10hz-4mib-run1 hz=10 requested=Requested(4194304) winsock_readback=Some(4194304)
+test windows_load::sequence_verified_hardening_matrix has been running for over 60 seconds
+SENDER 10hz-4mib-run1: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:49451 at 10 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":10,"monotonic_start_ticks":184980948924,"monotonic_end_ticks":185980154190,"monotonic_frequency":10000000,"elapsed_seconds":99.927634,"achieved_hz":10,"error":null}
+RESULT 10hz-4mib-run1 hz=10 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=103.890519 packets=1000 bytes=128000 receive_errors=0 samples=401 peak_pps=12.64 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 10hz-4mib-run2 hz=10 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 10hz-4mib-run2: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:62940 at 10 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":10,"monotonic_start_ticks":186044928383,"monotonic_end_ticks":187044733051,"monotonic_frequency":10000000,"elapsed_seconds":99.97235,"achieved_hz":9.99,"error":null}
+RESULT 10hz-4mib-run2 hz=10 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=106.396416 packets=1000 bytes=128000 receive_errors=0 samples=402 peak_pps=11.96 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 10hz-4mib-run3 hz=10 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 10hz-4mib-run3: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:56264 at 10 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":10,"monotonic_start_ticks":187086054654,"monotonic_end_ticks":188085097197,"monotonic_frequency":10000000,"elapsed_seconds":99.904781,"achieved_hz":10,"error":null}
+RESULT 10hz-4mib-run3 hz=10 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=103.841109 packets=1000 bytes=128000 receive_errors=0 samples=397 peak_pps=11.95 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 10hz-4mib-run4 hz=10 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 10hz-4mib-run4: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:59543 at 10 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":10,"monotonic_start_ticks":188117749169,"monotonic_end_ticks":189116768888,"monotonic_frequency":10000000,"elapsed_seconds":99.902417,"achieved_hz":10,"error":null}
+RESULT 10hz-4mib-run4 hz=10 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=102.962224 packets=1000 bytes=128000 receive_errors=0 samples=398 peak_pps=11.61 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 10hz-4mib-run5 hz=10 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 10hz-4mib-run5: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:51655 at 10 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":10,"monotonic_start_ticks":189144716759,"monotonic_end_ticks":190143889444,"monotonic_frequency":10000000,"elapsed_seconds":99.967588,"achieved_hz":9.99,"error":null}
+RESULT 10hz-4mib-run5 hz=10 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=103.246371 packets=1000 bytes=128000 receive_errors=0 samples=400 peak_pps=13.42 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 20hz-4mib-run1 hz=20 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 20hz-4mib-run1: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:60092 at 20 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":20,"monotonic_start_ticks":190206032516,"monotonic_end_ticks":190705739015,"monotonic_frequency":10000000,"elapsed_seconds":49.965847,"achieved_hz":19.99,"error":null}
+RESULT 20hz-4mib-run1 hz=20 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=55.826127 packets=1000 bytes=128000 receive_errors=0 samples=212 peak_pps=20.97 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 20hz-4mib-run2 hz=20 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 20hz-4mib-run2: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:60825 at 20 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":20,"monotonic_start_ticks":190751017590,"monotonic_end_ticks":191250609239,"monotonic_frequency":10000000,"elapsed_seconds":49.959375,"achieved_hz":20,"error":null}
+RESULT 20hz-4mib-run2 hz=20 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=54.463324 packets=1000 bytes=128000 receive_errors=0 samples=207 peak_pps=24.73 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 20hz-4mib-run3 hz=20 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 20hz-4mib-run3: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:56669 at 20 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":20,"monotonic_start_ticks":191279808470,"monotonic_end_ticks":191779401487,"monotonic_frequency":10000000,"elapsed_seconds":49.959222,"achieved_hz":20,"error":null}
+RESULT 20hz-4mib-run3 hz=20 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=52.849626 packets=1000 bytes=128000 receive_errors=0 samples=203 peak_pps=20.95 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 60hz-4mib-run1 hz=60 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 60hz-4mib-run1: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:57685 at 60 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":60,"monotonic_start_ticks":191808972263,"monotonic_end_ticks":191975602278,"monotonic_frequency":10000000,"elapsed_seconds":16.66302,"achieved_hz":59.95,"error":null}
+RESULT 60hz-4mib-run1 hz=60 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=19.539628 packets=1000 bytes=128000 receive_errors=0 samples=70 peak_pps=60.92 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 60hz-4mib-run2 hz=60 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 60hz-4mib-run2: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:56776 at 60 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":60,"monotonic_start_ticks":192004858085,"monotonic_end_ticks":192171443176,"monotonic_frequency":10000000,"elapsed_seconds":16.65869,"achieved_hz":59.97,"error":null}
+RESULT 60hz-4mib-run2 hz=60 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=19.550977 packets=1000 bytes=128000 receive_errors=0 samples=70 peak_pps=60.69 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 60hz-4mib-run3 hz=60 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 60hz-4mib-run3: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:62549 at 60 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":60,"monotonic_start_ticks":192200294783,"monotonic_end_ticks":192366871137,"monotonic_frequency":10000000,"elapsed_seconds":16.657848,"achieved_hz":59.97,"error":null}
+RESULT 60hz-4mib-run3 hz=60 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=19.656378 packets=1000 bytes=128000 receive_errors=0 samples=70 peak_pps=64.64 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 120hz-4mib-run1 hz=120 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 120hz-4mib-run1: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:61973 at 120 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":120,"monotonic_start_ticks":192398023337,"monotonic_end_ticks":192481336637,"monotonic_frequency":10000000,"elapsed_seconds":8.331194,"achieved_hz":119.91,"error":null}
+RESULT 120hz-4mib-run1 hz=120 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=11.284899 packets=1000 bytes=128000 receive_errors=0 samples=37 peak_pps=121.13 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 120hz-4mib-run2 hz=120 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 120hz-4mib-run2: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:52789 at 120 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":120,"monotonic_start_ticks":192511311074,"monotonic_end_ticks":192594589078,"monotonic_frequency":10000000,"elapsed_seconds":8.330806,"achieved_hz":119.92,"error":null}
+RESULT 120hz-4mib-run2 hz=120 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=11.283992 packets=1000 bytes=128000 receive_errors=0 samples=37 peak_pps=121.55 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+BEGIN 120hz-4mib-run3 hz=120 requested=Requested(4194304) winsock_readback=Some(4194304)
+SENDER 120hz-4mib-run3: Sending 1000 UDP packets (128 bytes each) to 127.0.0.1:65015 at 120 Hz...
+{"sent_packets":1000,"failed_packets":0,"attempted_packets":1000,"sent_bytes":128000,"requested_hz":120,"monotonic_start_ticks":192627425754,"monotonic_end_ticks":192710837237,"monotonic_frequency":10000000,"elapsed_seconds":8.343297,"achieved_hz":119.74,"error":null}
+RESULT 120hz-4mib-run3 hz=120 sent=1000 first=Some(1) last=Some(1000) elapsed_seconds=11.825480 packets=1000 bytes=128000 receive_errors=0 samples=39 peak_pps=127.64 idle_pps=0.0 observed=1000 missing=[] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[991, 992, 993, 994, 995, 996, 997, 998, 999, 1000] monotonic=true
+test windows_load::sequence_verified_hardening_matrix ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 776.72s
+

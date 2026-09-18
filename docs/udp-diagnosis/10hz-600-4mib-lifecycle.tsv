@@ -1,0 +1,14 @@
+event	ticks
+case_start	120268978193
+receiver_start_requested	120268978282
+receiver_ready	120268980355
+child_spawn_requested	120268980654
+child_spawn_returned	120269166493
+child_exit_observed	120871463889
+stats_wait_started	120871463894
+stats_wait_finished	120871464297
+sampler_stop_requested	120893466451
+sampler_joined	120894804178
+test_teardown_requested	120894804493
+receiver_joined_socket_closed	120895763953
+test_teardown_finished	120895777053

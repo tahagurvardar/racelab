@@ -3,7 +3,10 @@
 ## V0.1 — Link
 Raw UDP listener, packet-rate measurement, packet size/source/hex preview, synthetic packet sender.
 
-## V0.2 — FH6 adapter
+## V0.2 — Reliable ingress
+Rust-owned packet/byte totals, monotonic packet-rate measurement, bounded latest-packet state, independent 4 Hz UI snapshots, safe lifecycle, and synthetic UDP load verification.
+
+## Next — FH6 adapter (after real captures)
 Capture real FH6 traffic, document packet sizes, implement evidence-based parser, normalize into `TelemetryFrame`.
 
 ## V0.3 — Live dashboard

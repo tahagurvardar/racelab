@@ -1,0 +1,7 @@
+Initial parallel cargo test --lib -- --nocapture:
+10 passed; 2 failed; finished in 18.69s.
+idle_stop_wakes_promptly_across_repeated_sessions: five-second aggregate watchdog expired.
+stop_restart_is_idempotent_and_resets_all_session_fields: three-second wait expired for a zero-length datagram in session 2, total_packets=0, running=true, receive_errors=0.
+The worker completing after the watchdog also logged a secondary SendError because the test receiver had exited.
+Isolated unchanged restart test: 1 passed, finished in 0.02s.
+Full parallel library rerun and isolated idle results are separately retained in ingress-tests.txt and idle-stop-isolated.txt.

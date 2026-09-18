@@ -1,0 +1,66 @@
+warning: linker stdout: C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `racelab` (lib) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.50s
+     Running unittests src\lib.rs (src-tauri\target\debug\deps\racelab_lib-adda0360599865f9.exe)
+
+running 12 tests
+test ingress::tests::full_size_datagram_is_retained_without_truncation ... ok
+test ingress::tests::burst_is_counted_without_any_snapshot_consumer ... ok
+test ingress::tests::bind_failure_surfaces_and_next_start_recovers ... ok
+test ingress::tests::rate_uses_elapsed_monotonic_time_and_decays_when_idle ... ok
+test ingress::tests::receive_failure_is_counted_and_stops_session ... ok
+
+thread 'udp-ingress' (20100) panicked at src\ingress.rs:762:17:
+injected consumer failure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test ingress::tests::private_wake_is_filtered_before_stats_and_sinks ... ok
+test ingress::tests::restart_on_a_different_port_resets_the_session_and_releases_old_port ... ok
+test ingress::tests::sink_panic_is_reported_and_does_not_stop_authoritative_counting ... ok
+test ingress::tests::stop_restart_is_idempotent_and_resets_all_session_fields ... ok
+test ingress::tests::concurrent_lifecycle_requests_leave_no_orphan_socket ... ok
+20 idle stop/restart cycles: longest stop=89.9702ms
+test ingress::tests::idle_stop_wakes_promptly_across_repeated_sessions ... ok
+test ingress::tests::snapshot_contention_preserves_packets_and_monotonic_capture_times ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.32s
+
+     Running unittests src\main.rs (src-tauri\target\debug\deps\racelab-1f78901632fa2129.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\udp_diagnosis.rs (src-tauri\target\debug\deps\udp_diagnosis-5eb0091de244e38d.exe)
+
+running 6 tests
+test diagnosis::duration_matrix ... ignored, duration diagnosis: approximately nine minutes
+test diagnosis::replay_receiver_timeout_control ... ignored, requires duration matrix traces; three 30-second receiver controls
+test support::tests::complete_sequence_includes_final_1000_and_nondecreasing_timestamps ... ok
+test support::tests::timing_regressions_and_observer_overflow_fail_validation ... ok
+Injected gap diagnostic: observed=994 missing=[2-3, 7, 998-1000] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[988, 989, 990, 991, 992, 993, 994, 995, 996, 997] monotonic=true
+test support::tests::exact_gap_ranges_include_missing_tail ... ok
+test support::tests::duplicate_cannot_hide_missing_packet_even_with_correct_count_and_tail ... ok
+
+test result: ok. 4 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\udp_load.rs (src-tauri\target\debug\deps\udp_load-102e930282c29da4.exe)
+
+running 5 tests
+test windows_load::sequence_verified_hardening_matrix ... ignored, 14 paced runs of 1000 packets; approximately 13 minutes
+test support::tests::timing_regressions_and_observer_overflow_fail_validation ... ok
+Injected gap diagnostic: observed=994 missing=[2-3, 7, 998-1000] duplicates=[] unexpected=[] malformed=0 observer_overflow=0 tail=[988, 989, 990, 991, 992, 993, 994, 995, 996, 997] monotonic=true
+test support::tests::exact_gap_ranges_include_missing_tail ... ok
+test support::tests::duplicate_cannot_hide_missing_packet_even_with_correct_count_and_tail ... ok
+test support::tests::complete_sequence_includes_final_1000_and_nondecreasing_timestamps ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests racelab_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

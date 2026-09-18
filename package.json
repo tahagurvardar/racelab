@@ -1,12 +1,17 @@
 {
   "name": "racelab",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "format": "prettier --write src/App.tsx src/telemetry-state.ts tests/telemetry-state.test.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check src/App.tsx src/telemetry-state.ts tests/telemetry-state.test.mjs package.json && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
+    "test:frontend": "node --experimental-strip-types --test tests/telemetry-state.test.mjs",
+    "test:udp": "cargo test --manifest-path src-tauri/Cargo.toml --test udp_load -- --ignored --nocapture",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -19,6 +24,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "3.6.2",
     "typescript": "^5.8.0",
     "vite": "^7.0.0"
   }

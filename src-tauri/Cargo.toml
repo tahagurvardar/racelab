@@ -1,6 +1,6 @@
 [package]
 name = "racelab"
-version = "0.1.0"
+version = "0.2.2"
 description = "RaceLab telemetry desktop application"
 authors = ["Taha Gürvardar"]
 edition = "2021"
@@ -13,5 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+getrandom = "0.3"
 serde = { version = "1", features = ["derive"] }
+socket2 = "0.6"
 tauri = { version = "2", features = [] }

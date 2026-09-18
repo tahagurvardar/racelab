@@ -1,15 +1,21 @@
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Continue"
 
 function Check-Command {
-    param([string]$Name, [string[]]$Args = @("--version"))
+    param([string]$Name, [string[]]$CommandArguments = @("--version"))
     $cmd = Get-Command $Name -ErrorAction SilentlyContinue
     if ($null -eq $cmd) {
         Write-Host "[MISSING] $Name" -ForegroundColor Red
         return $false
     }
 
-    $output = & $Name @Args 2>&1 | Select-Object -First 1
-    Write-Host "[OK]      $Name -> $output" -ForegroundColor Green
+    # $args is an automatic PowerShell variable; never use it as a parameter.
+    $output = & $Name @CommandArguments 2>&1
+    $commandExitCode = $LASTEXITCODE
+    if ($commandExitCode -ne 0) {
+        Write-Host "[FAILED]  $Name (exit $commandExitCode) -> $output" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "[OK]      $Name -> $($output -join [Environment]::NewLine)" -ForegroundColor Green
     return $true
 }
 
@@ -45,4 +51,5 @@ if ($ok) {
 }
 else {
     Write-Host "One or more prerequisites are missing. See README.md." -ForegroundColor Yellow
+    exit 1
 }
