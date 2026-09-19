@@ -103,11 +103,12 @@ export default function App() {
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RACELAB / V0.4</p>
+          <p className="eyebrow">RACELAB / V0.5.1</p>
           <h1>Telemetry Link</h1>
           <p className="subtitle">
-            Raw UDP capture. Rust counts every received datagram; this view
-            refreshes four times per second.
+            Listening starts automatically on port 20440. Open the game to
+            connect. Live values use the latest telemetry; transport counters
+            refresh four times per second.
           </p>
         </div>
         <div className={`status status-${status}`}>
@@ -116,28 +117,32 @@ export default function App() {
         </div>
       </header>
 
-      <section className="controls panel">
-        <label>
-          <span>
-            UDP port{stats?.bound_port ? ` · bound to ${stats.bound_port}` : ""}
-          </span>
-          <input
-            type="number"
-            min={1}
-            max={65535}
-            value={port}
-            disabled={stats?.running || pending}
-            onChange={(event) => setPort(Number(event.target.value))}
-          />
-        </label>
-        <button
-          className={stats?.running ? "danger" : "primary"}
-          onClick={() => void changeListener()}
-          disabled={!connected || pending}
-        >
-          {stats?.running ? "Stop listener" : "Start listener"}
-        </button>
-      </section>
+      <details className="panel" style={{ marginBottom: 16, padding: 12 }}>
+        <summary>Diagnostics / developer listener controls</summary>
+        <section className="controls">
+          <label>
+            <span>
+              UDP port
+              {stats?.bound_port ? ` · bound to ${stats.bound_port}` : ""}
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={65535}
+              value={port}
+              disabled={stats?.running || pending}
+              onChange={(event) => setPort(Number(event.target.value))}
+            />
+          </label>
+          <button
+            className={stats?.running ? "danger" : "primary"}
+            onClick={() => void changeListener()}
+            disabled={!connected || pending}
+          >
+            {stats?.running ? "Stop listener" : "Start listener"}
+          </button>
+        </section>
+      </details>
 
       {message && (
         <section className="error-banner" role="alert">
@@ -191,7 +196,7 @@ export default function App() {
         <pre>
           {stats?.last_packet_size != null
             ? stats.preview_hex || "Empty datagram (0 bytes)"
-            : "Start the listener, then run scripts/send-test-udp.ps1."}
+            : "Waiting for game traffic on UDP port 20440."}
         </pre>
       </section>
 

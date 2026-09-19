@@ -12,11 +12,11 @@ Record lossless raw datagrams through PacketSink with a bounded nonblocking writ
 ## V0.4 — FH6 protocol adapter and offline validation
 Parse the supplied 324-byte FH6 layout into a game-independent `TelemetryFrame`, preserve unknown fields, validate physics/timestamps offline, and maintain minimal anonymized real fixtures. Add six live engineering fields: speed, RPM, raw gear code, throttle, brake and steering. No UDP ingress changes or visual redesign. Six private captures (18,165 packets) pass validation.
 
-## Deferred — Session storage
-Additional session metadata, crash recovery and import/export need separate scope. SQLite analytics is outside V0.4.
+## V0.5 — Automatic connection, telemetry hub and sessions
+Automatically listen on 20440, probe multiple invariant-valid FH6 frames, expose connection and health states, normalize unavailable values to null, and manage active/grace/completed sessions in memory. A bounded hub supports full-rate subscribers and latest-only UI polling capped at 20 Hz. No frozen transport changes or UI redesign.
 
-## V0.5 — Driving analysis
-Lap/segment detection where data allows it, braking/acceleration/corner metrics, comparisons against personal best.
+## Deferred — Session storage and driving analysis
+Persistent session metadata, crash recovery, import/export, lap/segment detection, driving metrics and comparisons need separate scope. No SQLite or coach analytics in V0.5.
 
 ## V0.6 — Companion screen
 Read-only LAN dashboard suitable for iPhone Safari/PWA while the desktop app owns capture and storage.

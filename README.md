@@ -1,10 +1,31 @@
 # RaceLab
 
-RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.4 adds a separate FH6 adapter backed by real capture evidence.
+RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
+
+## V0.5.1: telemetry classification cleanup
+
+The engineering UI separately counts **FH6 active**, **FH6 inactive (menus/loading)**, **Invalid FH6**, and **Unknown protocol**. Structurally valid inactive packets are not rejected for lacking active-driving physics or usable menu/loading clock continuity. Packet classification is separate from protocol-lock evidence: an inactive packet may pass layout checks without proving FH6 identity. Malformed/non-finite data from a locked FH6 source still reports validation issues. Full details and current test results: [V0.5.1 validation](docs/V0.5.1-VALIDATION.md).
+
+The user has completed [manual V0.5 validation](docs/V0.5-VALIDATION.md): automatic listening/detection, active sessions, same-ID grace recovery, expiry, shutdown disconnect and automatic reconnect detection. Active input/valid rates matched, with zero receive errors/hub drops and 100% protocol confidence.
+
+## V0.5: automatic connection, telemetry hub and sessions
+
+Launch RaceLab and it automatically listens on **20440**. Five consecutive invariant-valid packets with at least two game-clock advances establish an FH6 protocol lock. Active telemetry starts a session; inactive telemetry or a brief interruption enters a configurable grace period. Connection state and health remain separate from session state. Manual listener controls live under diagnostics.
+
+The game-independent hub retains the latest frame and a bounded 512-frame ring. Bounded subscribers receive full-rate frames using nonblocking delivery with explicit drop counts. The UI requests one latest snapshot at a time, at most 20 Hz; it does not queue live frames. Unavailable canonical values are now `Option` / JSON `null`; actual zero remains zero. Raw gear and other FH6 values stay in `sourceSpecific.fh6`.
+
+The grace period defaults to 10 seconds, following inactive telemetry immediately or 1.5 seconds without valid active telemetry. To change it before launch:
+
+```powershell
+$env:RACELAB_SESSION_GRACE_MS = '15000'
+pnpm tauri dev
+```
+
+Allowed grace values are 1..120000 milliseconds. Automatic sessions are in memory only. Raw file recording still requires **Start Capture / Stop Capture**. See [V0.5 transitions, contracts, architecture, validation and risks](docs/V0.5-VALIDATION.md). The frozen UDP transport and capture format remain unchanged.
 
 ## V0.4: FH6 adapter and offline validation
 
-The 324-byte FH6 Car Dash adapter produces a game-independent `TelemetryFrame`, preserves FH6-only/unknown bytes separately, zeroes inactive canonical telemetry, and reports unsupported sizes, non-finite values and physical/timestamp validation failures. The engineering UI adds only speed km/h, RPM, the raw gear code, throttle %, brake % and steering %. Raw capture continues independently of parsing. UDP ingress is unchanged.
+The 324-byte FH6 Car Dash adapter produces a game-independent `TelemetryFrame`, preserves FH6-only/unknown bytes separately, and reports unsupported sizes, non-finite values and physical/timestamp validation failures. V0.5 supersedes V0.4's inactive zero values with null. The engineering UI shows speed km/h, RPM, the raw gear code, throttle %, brake % and steering %. Raw capture continues independently of parsing. UDP ingress is unchanged.
 
 All six private real captures passed offline validation: **18,165 packets**, 14,237 active / 3,928 inactive, zero invalid packets, capture drops or timestamp regressions. Maximum active speed-versus-velocity error was **0.0000103002 m/s**. The repository includes only **18 anonymized real packets** in six minimal fixtures; full captures remain private.
 
@@ -54,7 +75,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-Leave the UDP port at `20440` and click **Start listener**. Enter an explicit capture label and use **Start Capture**, then **Stop Capture** to save raw traffic.
+RaceLab automatically listens on `20440`. Configure the game's telemetry destination to this computer and port. Enter an explicit capture label and use **Start Capture**, then **Stop Capture** to save raw traffic. Listener start/stop is available under diagnostics when troubleshooting.
 
 ## Synthetic traffic
 

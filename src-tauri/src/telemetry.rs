@@ -18,19 +18,19 @@ impl Vector3 {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct Engine {
-    pub rpm: f32,
-    pub idle_rpm: f32,
-    pub max_rpm: f32,
+    pub rpm: Option<f32>,
+    pub idle_rpm: Option<f32>,
+    pub max_rpm: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct Controls {
     /// Pedals/handbrake: 0..=1. Steering: -1..=1.
-    pub throttle: f32,
-    pub brake: f32,
-    pub clutch: f32,
-    pub handbrake: f32,
-    pub steering: f32,
+    pub throttle: Option<f32>,
+    pub brake: Option<f32>,
+    pub clutch: Option<f32>,
+    pub handbrake: Option<f32>,
+    pub steering: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
@@ -48,15 +48,25 @@ pub enum Gear {
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct TelemetryFrame {
     pub active: bool,
-    pub game_timestamp_ms: u64,
+    pub game: Option<String>,
+    pub vehicle_id: Option<String>,
+    pub game_timestamp_ms: Option<u64>,
     pub engine: Engine,
-    pub acceleration: Vector3,
-    pub velocity: Vector3,
-    pub angular_velocity: Vector3,
-    /// x=yaw, y=pitch, z=roll; adapter-native orientation, no coordinate transform.
-    pub orientation: Vector3,
-    pub position: Vector3,
-    pub speed_mps: f32,
+    /// m/s², in source axes; absent when inactive/unavailable.
+    pub acceleration: Option<Vector3>,
+    /// m/s, in source axes.
+    pub velocity: Option<Vector3>,
+    /// radians per second, in source axes.
+    pub angular_velocity: Option<Vector3>,
+    /// Radians: x=yaw, y=pitch, z=roll; no undocumented axis transform.
+    pub orientation: Option<Vector3>,
+    /// Metres, in the source coordinate system.
+    pub position: Option<Vector3>,
+    pub speed_mps: Option<f32>,
     pub controls: Controls,
-    pub gear: Gear,
+    pub gear: Option<Gear>,
+    /// Adapter-owned JSON envelope (e.g. {"fh6": ...}); never canonical units.
+    /// Current adapters construct a fixed-size schema, not arbitrary user JSON.
+    #[serde(rename = "sourceSpecific")]
+    pub source_specific: Option<serde_json::Value>,
 }

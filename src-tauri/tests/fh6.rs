@@ -4,7 +4,7 @@ use racelab_lib::{
     fh6_validation::validate_capture,
     live_telemetry::LiveTelemetrySink,
     packet::{CapturedPacket, PacketSink},
-    telemetry::{Gear, TelemetryFrame},
+    telemetry::TelemetryFrame,
 };
 use std::{
     collections::BTreeSet,
@@ -66,7 +66,7 @@ fn real_minimal_fixtures_match_independent_golden_values_and_validate_physics() 
             let raw = &decoded.fh6;
             assert_eq!(f.active, expected["active"].as_bool().unwrap());
             assert_eq!(
-                f.game_timestamp_ms,
+                f.game_timestamp_ms.unwrap(),
                 expected["timestamp_ms"].as_u64().unwrap()
             );
             assert_eq!(raw.throttle, expected["throttle"].as_u64().unwrap() as u8);
@@ -92,37 +92,50 @@ fn real_minimal_fixtures_match_independent_golden_values_and_validate_physics() 
             ];
             if f.active {
                 fields.extend([
-                    (8, f.engine.max_rpm),
-                    (12, f.engine.idle_rpm),
-                    (16, f.engine.rpm),
-                    (20, f.acceleration.x),
-                    (24, f.acceleration.y),
-                    (28, f.acceleration.z),
-                    (32, f.velocity.x),
-                    (36, f.velocity.y),
-                    (40, f.velocity.z),
-                    (44, f.angular_velocity.x),
-                    (48, f.angular_velocity.y),
-                    (52, f.angular_velocity.z),
-                    (56, f.orientation.x),
-                    (60, f.orientation.y),
-                    (64, f.orientation.z),
-                    (244, f.position.x),
-                    (248, f.position.y),
-                    (252, f.position.z),
-                    (256, f.speed_mps),
+                    (8, f.engine.max_rpm.unwrap()),
+                    (12, f.engine.idle_rpm.unwrap()),
+                    (16, f.engine.rpm.unwrap()),
+                    (20, f.acceleration.unwrap().x),
+                    (24, f.acceleration.unwrap().y),
+                    (28, f.acceleration.unwrap().z),
+                    (32, f.velocity.unwrap().x),
+                    (36, f.velocity.unwrap().y),
+                    (40, f.velocity.unwrap().z),
+                    (44, f.angular_velocity.unwrap().x),
+                    (48, f.angular_velocity.unwrap().y),
+                    (52, f.angular_velocity.unwrap().z),
+                    (56, f.orientation.unwrap().x),
+                    (60, f.orientation.unwrap().y),
+                    (64, f.orientation.unwrap().z),
+                    (244, f.position.unwrap().x),
+                    (248, f.position.unwrap().y),
+                    (252, f.position.unwrap().z),
+                    (256, f.speed_mps.unwrap()),
                 ]);
-                close(f.controls.throttle, f64::from(raw.throttle) / 255.0);
-                close(f.controls.brake, f64::from(raw.brake) / 255.0);
-                close(f.controls.clutch, f64::from(raw.clutch) / 255.0);
-                close(f.controls.handbrake, f64::from(raw.handbrake) / 255.0);
-                close(f.controls.steering, f64::from(raw.steering) / 127.0);
-                assert_eq!(f.gear, Gear::Unmapped(u16::from(raw.gear)));
+                close(
+                    f.controls.throttle.unwrap(),
+                    f64::from(raw.throttle) / 255.0,
+                );
+                close(f.controls.brake.unwrap(), f64::from(raw.brake) / 255.0);
+                close(f.controls.clutch.unwrap(), f64::from(raw.clutch) / 255.0);
+                close(
+                    f.controls.handbrake.unwrap(),
+                    f64::from(raw.handbrake) / 255.0,
+                );
+                close(
+                    f.controls.steering.unwrap(),
+                    f64::from(raw.steering) / 127.0,
+                );
+                assert_eq!(f.gear, None);
+                assert_eq!(f.source_specific.as_ref().unwrap()["fh6"]["gear"], raw.gear);
             } else {
                 assert_eq!(
                     *f,
                     TelemetryFrame {
                         game_timestamp_ms: f.game_timestamp_ms,
+                        game: f.game.clone(),
+                        vehicle_id: f.vehicle_id.clone(),
+                        source_specific: f.source_specific.clone(),
                         ..Default::default()
                     }
                 );
@@ -198,10 +211,10 @@ fn all_requested_offsets_signedness_and_opaque_regions_are_preserved() {
         ),
         (255, 128, 64, 32, 11, -127)
     );
-    assert_eq!(d.frame.position.x, 244.25);
-    assert_eq!(d.frame.position.y, 248.25);
-    assert_eq!(d.frame.position.z, 252.25);
-    assert_eq!(d.frame.speed_mps, 256.25);
+    assert_eq!(d.frame.position.unwrap().x, 244.25);
+    assert_eq!(d.frame.position.unwrap().y, 248.25);
+    assert_eq!(d.frame.position.unwrap().z, 252.25);
+    assert_eq!(d.frame.speed_mps.unwrap(), 256.25);
     assert_eq!((r.power, r.torque), (260.25, 264.25));
     assert_eq!(r.tire_temperatures, [268.25, 272.25, 276.25, 280.25]);
     assert_eq!(
@@ -219,7 +232,7 @@ fn all_requested_offsets_signedness_and_opaque_regions_are_preserved() {
 }
 
 #[test]
-fn inactive_packets_zero_canonical_values_but_keep_raw_extension_and_report_nonfinite() {
+fn inactive_packets_have_null_canonical_values_but_keep_raw_extension_and_report_nonfinite() {
     let mut p = active_packet();
     p[0..4].fill(0);
     p[315] = 255;
@@ -230,6 +243,9 @@ fn inactive_packets_zero_canonical_values_but_keep_raw_extension_and_report_nonf
         d.frame,
         TelemetryFrame {
             game_timestamp_ms: d.frame.game_timestamp_ms,
+            game: d.frame.game.clone(),
+            vehicle_id: d.frame.vehicle_id.clone(),
+            source_specific: d.frame.source_specific.clone(),
             ..Default::default()
         }
     );
@@ -246,13 +262,19 @@ fn controls_and_rpm_and_speed_policy_report_invalid_values_without_clamping() {
         p[315] = throttle;
         p[316] = 255 - throttle;
         let d = fh6::decode(&p).unwrap();
-        close(d.frame.controls.throttle, f64::from(throttle) / 255.0);
-        close(d.frame.controls.brake, f64::from(255 - throttle) / 255.0);
+        close(
+            d.frame.controls.throttle.unwrap(),
+            f64::from(throttle) / 255.0,
+        );
+        close(
+            d.frame.controls.brake.unwrap(),
+            f64::from(255 - throttle) / 255.0,
+        );
     }
     for steering in [-127_i8, 0, 127] {
         p[320] = steering as u8;
         assert_eq!(
-            fh6::decode(&p).unwrap().frame.controls.steering,
+            fh6::decode(&p).unwrap().frame.controls.steering.unwrap(),
             f32::from(steering) / 127.0
         );
     }
@@ -381,35 +403,51 @@ impl PacketSink for RawCollector {
 fn sink_keeps_raw_capture_independent_and_does_not_reuse_invalid_or_inactive_live_values() {
     let capture = Arc::new(RawCollector::default());
     let live = LiveTelemetrySink::new(capture.clone());
+    live.begin_start_at(0);
     let p = active_packet();
-    let send = |bytes: &[u8], source| {
-        live.on_packet(&CapturedPacket {
-            bytes,
-            source,
-            received_at_ms: 0,
-            captured_at_us: 0,
-        })
+    let send = |bytes: &[u8], source, now| {
+        live.on_packet_at(
+            &CapturedPacket {
+                bytes,
+                source,
+                received_at_ms: 0,
+                captured_at_us: 0,
+            },
+            now,
+        )
     };
     let source = "127.0.0.1:5200".parse().unwrap();
-    send(&p, source);
-    let first = live.snapshot();
+    let active_frames: Vec<_> = (0_u32..5)
+        .map(|n| {
+            let mut bytes = p.clone();
+            bytes[4..8].copy_from_slice(&(n * 16).to_le_bytes());
+            bytes
+        })
+        .collect();
+    for (n, bytes) in active_frames.iter().enumerate() {
+        send(bytes, source, n as u64 * 16);
+    }
+    let first = live.snapshot_at(64);
     assert!(first.frame.unwrap().active);
-    send(&[0; 323], source);
-    let invalid = live.snapshot();
+    send(&[0; 323], source, 80);
+    let invalid = live.snapshot_at(80);
     assert!(invalid.frame.is_none());
     assert_eq!(invalid.invalid_packets, 1);
     let mut inactive = p.clone();
     inactive[0..4].fill(0);
-    send(&inactive, source);
-    assert_eq!(live.snapshot().frame.unwrap().speed_mps, 0.0);
-    send(&p, "127.0.0.1:5201".parse().unwrap());
-    assert!(live.snapshot().frame.is_none());
-    assert_eq!(
-        *capture.0.lock().unwrap(),
-        vec![p.clone(), vec![0; 323], inactive, p]
-    );
-    live.reset();
-    let reset = live.snapshot();
+    inactive[4..8].copy_from_slice(&96_u32.to_le_bytes());
+    send(&inactive, source, 96);
+    assert_eq!(live.snapshot_at(96).frame.as_ref().unwrap().speed_mps, None);
+    send(&p, "127.0.0.1:5201".parse().unwrap(), 112);
+    let foreign = live.snapshot_at(112);
+    assert!(!foreign.frame.unwrap().active);
+    assert_eq!(foreign.unknown_protocol, 1);
+    assert_eq!(foreign.invalid_fh6, 1);
+    let mut expected = active_frames;
+    expected.extend([vec![0; 323], inactive, p]);
+    assert_eq!(*capture.0.lock().unwrap(), expected);
+    live.stop_at(113);
+    let reset = live.snapshot_at(113);
     assert!(reset.revision > invalid.revision);
     assert!(reset.frame.is_none());
     assert!(reset.stale);

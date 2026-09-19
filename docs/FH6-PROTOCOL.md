@@ -1,4 +1,4 @@
-# FH6 adapter — V0.4 contract and limits
+# FH6 adapter — V0.5.1 contract and limits
 
 This adapter implements the **user-supplied 324-byte FH6 Car Dash contract** and validates it against six local real-game captures. Packet size alone cannot authenticate the sending game. The parser is explicitly FH6-specific; transport remains game-agnostic and unchanged. All multibyte fields are little endian, read individually without packed-struct alignment or unsafe casts. Unsupported lengths return a structured error before any indexed reads.
 
@@ -26,7 +26,7 @@ This adapter implements the **user-supplied 324-byte FH6 Car Dash contract** and
 | lapNumber | 312 | u16 | FH6 extension |
 | racePosition | 314 | u8 | FH6 extension |
 | throttle / brake / clutch / handbrake | 315 / 316 / 317 / 318 | u8 | Raw codes preserved; canonical value = code / 255 |
-| gear | 319 | u8 | Preserved as canonical `Gear::Unmapped(code)` and raw FH6 code |
+| gear | 319 | u8 | Canonical gear is null; exact raw code in `sourceSpecific.fh6.gear` |
 | steering | 320 | i8 | Reject -128; canonical value = code / 127 |
 | Unknown trailer | 321..323 inclusive | 3 raw bytes | Preserved exactly |
 
@@ -34,9 +34,9 @@ The supplied request explicitly typed header fields and tail controls. The float
 
 ## Canonical model and invalid values
 
-`telemetry::TelemetryFrame` is game-independent: activity, game timestamp, engine, vectors, position, speed, normalized controls and a gear representation. `adapters::fh6::DecodedFrame` pairs it with `Fh6Raw` for game-only values and opaque byte regions. No game identifiers, offsets or FH6 block fields live in the canonical model.
+`telemetry::TelemetryFrame` is game-independent: activity, optional game/vehicle identifiers and game timestamp, engine, vectors, position, speed, normalized controls and optional semantic gear. Its `sourceSpecific.fh6` envelope preserves game-only values and opaque byte regions. `adapters::fh6::DecodedFrame` also exposes `Fh6Raw` to offline callers. Packet offsets and FH6 block fields remain outside canonical values.
 
-`isRaceOn == 0` produces an inactive frame with zero dynamic canonical values and unknown gear. Game timestamp remains available for ordering; FH6 extension fields remain raw. Active RPM/speed plausibility rules do not apply to inactive telemetry. **Non-finite values in every implemented float field and steering -128 are still reported on inactive packets**, instead of being hidden by zeroing.
+`isRaceOn == 0` produces an inactive frame with null dynamic canonical values, including engine and controls. Game timestamp remains available for ordering; FH6 extension fields and all implemented raw float values remain available. Positive car ordinal becomes a string vehicle ID; zero/negative ordinals yield null. Gear semantics remain unknown, so canonical gear is null even when active; the UI shows the raw code. Actual active zero values remain zero. **Non-finite values in every implemented float field and steering -128 are still reported on inactive packets**. Offline validation skips active physics rules on inactive telemetry. Before a live protocol lock, the detector checks raw inactive engine/speed/velocity values too, so zero-filled packets cannot identify FH6.
 
 Decoding rejects unsupported sizes, non-finite f32 values, invalid activity flags and out-of-range steering. Errors identify field, offset and reason; NaN/Inf is represented by its raw bit pattern in diagnostics, not silently converted to JSON null or zero. `physical_issues` applies the following declared V0.4 policy to decoded active frames:
 
@@ -44,7 +44,7 @@ Decoding rejects unsupported sizes, non-finite f32 values, invalid activity flag
 - `0 < engineMaxRpm <= 30000`; `0 <= engineIdleRpm <= engineMaxRpm`; `0 <= currentEngineRpm <= min(engineMaxRpm * 1.1, 30000)`. These are configurable-in-code plausibility decisions, not proven FH6 protocol limits. An unsupported future high-RPM vehicle should lead to a reviewed policy change, not data clamping.
 - Throttle/brake/clutch/handbrake are u8 and therefore exactly 0..255 before normalization. Steering is signed and restricted to -127..127. Endpoint tests exercise 0/255 and -127/127. No input is clamped to conceal invalid data.
 
-Offline and live consumers both run decoding and physical validation. Invalid packets remain in raw capture, but do not replace the live display with a supposedly valid frame. Live fields show unavailable values after an invalid packet, listener stop, or two seconds without packets. Capture runs before the adapter callback and does not depend on successful parsing. Adapter work is bounded in memory and performs no I/O on ingress.
+Offline and live consumers both run decoding and physical validation. Invalid packets remain in raw capture, but do not replace the live display with a supposedly valid frame. Live fields show unavailable values after the latest packet is invalid, listener stop, or 1.5 seconds without valid frames by default. Capture runs before the adapter callback and does not depend on successful parsing. Adapter work is bounded in memory and performs no I/O on ingress.
 
 ## Game timestamp policy
 
@@ -56,7 +56,13 @@ Equal timestamps are allowed. Increasing timestamps are ordered. A backward jump
 
 All other backward jumps are errors. A rejected jump does not lower the baseline. Repeated backward jumps within an inactive run are also errors. These are **explicit validation policies**, not a claim that reset behavior was demonstrated by the six captures: none contained a backward timestamp jump. Reset/wrap paths are covered by deterministic synthetic tests. Do not mark arbitrary regressions as known resets merely to make a report pass.
 
-Offline validation tracks timestamps separately for up to 64 source endpoints; further sources produce errors rather than unbounded memory use. Live telemetry latches the first decoded source for the listener session; a different source is reported and hidden until listener restart. Raw capture continues for all sources.
+Offline validation tracks timestamps separately for up to 64 source endpoints; further sources produce errors rather than unbounded memory use. V0.5 live detection requires five consecutive valid packets from one endpoint, with at least two timestamp advances. It additionally rejects forward deltas exceeding elapsed reception time plus 2,000 ms and active timestamps frozen for more than 2,500 ms. Inactive clocks may remain paused after locking. Activity changes reset the stalled-clock watchdog. These are declared safety policies, not measured FH6 frequency limits.
+
+V0.5.1 separates packet classification from lock evidence. Structurally valid inactive packets count as `valid_inactive_fh6` even if zero engine/motion fields or unusable probe clock continuity cannot identify the stream. They do not increment invalid/rejected counters. The detector still requires its multi-frame physical/clock evidence before publishing frames or identifying FH6.
+
+After lock, inactive packets bypass live driving-clock continuity checks and clear the active clock baseline. Their game timestamps remain preserved. The next valid active packet establishes a fresh baseline; subsequent active regression/jump/stall checks remain enforced. This is a classification policy for unavailable inactive telemetry, not a claim that every menu timestamp reset is understood. Non-finite implemented fields, invalid activity and steering remain errors on inactive packets. Offline timestamp validation remains unchanged and can report discontinuities that live inactive classification tolerates.
+
+Live telemetry locks one source endpoint. Foreign traffic counts as `unknown_protocol` without reducing the locked stream's confidence or hiding its latest valid values. Malformed packets from the locked endpoint count as `invalid_fh6`; unrecognized packets before lock count as unknown. Loss of valid telemetry releases the lock after session grace (or after the silence timeout when idle), allowing automatic reprobe without rebinding. Raw capture continues for all sources. See [V0.5 state/session policies](V0.5-VALIDATION.md) and [V0.5.1 classification details](V0.5.1-VALIDATION.md).
 
 ## Offline commands and fixtures
 
@@ -81,4 +87,4 @@ Private captures stay in the application data directory. The public [fixture dir
 - Gear code semantics, especially observed 0 and 11. The UI deliberately labels **Gear (code)**; no reverse/neutral mapping has been invented.
 - Reset behavior outside the tested captures and plausibility limits for other vehicles/game states.
 
-No AI, database analytics, coaching, lap detection, F1 adapter or visual redesign is part of V0.4.
+No AI, database analytics, coaching, lap detection, F1 adapter or visual redesign is part of V0.5.

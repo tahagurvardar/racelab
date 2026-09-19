@@ -74,14 +74,19 @@ pub fn validate_capture<R: Read>(
                 let f = &decoded.frame;
                 if f.active {
                     report.active_packets += 1;
-                    report.speed_error_max_mps = report
-                        .speed_error_max_mps
-                        .max((f64::from(f.speed_mps) - f.velocity.magnitude()).abs());
-                    report.rpm.add(f64::from(f.engine.rpm));
-                    if f.engine.max_rpm > 0.0 {
-                        report
-                            .rpm_to_max_ratio
-                            .add(f64::from(f.engine.rpm) / f64::from(f.engine.max_rpm));
+                    report.speed_error_max_mps = report.speed_error_max_mps.max(
+                        (f64::from(f.speed_mps.expect("active decoded FH6 speed"))
+                            - f.velocity.expect("active decoded FH6 velocity").magnitude())
+                        .abs(),
+                    );
+                    report
+                        .rpm
+                        .add(f64::from(f.engine.rpm.expect("active decoded FH6 RPM")));
+                    if f.engine.max_rpm.unwrap_or_default() > 0.0 {
+                        report.rpm_to_max_ratio.add(
+                            f64::from(f.engine.rpm.expect("active decoded FH6 RPM"))
+                                / f64::from(f.engine.max_rpm.expect("active decoded FH6 max RPM")),
+                        );
                     }
                     report.throttle.add(f64::from(decoded.fh6.throttle));
                     report.brake.add(f64::from(decoded.fh6.brake));

@@ -1,6 +1,6 @@
 //! User-supplied FH6 324-byte Car Dash contract, little endian. Unknown bytes
 //! remain opaque. No changes to transport and no inference from packet size alone.
-use crate::telemetry::{Controls, Engine, Gear, TelemetryFrame, Vector3};
+use crate::telemetry::{Controls, Engine, TelemetryFrame, Vector3};
 use serde::Serialize;
 
 pub const PACKET_SIZE: usize = 324;
@@ -26,6 +26,8 @@ impl Issue {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Fh6Raw {
+    /// Exact implemented float values by byte offset, including inactive values.
+    pub float_fields: std::collections::BTreeMap<usize, f32>,
     pub is_race_on: i32,
     pub timestamp_ms: u32,
     pub car_ordinal: i32,
@@ -141,6 +143,10 @@ pub fn decode(bytes: &[u8]) -> Result<DecodedFrame, Vec<Issue>> {
         return Err(issues);
     }
     let raw = Fh6Raw {
+        float_fields: FLOAT_FIELDS
+            .iter()
+            .map(|&(_, offset)| (offset, f(offset)))
+            .collect(),
         is_race_on: i(0),
         timestamp_ms: u(4),
         car_ordinal: i(212),
@@ -170,37 +176,42 @@ pub fn decode(bytes: &[u8]) -> Result<DecodedFrame, Vec<Issue>> {
         steering: p[320] as i8,
         unknown_321_323: p[321..324].try_into().unwrap(),
     };
-    let frame = if raw.is_race_on == 0 {
-        // Time remains available for ordering; every dynamic canonical value is zero/unknown.
+    let mut frame = if raw.is_race_on == 0 {
+        // Inactive is not a measurement of zero. Preserve the originals separately.
         TelemetryFrame {
-            game_timestamp_ms: u64::from(raw.timestamp_ms),
+            game_timestamp_ms: Some(u64::from(raw.timestamp_ms)),
             ..TelemetryFrame::default()
         }
     } else {
         TelemetryFrame {
             active: true,
-            game_timestamp_ms: u64::from(raw.timestamp_ms),
+            game_timestamp_ms: Some(u64::from(raw.timestamp_ms)),
             engine: Engine {
-                rpm: f(16),
-                idle_rpm: f(12),
-                max_rpm: f(8),
+                rpm: Some(f(16)),
+                idle_rpm: Some(f(12)),
+                max_rpm: Some(f(8)),
             },
-            acceleration: v(20),
-            velocity: v(32),
-            angular_velocity: v(44),
-            orientation: v(56),
-            position: v(244),
-            speed_mps: f(256),
+            acceleration: Some(v(20)),
+            velocity: Some(v(32)),
+            angular_velocity: Some(v(44)),
+            orientation: Some(v(56)),
+            position: Some(v(244)),
+            speed_mps: Some(f(256)),
             controls: Controls {
-                throttle: f32::from(p[315]) / 255.0,
-                brake: f32::from(p[316]) / 255.0,
-                clutch: f32::from(p[317]) / 255.0,
-                handbrake: f32::from(p[318]) / 255.0,
-                steering: f32::from(p[320] as i8) / 127.0,
+                throttle: Some(f32::from(p[315]) / 255.0),
+                brake: Some(f32::from(p[316]) / 255.0),
+                clutch: Some(f32::from(p[317]) / 255.0),
+                handbrake: Some(f32::from(p[318]) / 255.0),
+                steering: Some(f32::from(p[320] as i8) / 127.0),
             },
-            gear: Gear::Unmapped(u16::from(p[319])),
+            // The raw code is not a canonical gear interpretation.
+            gear: None,
+            ..TelemetryFrame::default()
         }
     };
+    frame.game = Some("fh6".into());
+    frame.vehicle_id = (raw.car_ordinal > 0).then(|| raw.car_ordinal.to_string());
+    frame.source_specific = Some(serde_json::json!({ "fh6": &raw }));
     Ok(DecodedFrame { frame, fh6: raw })
 }
 
@@ -209,8 +220,15 @@ pub fn physical_issues(frame: &TelemetryFrame) -> Vec<Issue> {
     if !frame.active {
         return issues;
     }
-    let error = (f64::from(frame.speed_mps) - frame.velocity.magnitude()).abs();
-    if frame.speed_mps < 0.0 || error > SPEED_TOLERANCE_MPS {
+    let (Some(speed), Some(velocity)) = (frame.speed_mps, frame.velocity) else {
+        return vec![Issue::new(
+            "motion",
+            256,
+            "Active FH6 motion is unavailable",
+        )];
+    };
+    let error = (f64::from(speed) - velocity.magnitude()).abs();
+    if speed < 0.0 || error > SPEED_TOLERANCE_MPS {
         issues.push(Issue::new(
             "speed",
             256,
@@ -218,21 +236,29 @@ pub fn physical_issues(frame: &TelemetryFrame) -> Vec<Issue> {
         ));
     }
     let e = frame.engine;
-    if e.max_rpm <= 0.0 || e.max_rpm > RPM_ABSOLUTE_LIMIT {
+    let (Some(max), Some(idle), Some(rpm)) = (e.max_rpm, e.idle_rpm, e.rpm) else {
+        issues.push(Issue::new(
+            "engine",
+            8,
+            "Active FH6 engine data is unavailable",
+        ));
+        return issues;
+    };
+    if max <= 0.0 || max > RPM_ABSOLUTE_LIMIT {
         issues.push(Issue::new(
             "engine_max_rpm",
             8,
             "Expected 0 < max RPM <= 30000",
         ));
     }
-    if e.idle_rpm < 0.0 || e.idle_rpm > e.max_rpm {
+    if idle < 0.0 || idle > max {
         issues.push(Issue::new(
             "engine_idle_rpm",
             12,
             "Idle RPM outside 0..max RPM",
         ));
     }
-    if e.rpm < 0.0 || e.rpm > (e.max_rpm * 1.1).min(RPM_ABSOLUTE_LIMIT) {
+    if rpm < 0.0 || rpm > (max * 1.1).min(RPM_ABSOLUTE_LIMIT) {
         issues.push(Issue::new(
             "current_engine_rpm",
             16,
