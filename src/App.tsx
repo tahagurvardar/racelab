@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import CapturePanel from "./CapturePanel";
 import LiveTelemetryPanel from "./LiveTelemetryPanel";
+import SessionsPanel from "./SessionsPanel";
 import {
   initialTelemetryState,
   telemetryReducer,
@@ -103,12 +104,12 @@ export default function App() {
     <main className="shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RACELAB / V0.5.1</p>
+          <p className="eyebrow">RACELAB / V0.6</p>
           <h1>Telemetry Link</h1>
           <p className="subtitle">
             Listening starts automatically on port 20440. Open the game to
-            connect. Live values use the latest telemetry; transport counters
-            refresh four times per second.
+            connect. Sessions record themselves; live values use the latest
+            telemetry and transport counters refresh four times per second.
           </p>
         </div>
         <div className={`status status-${status}`}>
@@ -201,7 +202,12 @@ export default function App() {
       </section>
 
       <LiveTelemetryPanel listenerRunning={stats?.running ?? false} />
-      <CapturePanel listenerRunning={stats?.running ?? false} />
+      <SessionsPanel />
+
+      <details className="panel" style={{ marginBottom: 16, padding: 12 }}>
+        <summary>Diagnostics / V0.3 raw datagram capture</summary>
+        <CapturePanel listenerRunning={stats?.running ?? false} />
+      </details>
 
       <section className="next panel">
         <p className="eyebrow">RAW CAPTURE + FH6 ADAPTER</p>

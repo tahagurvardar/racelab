@@ -41,7 +41,7 @@ export default function LiveTelemetryPanel({
     <section className="packet panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">V0.5.1 · AUTOMATIC TELEMETRY</p>
+          <p className="eyebrow">V0.6 · AUTOMATIC TELEMETRY</p>
           <h2>Live telemetry</h2>
         </div>
         <span>{connectionLabel(snapshot?.connection)}</span>

@@ -15,10 +15,13 @@ Parse the supplied 324-byte FH6 layout into a game-independent `TelemetryFrame`,
 ## V0.5 — Automatic connection, telemetry hub and sessions
 Automatically listen on 20440, probe multiple invariant-valid FH6 frames, expose connection and health states, normalize unavailable values to null, and manage active/grace/completed sessions in memory. A bounded hub supports full-rate subscribers and latest-only UI polling capped at 20 Hz. No frozen transport changes or UI redesign.
 
-## Deferred — Session storage and driving analysis
-Persistent session metadata, crash recovery, import/export, lap/segment detection, driving metrics and comparisons need separate scope. No SQLite or coach analytics in V0.5.
+## V0.6 — Automatic session recorder
+Record normalized `TelemetryFrame` streams automatically for every SessionEngine session, with no Start Recording control. Bounded non-blocking writer queue, versioned manifest and RLFRAMES v1 binary frame stream on disk, automatic summaries, crash-safe interrupted classification, and a manifest-only Recent Sessions / Session Details UI. Frozen UDP ingress and V0.5.1 lifecycle semantics unchanged. V0.3 raw capture stays diagnostics-only.
 
-## V0.6 — Companion screen
+## Deferred — Driving analysis
+Import/export, retention policy, lap/segment detection, driving metrics and comparisons need separate scope. No SQLite or coach analytics in V0.6.
+
+## Deferred — Companion screen
 Read-only LAN dashboard suitable for iPhone Safari/PWA while the desktop app owns capture and storage.
 
 ## V0.7 — Game adapters

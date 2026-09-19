@@ -2,6 +2,12 @@
 
 RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
 
+## V0.6: automatic session recorder
+
+Every session RaceLab detects is now recorded to disk automatically. There is no Start Recording button: the recorder opens when `SessionEngine` starts a session, keeps the same file across a short menu interruption (GRACE), and finalizes when the session completes. Normalized `TelemetryFrame` records are stored — not raw FH6 datagrams — under `%LOCALAPPDATA%\com.tahagurvardar.racelab\sessions\<session-id>\` as a versioned `manifest.json` plus a streamable binary `frames.rlframes`. Frames reach the writer through a bounded 4096-slot queue; overflow drops the newest frame and is counted in the recorder status, the manifest and the session summary, so ingestion is never blocked by disk I/O.
+
+Completion calculates a summary automatically: duration, frame count, max and **time-weighted average** speed and RPM, full-throttle time (normalized throttle >= 0.95), braking time (normalized brake > 0.05), gear changes and distance. Unavailable values stay unavailable — FH6 reports no canonical gear or distance field, so those read as `—` rather than zero. A session interrupted by a crash is reclassified as incomplete on the next start and never presented as completed. Recent Sessions and Session Details are served from manifest metadata alone; the frame stream is never sent to the UI. V0.3 raw capture remains a diagnostics-only feature. Format specification: [V0.6 session format](docs/V0.6-SESSION-FORMAT.md). Implementation and test results: [V0.6 validation](docs/V0.6-VALIDATION.md).
+
 ## V0.5.1: telemetry classification cleanup
 
 The engineering UI separately counts **FH6 active**, **FH6 inactive (menus/loading)**, **Invalid FH6**, and **Unknown protocol**. Structurally valid inactive packets are not rejected for lacking active-driving physics or usable menu/loading clock continuity. Packet classification is separate from protocol-lock evidence: an inactive packet may pass layout checks without proving FH6 identity. Malformed/non-finite data from a locked FH6 source still reports validation issues. Full details and current test results: [V0.5.1 validation](docs/V0.5.1-VALIDATION.md).

@@ -569,3 +569,81 @@ fn invalid_fh6_and_unknown_traffic_are_distinct_and_counters_reset_on_restart() 
         0
     );
 }
+
+// ------------------------------------------------- V0.6 automatic recording
+
+fn recorder_root(name: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "racelab-v06-appliance-{}-{name}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    root
+}
+
+/// The real FH6 path: detection, classification and session lifecycle are
+/// unchanged, and recording happens with no user action anywhere.
+#[test]
+fn real_fh6_telemetry_records_automatically_without_changing_classification() {
+    use racelab_lib::{
+        session_format::SessionStatus, session_recorder::SessionRecorder, session_store,
+        telemetry_hub::SessionRecorderHook,
+    };
+    let root = recorder_root("fh6");
+    let recorder = SessionRecorder::new(root.clone()).unwrap();
+    let live = live();
+    live.hub
+        .attach_recorder(Arc::clone(&recorder) as Arc<dyn SessionRecorderHook>)
+        .unwrap();
+    lock(&live, 0, true);
+    let snapshot = live.snapshot_at(80);
+    assert_eq!(snapshot.protocol.as_deref(), Some("fh6"));
+    assert_eq!(snapshot.connection, C::SessionActive);
+    let id = snapshot.session.as_ref().unwrap().id.clone();
+    assert_eq!(snapshot.session.as_ref().unwrap().state, S::Active);
+    for n in 5..40 {
+        send(&live, n * 16, true);
+    }
+    // Short menu interruption: same session, same recording.
+    send(&live, 700, false);
+    live.snapshot_at(750);
+    assert_eq!(live.snapshot_at(760).session.unwrap().id, id);
+    send(&live, 800, true);
+    assert_eq!(live.snapshot_at(810).session.unwrap().state, S::Active);
+    // Long menu: grace expires and the session completes.
+    send(&live, 900, false);
+    let after = live.snapshot_at(2000);
+    assert_eq!(after.session.as_ref().unwrap().state, S::Completed);
+    let until = Instant::now() + Duration::from_secs(10);
+    while !session_store::get_session(&root, &id)
+        .is_ok_and(|m| m.status != SessionStatus::Recording)
+    {
+        assert!(Instant::now() < until, "recorder never finalized {id}");
+        thread::sleep(Duration::from_millis(5));
+    }
+    let manifest = session_store::get_session(&root, &id).unwrap();
+    assert_eq!(manifest.status, SessionStatus::Completed);
+    assert_eq!(manifest.session_id, id);
+    assert_eq!(manifest.game.as_deref(), Some("fh6"));
+    assert_eq!(manifest.vehicle_id.as_deref(), Some("123"));
+    assert_eq!(manifest.recorder_dropped_frames, 0);
+    assert!(manifest.active_frame_count > 0 && manifest.inactive_frame_count > 0);
+    assert_eq!(
+        manifest.frame_count,
+        manifest.active_frame_count + manifest.inactive_frame_count
+    );
+    assert!(manifest.summary.is_some());
+    // V0.5.1 classification is untouched by recording.
+    assert_eq!(after.valid_active_fh6, 41);
+    assert_eq!(after.valid_inactive_fh6, 2);
+    assert_eq!(after.invalid_fh6, 0);
+    assert_eq!(after.unknown_protocol, 0);
+    assert_eq!(after.hub.subscriber_drops, 0);
+    assert_eq!(
+        session_store::list_recent_sessions(&root, None)
+            .sessions
+            .len(),
+        1
+    );
+    recorder.shutdown();
+}

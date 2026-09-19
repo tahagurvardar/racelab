@@ -8,6 +8,10 @@ pub mod live_telemetry;
 pub mod packet;
 pub mod protocol;
 pub mod session;
+pub mod session_format;
+pub mod session_recorder;
+pub mod session_store;
+pub mod session_summary;
 pub mod telemetry;
 pub mod telemetry_hub;
 
@@ -15,6 +19,9 @@ use appliance::{Appliance, DEFAULT_FH6_PORT};
 use capture::{CaptureSnapshot, RawCaptureSink};
 use ingress::StatsSnapshot;
 use live_telemetry::{ConnectionConfig, LiveSnapshot};
+use session_format::SessionManifestV1;
+use session_recorder::{RecorderStatus, SessionRecorder};
+use session_store::RecentSessions;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -73,6 +80,38 @@ fn get_live_telemetry(state: State<'_, Arc<Appliance>>) -> LiveSnapshot {
     state.live.snapshot()
 }
 
+#[tauri::command]
+fn get_recorder_status(state: State<'_, Arc<SessionRecorder>>) -> RecorderStatus {
+    state.status()
+}
+
+/// Manifest metadata only. The frame stream is never decoded here.
+#[tauri::command]
+async fn list_recent_sessions(
+    state: State<'_, Arc<SessionRecorder>>,
+    limit: Option<usize>,
+) -> Result<RecentSessions, String> {
+    let recorder = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        session_store::list_recent_sessions(recorder.root(), limit)
+    })
+    .await
+    .map_err(|error| format!("Session listing failed: {error}"))
+}
+
+#[tauri::command]
+async fn get_session(
+    state: State<'_, Arc<SessionRecorder>>,
+    session_id: String,
+) -> Result<SessionManifestV1, String> {
+    let recorder = Arc::clone(state.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        session_store::get_session(recorder.root(), &session_id)
+    })
+    .await
+    .map_err(|error| format!("Session read failed: {error}"))?
+}
+
 struct Publisher {
     stop: mpsc::SyncSender<()>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -104,8 +143,18 @@ pub fn run() {
                 Appliance::new(capture.clone(), config, DEFAULT_FH6_PORT)
                     .map_err(std::io::Error::other)?,
             );
+            // Recording is automatic: attaching the recorder is the only wiring
+            // step. Sessions still start and end solely through SessionEngine.
+            let recorder = SessionRecorder::new(app.path().app_local_data_dir()?.join("sessions"))
+                .map_err(std::io::Error::other)?;
+            appliance
+                .live
+                .hub
+                .attach_recorder(Arc::clone(&recorder) as Arc<_>)
+                .map_err(std::io::Error::other)?;
             app.manage(Arc::clone(&capture));
             app.manage(Arc::clone(&appliance));
+            app.manage(Arc::clone(&recorder));
             let handle = app.handle().clone();
             let (stop, receiver) = mpsc::sync_channel(1);
             let worker = thread::Builder::new()
@@ -148,7 +197,10 @@ pub fn run() {
             start_capture,
             stop_capture,
             get_capture_stats,
-            get_live_telemetry
+            get_live_telemetry,
+            get_recorder_status,
+            list_recent_sessions,
+            get_session
         ])
         .build(tauri::generate_context!())
         .expect("error while building RaceLab");
@@ -162,6 +214,9 @@ pub fn run() {
             if let Err(error) = handle.state::<Arc<RawCaptureSink>>().stop() {
                 eprintln!("Could not finish raw capture: {error}");
             }
+            // Appliance stop already completed any open session; this drains
+            // and finalizes the writer before the process exits.
+            handle.state::<Arc<SessionRecorder>>().shutdown();
         }
     });
 }

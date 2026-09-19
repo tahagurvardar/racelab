@@ -1,7 +1,7 @@
 //! Game-independent values. No packet offsets or game-specific vehicle identifiers.
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -16,14 +16,14 @@ impl Vector3 {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Engine {
     pub rpm: Option<f32>,
     pub idle_rpm: Option<f32>,
     pub max_rpm: Option<f32>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Controls {
     /// Pedals/handbrake: 0..=1. Steering: -1..=1.
     pub throttle: Option<f32>,
@@ -33,7 +33,7 @@ pub struct Controls {
     pub steering: Option<f32>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Gear {
     #[default]
@@ -45,7 +45,7 @@ pub enum Gear {
     Unmapped(u16),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TelemetryFrame {
     pub active: bool,
     pub game: Option<String>,
