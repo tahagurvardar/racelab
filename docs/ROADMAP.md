@@ -24,10 +24,30 @@ Import/export, retention policy, lap/segment detection, driving metrics and comp
 ## Deferred — Companion screen
 Read-only LAN dashboard suitable for iPhone Safari/PWA while the desktop app owns capture and storage.
 
-## V0.7 — Game adapters
+## V0.7 — Full telemetry dashboard
+Turn the engineering screen into a product dashboard: a persistent shell with
+Overview, Engine, Dynamics, Tires, Suspension, Inputs, Race and Sessions, and a
+separated Diagnostics section for protocol, transport, recorder-queue and raw
+adapter data. Product views consume the canonical `TelemetryFrame` only;
+`sourceSpecific` reaches exactly one module, which only Diagnostics imports.
+Unavailable values stay unavailable and stale telemetry is never presented as
+live. Frontend only: `src-tauri/` is byte-identical to `v0.6.0`. Canonical
+telemetry carries no per-wheel, suspension, lap/race, power, torque, boost or
+fuel channel, so those views render their final structure with stated reasons
+rather than invented values. See [V0.7 dashboard](V0.7-DASHBOARD.md) and
+[V0.7 validation](V0.7-VALIDATION.md).
+
+## Deferred — Canonical channel coverage
+Decide, with captured-packet evidence, whether FH6 bytes 68..211 can be decoded
+and whether power, torque, boost, fuel, tire temperature, lap and race values
+can be promoted into canonical telemetry with verified units and wheel order.
+This is a parser and `TelemetryFrame` schema change, not a UI change, and it is
+what would populate the V0.7 Tires, Suspension, Race and Engine-output views.
+
+## V0.8 — Game adapters
 Forza Motorsport and F1 adapter(s) feeding a canonical telemetry model.
 
-## V0.8 — Engineer layer
+## V0.9 — Engineer layer
 Deterministic findings first; optional AI explanation grounded only in computed telemetry evidence.
 
 ## V1.0

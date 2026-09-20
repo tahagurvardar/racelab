@@ -5,7 +5,7 @@ import {
   newerCapture,
   type CaptureSnapshot,
   type PacketTimestamp,
-} from "./capture-state";
+} from "./capture-state.ts";
 
 function timestamp(value: PacketTimestamp | null | undefined) {
   return value

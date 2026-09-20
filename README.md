@@ -2,6 +2,16 @@
 
 RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
 
+## V0.7: full telemetry dashboard
+
+RaceLab is now a dashboard rather than an engineering screen. Launch it and it waits for a supported game, detects Forza Horizon 6 on its own, starts a session, and shows live vehicle telemetry across a persistent shell: **Overview, Engine, Dynamics, Tires, Suspension, Inputs, Race and Sessions**, with all protocol, transport, recorder-queue and raw adapter data moved into a separated **Diagnostics** section. A global status bar always reports the detected game, connection, health, session state, recording state, vehicle ID and session duration — each with text and a glyph, never colour alone. The V0.6 recorder keeps running silently in the background.
+
+Every product view consumes the canonical `TelemetryFrame` and nothing else. `sourceSpecific` is read by exactly one module, which only Diagnostics imports, and tests fail the build if that stops being true. Unavailable values render as `—` and are never turned into zero; a measured zero still renders as `0`. Stale telemetry is never presented as live: when the game is in a menu, speed and RPM go unavailable rather than freezing at the last driving value.
+
+**What is deliberately empty.** Canonical telemetry carries speed, engine RPM, the acceleration/velocity/angular-velocity/orientation/position vectors and the five normalized driver inputs. It does **not** carry power, torque, boost, fuel, tire temperatures, per-wheel slip or rotation, suspension travel, lap number, race position, lap times or distance. Those are either FH6-only values with unverified units and wheel order, or — for the per-wheel and suspension channels — bytes the adapter deliberately does not decode. Tires, Suspension, Race and the Engine output cards therefore render their complete final structure filled with `—` and a stated reason, and the raw FH6 equivalents stay in Diagnostics. Nothing is labelled with a unit, wheel or enum the project has not verified. The raw FH6 gear code is never shown as a gear.
+
+V0.7 is frontend only: `git diff v0.6.0 -- src-tauri/` is empty. See [V0.7 dashboard architecture](docs/V0.7-DASHBOARD.md) and [V0.7 validation](docs/V0.7-VALIDATION.md). **Real FH6 manual validation of V0.7 is still pending.**
+
 ## V0.6: automatic session recorder
 
 Every session RaceLab detects is now recorded to disk automatically. There is no Start Recording button: the recorder opens when `SessionEngine` starts a session, keeps the same file across a short menu interruption (GRACE), and finalizes when the session completes. Normalized `TelemetryFrame` records are stored — not raw FH6 datagrams — under `%LOCALAPPDATA%\com.tahagurvardar.racelab\sessions\<session-id>\` as a versioned `manifest.json` plus a streamable binary `frames.rlframes`. Frames reach the writer through a bounded 4096-slot queue; overflow drops the newest frame and is counted in the recorder status, the manifest and the session summary, so ingestion is never blocked by disk I/O.
@@ -81,7 +91,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-RaceLab automatically listens on `20440`. Configure the game's telemetry destination to this computer and port. Enter an explicit capture label and use **Start Capture**, then **Stop Capture** to save raw traffic. Listener start/stop is available under diagnostics when troubleshooting.
+RaceLab automatically listens on `20440`. Configure the game's telemetry destination to this computer and port. The dashboard opens on Overview and connects on its own. Raw datagram capture, the listener start/stop controls and every engineering counter live under **Diagnostics**.
 
 ## Synthetic traffic
 
@@ -115,12 +125,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm test:udp
 ```
 
-The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). Formatting covers the changed frontend/package/test files and all Rust code.
+The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). V0.7 adds the presentation layer: unit conversions and nullable rendering, every dashboard view model, the FL/FR/RL/RR corner mapping, connection/session/stale presentation, the diagnostics boundary, and structural checks that no product view reads `sourceSpecific` and that exactly two polling loops exist in the whole frontend. Node cannot load `.tsx`, so component behaviour that is not expressible in a view model is asserted against the sources instead of a DOM renderer. Formatting covers `src`, `tests`, the fixture script and `package.json`, plus all Rust code.
 
 ## Limits and next evidence
 
 UDP has no delivery guarantee. Counters describe datagrams received by this process; they cannot detect packets dropped by the OS or network before `recv_from`. The product requests `SO_RCVBUF = 4 MiB`; tests can leave that option untouched with `ReceiveBuffer::SystemDefault`. On Windows, `receive_buffer_bytes` is the value Winsock accepted/read back. It is not a guaranteed OS allocation or proof of actual queue capacity. The earlier 989/1000 result has no sequence evidence and cannot be attributed to receive buffering. Loopback synthetic results do not establish loss-free performance with game traffic, bursty large payloads, CPU contention, or real network conditions. Persistence occurs only between Start Capture and Stop Capture; interrupted recordings are not guaranteed complete and fail full validation without a valid footer.
 
 The listener binds IPv4 on all local interfaces. Real FH6 ingress and capture were manually verified and six recordings are now validated offline. The FH6 adapter accepts only the supplied 324-byte layout; unresolved fields remain opaque. No SQLite, AI, accounts, charts, driving analysis, F1 adapter or backend service is included.
+
+V0.7's dashboard has not yet been run against real Forza Horizon 6 traffic; the required manual procedure is in [V0.7 validation](docs/V0.7-VALIDATION.md) and V0.7 is not frozen until it passes. Populating the Tires, Suspension, Race and Engine-output views needs captured-packet evidence for FH6 bytes 68..211 and verified units, which is backend work with its own scope.
 
 See `docs/ROADMAP.md` and `docs/adr/0001-capture-before-parser.md` for scope and the capture-before-parser decision.

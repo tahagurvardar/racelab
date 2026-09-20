@@ -1,222 +1,67 @@
-import { useEffect, useReducer, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import CapturePanel from "./CapturePanel";
-import LiveTelemetryPanel from "./LiveTelemetryPanel";
-import SessionsPanel from "./SessionsPanel";
+import { useState } from "react";
+import { AppShell } from "./components/AppShell";
+import { StatusBar } from "./components/StatusBar";
+import { useLiveTelemetry } from "./hooks/use-live-telemetry.ts";
+import { useRecorderStatus } from "./hooks/use-recorder-status.ts";
+import { useTransportStats } from "./hooks/use-transport-stats.ts";
 import {
-  initialTelemetryState,
-  telemetryReducer,
-  type StatsSnapshot,
-} from "./telemetry-state";
+  buildStatus,
+  resolveLiveFrame,
+} from "./telemetry/telemetry-view-model.ts";
+import { DEFAULT_VIEW, type ViewId } from "./views/navigation.ts";
+import DiagnosticsView from "./views/DiagnosticsView";
+import DynamicsView from "./views/DynamicsView";
+import EngineView from "./views/EngineView";
+import InputsView from "./views/InputsView";
+import OverviewView from "./views/OverviewView";
+import RaceView from "./views/RaceView";
+import SessionsView from "./views/SessionsView";
+import SuspensionView from "./views/SuspensionView";
+import TiresView from "./views/TiresView";
 
+/// The application shell owns every subscription. Telemetry, recorder status
+/// and transport statistics are read once here, above the view switch, so
+/// changing views can never start a second polling loop, and the Sessions view
+/// cannot affect telemetry ingestion.
 export default function App() {
-  const [{ stats, connected, connectionError }, dispatch] = useReducer(
-    telemetryReducer,
-    initialTelemetryState,
+  const [view, setView] = useState<ViewId>(DEFAULT_VIEW);
+  const { snapshot, error: liveError } = useLiveTelemetry();
+  const { recorder, error: recorderError } = useRecorderStatus();
+  const { stats, connectionError, apply } = useTransportStats();
+
+  const listenerRunning = stats?.running ?? false;
+  const state = resolveLiveFrame(snapshot, listenerRunning);
+  const status = buildStatus(
+    snapshot,
+    recorder?.recording ?? false,
+    liveError ?? connectionError,
   );
-  const [port, setPort] = useState(20440);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Commands and events can arrive out of order. Only apply newer snapshots,
-  // including across stop/restart and initial subscription hydration.
-  function applySnapshot(snapshot: StatsSnapshot) {
-    dispatch({ type: "snapshot", snapshot });
-  }
-
-  useEffect(() => {
-    let disposed = false;
-    let unlisten: UnlistenFn | undefined;
-    async function subscribe() {
-      try {
-        const cleanup = await listen<StatsSnapshot>(
-          "telemetry://stats",
-          (event) => {
-            if (!disposed) applySnapshot(event.payload);
-          },
-        );
-        if (disposed) {
-          cleanup();
-          return;
-        }
-        unlisten = cleanup;
-        const snapshot = await invoke<StatsSnapshot>("get_telemetry_stats");
-        if (!disposed) {
-          applySnapshot(snapshot);
-        }
-      } catch (reason) {
-        if (!disposed)
-          dispatch({ type: "connectionFailure", message: String(reason) });
-      }
-    }
-    void subscribe();
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, []);
-
-  async function changeListener() {
-    if (pending) return;
-    if (
-      !stats?.running &&
-      (!Number.isInteger(port) || port < 1 || port > 65535)
-    ) {
-      setError("Enter a UDP port between 1 and 65535.");
-      return;
-    }
-    setPending(true);
-    setError(null);
-    try {
-      applySnapshot(
-        await invoke<StatsSnapshot>(
-          stats?.running ? "stop_udp_listener" : "start_udp_listener",
-          stats?.running ? {} : { port },
-        ),
-      );
-    } catch (reason) {
-      setError(String(reason));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  const message = error ?? connectionError ?? stats?.last_error;
-  const status = message
-    ? "error"
-    : stats?.running
-      ? stats.packets_per_second > 0
-        ? "traffic"
-        : "listening"
-      : "idle";
-  const statusText = pending
-    ? "UPDATING"
-    : status === "traffic"
-      ? "RECEIVING"
-      : status === "listening"
-        ? "LISTENING"
-        : status === "error"
-          ? "ERROR"
-          : "STOPPED";
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">RACELAB / V0.6</p>
-          <h1>Telemetry Link</h1>
-          <p className="subtitle">
-            Listening starts automatically on port 20440. Open the game to
-            connect. Sessions record themselves; live values use the latest
-            telemetry and transport counters refresh four times per second.
-          </p>
-        </div>
-        <div className={`status status-${status}`}>
-          <span className="status-dot" />
-          {statusText}
-        </div>
-      </header>
-
-      <details className="panel" style={{ marginBottom: 16, padding: 12 }}>
-        <summary>Diagnostics / developer listener controls</summary>
-        <section className="controls">
-          <label>
-            <span>
-              UDP port
-              {stats?.bound_port ? ` · bound to ${stats.bound_port}` : ""}
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={65535}
-              value={port}
-              disabled={stats?.running || pending}
-              onChange={(event) => setPort(Number(event.target.value))}
-            />
-          </label>
-          <button
-            className={stats?.running ? "danger" : "primary"}
-            onClick={() => void changeListener()}
-            disabled={!connected || pending}
-          >
-            {stats?.running ? "Stop listener" : "Start listener"}
-          </button>
-        </section>
-      </details>
-
-      {message && (
-        <section className="error-banner" role="alert">
-          {message}
-        </section>
-      )}
-
-      <section className="metrics">
-        <article className="metric panel">
-          <span>Packets</span>
-          <strong>{(stats?.total_packets ?? 0).toLocaleString()}</strong>
-        </article>
-        <article className="metric panel">
-          <span>Packets / sec</span>
-          <strong>{(stats?.packets_per_second ?? 0).toFixed(1)}</strong>
-        </article>
-        <article className="metric panel">
-          <span>Total bytes</span>
-          <strong>{(stats?.total_bytes ?? 0).toLocaleString()}</strong>
-        </article>
-        <article className="metric panel">
-          <span>Packet size</span>
-          <strong>
-            {stats?.last_packet_size != null
-              ? `${stats.last_packet_size} B`
-              : "—"}
-          </strong>
-        </article>
-        <article className="metric panel">
-          <span>Source</span>
-          <strong className="small-value">{stats?.last_source ?? "—"}</strong>
-        </article>
-        <article className="metric panel">
-          <span>Receive errors</span>
-          <strong>{stats?.receive_errors ?? 0}</strong>
-        </article>
-      </section>
-
-      <section className="packet panel">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">LAST PACKET · FIRST 32 BYTES</p>
-            <h2>Hex preview</h2>
-          </div>
-          <span>
-            {stats?.last_packet_timestamp_ms != null
-              ? new Date(stats.last_packet_timestamp_ms).toLocaleTimeString()
-              : "No traffic yet"}
-          </span>
-        </div>
-        <pre>
-          {stats?.last_packet_size != null
-            ? stats.preview_hex || "Empty datagram (0 bytes)"
-            : "Waiting for game traffic on UDP port 20440."}
-        </pre>
-      </section>
-
-      <LiveTelemetryPanel listenerRunning={stats?.running ?? false} />
-      <SessionsPanel />
-
-      <details className="panel" style={{ marginBottom: 16, padding: 12 }}>
-        <summary>Diagnostics / V0.3 raw datagram capture</summary>
-        <CapturePanel listenerRunning={stats?.running ?? false} />
-      </details>
-
-      <section className="next panel">
-        <p className="eyebrow">RAW CAPTURE + FH6 ADAPTER</p>
-        <p>
-          Raw capture preserves every datagram independently of FH6 validation.
-          Gear displays the original numeric code; unknown FH6 bytes stay
-          opaque.
-        </p>
-      </section>
-    </main>
+    <AppShell
+      active={view}
+      onSelect={setView}
+      status={<StatusBar model={status} />}
+      banner={status.banner}
+    >
+      {view === "overview" ? <OverviewView state={state} /> : null}
+      {view === "engine" ? <EngineView state={state} /> : null}
+      {view === "dynamics" ? <DynamicsView state={state} /> : null}
+      {view === "tires" ? <TiresView state={state} /> : null}
+      {view === "suspension" ? <SuspensionView state={state} /> : null}
+      {view === "inputs" ? <InputsView state={state} /> : null}
+      {view === "race" ? <RaceView state={state} /> : null}
+      {view === "sessions" ? (
+        <SessionsView recorder={recorder} recorderError={recorderError} />
+      ) : null}
+      {view === "diagnostics" ? (
+        <DiagnosticsView
+          live={snapshot}
+          stats={stats}
+          recorder={recorder}
+          onStats={apply}
+        />
+      ) : null}
+    </AppShell>
   );
 }

@@ -155,13 +155,20 @@ test("details never need the frame stream, only manifest and summary fields", ()
 
 test("the sessions UI only calls manifest-level commands and has no Start Recording control", async () => {
   const { readFile } = await import("node:fs/promises");
+  // V0.7 moved the panel into the dashboard shell as a view, and moved the
+  // recorder-status poll up into a shared hook so opening Sessions cannot start
+  // a second polling loop. The command surface is otherwise unchanged.
   const panel = await readFile(
-    new URL("../src/SessionsPanel.tsx", import.meta.url),
+    new URL("../src/views/SessionsView.tsx", import.meta.url),
     "utf8",
   );
-  const invoked = [...panel.matchAll(/invoke<[^>]+>\("([a-z_]+)"/g)].map(
-    (match) => match[1],
+  const hook = await readFile(
+    new URL("../src/hooks/use-recorder-status.ts", import.meta.url),
+    "utf8",
   );
+  const invoked = [
+    ...`${panel}${hook}`.matchAll(/invoke<[^>]+>\("([a-z_]+)"/g),
+  ].map((match) => match[1]);
   assert.deepEqual(
     new Set(invoked),
     new Set(["get_recorder_status", "list_recent_sessions", "get_session"]),
@@ -181,8 +188,14 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
     new URL("../src/App.tsx", import.meta.url),
     "utf8",
   );
-  // The existing live telemetry UI stays mounted alongside the new panel.
-  assert.ok(app.includes("<LiveTelemetryPanel"));
-  assert.ok(app.includes("<SessionsPanel"));
-  assert.ok(app.includes("<CapturePanel"));
+  // Live telemetry, sessions and raw capture all remain reachable in the V0.7
+  // shell: the first as the dashboard views, the last inside Diagnostics.
+  assert.ok(app.includes("<OverviewView"));
+  assert.ok(app.includes("<SessionsView"));
+  assert.ok(app.includes("<DiagnosticsView"));
+  const diagnostics = await readFile(
+    new URL("../src/views/DiagnosticsView.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(diagnostics.includes("<CapturePanel"));
 });
