@@ -1,7 +1,4 @@
-import {
-  EmptyTelemetryState,
-  UnavailableChannel,
-} from "../components/EmptyTelemetryState";
+import { EmptyTelemetryState } from "../components/EmptyTelemetryState";
 import { TelemetrySection, ViewHeader } from "../components/TelemetrySection";
 import { WheelTelemetry } from "../components/WheelTelemetry";
 import {
@@ -10,7 +7,7 @@ import {
 } from "../telemetry/telemetry-view-model.ts";
 
 export default function SuspensionView({ state }: { state: LiveFrameState }) {
-  const model = buildSuspension();
+  const model = buildSuspension(state);
   return (
     <>
       <ViewHeader
@@ -18,12 +15,11 @@ export default function SuspensionView({ state }: { state: LiveFrameState }) {
         summary="Four-corner suspension travel from canonical telemetry."
       />
       <EmptyTelemetryState state={state} />
-      {model.available ? null : <UnavailableChannel reason={model.reason} />}
 
       <TelemetrySection
         eyebrow="FL · FR · RL · RR"
         title="Corners"
-        description="Corner positions are fixed by the view model and rendered in order. No travel value is interpreted as bottoming out, rebound or spring behaviour; V0.7 presents telemetry and does not analyse it."
+        description="Normalized travel runs 0 at full extension to 1 at full compression; travel in millimetres is an exact presentation of the canonical metres. No travel value is interpreted as bottoming out, rebound or spring behaviour: RaceLab presents telemetry and does not analyse it."
       >
         <WheelTelemetry model={model} />
       </TelemetrySection>

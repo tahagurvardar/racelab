@@ -27,7 +27,10 @@ export interface DiagnosticEntry {
 }
 
 const UNVERIFIED_UNIT = "Raw adapter value; unit unverified.";
-const UNVERIFIED_ORDER = "Raw adapter value; wheel order and unit unverified.";
+const NEVER_OBSERVED =
+  "Raw adapter value; every captured packet holds zero, so unit and meaning are unestablished.";
+const SOURCE_ORDER =
+  "Exact wire value in packet-offset order. The canonical frame carries the same reading resolved to a corner.";
 const OPAQUE_CODE = "Opaque code; no meaning inferred.";
 
 function entry(
@@ -53,6 +56,12 @@ interface Fh6Envelope {
   boost?: number;
   fuel?: number;
   tire_temperatures?: number[];
+  normalized_suspension_travel?: number[];
+  tire_slip_ratio?: number[];
+  wheel_rotation_rad_s?: number[];
+  tire_slip_angle?: number[];
+  tire_combined_slip?: number[];
+  suspension_travel_metres?: number[];
   distance_traveled?: number;
   best_lap?: number;
   last_lap?: number;
@@ -110,58 +119,117 @@ export function fh6GearCode(frame: TelemetryFrame | null): DiagnosticEntry {
 export function fh6Powertrain(frame: TelemetryFrame | null): DiagnosticEntry[] {
   const fh6 = envelope(frame);
   return [
-    entry("power", "Power", number(fh6?.power, 1), UNVERIFIED_UNIT),
-    entry("torque", "Torque", number(fh6?.torque, 1), UNVERIFIED_UNIT),
+    entry("power", "Power (wire)", number(fh6?.power, 1), SOURCE_ORDER),
+    entry("torque", "Torque (wire)", number(fh6?.torque, 1), SOURCE_ORDER),
     entry("boost", "Boost", number(fh6?.boost, 3), UNVERIFIED_UNIT),
     entry("fuel", "Fuel", number(fh6?.fuel, 3), UNVERIFIED_UNIT),
   ];
 }
 
-/// Four values ordered exactly by the packet offsets the adapter read. They are
-/// deliberately not labelled FL/FR/RL/RR: the wheel order is unverified.
+/// Every per-wheel channel in **source index order**, exactly as the adapter
+/// read it off the wire. The product views read named corners instead; keeping
+/// the source order here is what makes a suspected corner swap debuggable.
+const WHEEL_CHANNELS: {
+  key: string;
+  label: string;
+  field: keyof Fh6Envelope;
+  digits: number;
+}[] = [
+  {
+    key: "tire-temp",
+    label: "Tire temperature (°F)",
+    field: "tire_temperatures",
+    digits: 1,
+  },
+  {
+    key: "travel-normalized",
+    label: "Normalized suspension travel",
+    field: "normalized_suspension_travel",
+    digits: 4,
+  },
+  {
+    key: "travel-m",
+    label: "Suspension travel (m)",
+    field: "suspension_travel_metres",
+    digits: 5,
+  },
+  {
+    key: "slip-ratio",
+    label: "Tire slip ratio",
+    field: "tire_slip_ratio",
+    digits: 4,
+  },
+  {
+    key: "slip-angle",
+    label: "Tire slip angle",
+    field: "tire_slip_angle",
+    digits: 4,
+  },
+  {
+    key: "combined-slip",
+    label: "Tire combined slip",
+    field: "tire_combined_slip",
+    digits: 4,
+  },
+  {
+    key: "rotation",
+    label: "Wheel rotation (rad/s)",
+    field: "wheel_rotation_rad_s",
+    digits: 3,
+  },
+];
+
 export function fh6TireTemperatures(
   frame: TelemetryFrame | null,
 ): DiagnosticEntry[] {
-  const temperatures = envelope(frame)?.tire_temperatures;
-  return [0, 1, 2, 3].map((index) =>
-    entry(
-      `tire-${index}`,
-      `Tire temperature ${index}`,
-      number(temperatures?.[index], 1),
-      UNVERIFIED_ORDER,
-    ),
-  );
+  const fh6 = envelope(frame);
+  return WHEEL_CHANNELS.flatMap((channel) => {
+    const values = fh6?.[channel.field] as number[] | undefined;
+    return [0, 1, 2, 3].map((index) =>
+      entry(
+        `${channel.key}-${index}`,
+        `${channel.label} ${index}`,
+        number(values?.[index], channel.digits),
+        SOURCE_ORDER,
+      ),
+    );
+  });
 }
 
 export function fh6Race(frame: TelemetryFrame | null): DiagnosticEntry[] {
   const fh6 = envelope(frame);
   return [
-    entry("lap-number", "Lap number", code(fh6?.lap_number), UNVERIFIED_UNIT),
+    entry(
+      "lap-number",
+      "Lap number (wire)",
+      code(fh6?.lap_number),
+      SOURCE_ORDER,
+    ),
     entry(
       "race-position",
-      "Race position",
+      "Race position (wire)",
       code(fh6?.race_position),
-      UNVERIFIED_UNIT,
+      SOURCE_ORDER,
+    ),
+    entry(
+      "race-time",
+      "Race time (wire)",
+      number(fh6?.current_race_time, 3),
+      SOURCE_ORDER,
     ),
     entry(
       "current-lap",
       "Current lap",
       number(fh6?.current_lap, 3),
-      UNVERIFIED_UNIT,
+      NEVER_OBSERVED,
     ),
-    entry("last-lap", "Last lap", number(fh6?.last_lap, 3), UNVERIFIED_UNIT),
-    entry("best-lap", "Best lap", number(fh6?.best_lap, 3), UNVERIFIED_UNIT),
-    entry(
-      "race-time",
-      "Race time",
-      number(fh6?.current_race_time, 3),
-      UNVERIFIED_UNIT,
-    ),
+    entry("last-lap", "Last lap", number(fh6?.last_lap, 3), NEVER_OBSERVED),
+    entry("best-lap", "Best lap", number(fh6?.best_lap, 3), NEVER_OBSERVED),
     entry(
       "distance",
       "Distance travelled",
       number(fh6?.distance_traveled, 1),
-      UNVERIFIED_UNIT,
+      NEVER_OBSERVED,
     ),
   ];
 }

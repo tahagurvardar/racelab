@@ -7,7 +7,7 @@ use racelab_lib::{
     session_recorder::{SessionRecorder, CHECKPOINT_INTERVAL, RECORDER_QUEUE_CAPACITY},
     session_store,
     session_summary::MAX_SAMPLE_GAP_MS,
-    telemetry::{Controls, Engine, Gear, TelemetryFrame, Vector3},
+    telemetry::{Controls, Engine, Gear, Race, TelemetryFrame, Vector3, Vehicle, Wheel, Wheels},
     telemetry_hub::{SessionRecorderHook, TelemetryHub},
 };
 use std::{
@@ -131,6 +131,8 @@ fn active(speed_mps: f32, rpm: f32, throttle: f32, brake: f32) -> TelemetryFrame
             rpm: Some(rpm),
             idle_rpm: Some(800.0),
             max_rpm: Some(7500.0),
+            power_w: Some(84_286.8),
+            torque_nm: Some(140.55),
         },
         speed_mps: Some(speed_mps),
         controls: Controls {
@@ -153,6 +155,20 @@ fn inactive() -> TelemetryFrame {
     }
 }
 
+/// A corner whose seven channels are distinct and separated from every other
+/// corner's, so any transposition shows up as a mismatched number.
+fn corner(base: f32) -> Wheel {
+    Wheel {
+        temperature_c: Some(base + 0.5),
+        slip_ratio: Some(base + 1.25),
+        slip_angle: Some(base + 2.125),
+        combined_slip: Some(base + 3.0625),
+        rotation_rad_s: Some(base + 4.5),
+        normalized_suspension_travel: Some(base / 100.0),
+        suspension_travel_m: Some(base / 1000.0),
+    }
+}
+
 /// Every canonical field populated, including a source-specific envelope with
 /// nested nulls, floats, integers and arrays.
 fn saturated() -> TelemetryFrame {
@@ -165,6 +181,8 @@ fn saturated() -> TelemetryFrame {
             rpm: Some(6123.25),
             idle_rpm: Some(812.5),
             max_rpm: Some(7300.75),
+            power_w: Some(123_456.75),
+            torque_nm: Some(321.125),
         },
         acceleration: Some(Vector3 {
             x: -1.5,
@@ -200,6 +218,25 @@ fn saturated() -> TelemetryFrame {
             steering: Some(-0.992_126),
         },
         gear: Some(Gear::Forward(4)),
+        vehicle: Vehicle {
+            class_code: Some(5),
+            performance_index: Some(842),
+            drivetrain_code: Some(1),
+            cylinders: Some(12),
+        },
+        // Every corner and every channel gets a distinct value, so a
+        // round-trip that transposed two corners or two channels would fail.
+        wheels: Wheels {
+            front_left: corner(10.0),
+            front_right: corner(20.0),
+            rear_left: corner(30.0),
+            rear_right: corner(40.0),
+        },
+        race: Race {
+            lap_number: Some(7),
+            race_position: Some(3),
+            race_time_seconds: Some(421.5),
+        },
         source_specific: Some(serde_json::json!({
             "fh6": {
                 "car_ordinal": 2599,
@@ -403,7 +440,7 @@ fn every_canonical_gear_variant_round_trips() {
     let mut cursor = &buffer[..];
     for index in 0..variants.len() {
         let len = u32::from_le_bytes(cursor[1..5].try_into().unwrap()) as usize;
-        let record: racelab_lib::session_format::RecordedFrameV1 =
+        let record: racelab_lib::session_format::RecordedFrame =
             rmp_serde::from_slice(&cursor[5..5 + len]).unwrap();
         assert_eq!(record.sequence, index as u64);
         decoded.push(record.frame.gear.unwrap());
@@ -1342,4 +1379,28 @@ fn sixty_hertz_udp_telemetry_records_with_no_drops_or_receive_errors() {
         .iter()
         .all(|f| f.frame.active && f.frame.game.as_deref() == Some("fh6")));
     recorder.shutdown();
+}
+
+#[test]
+fn a_new_recording_declares_telemetry_frame_schema_two_everywhere_it_is_advertised() {
+    let rig = rig("schema-v2");
+    rig.hub
+        .publish(active(10.0, 3000.0, 1.0, 0.0), 0, Some(1_800_000_000_000));
+    let id = rig.session_id();
+    rig.hub.finish_session(50, "test_complete");
+    rig.await_finalized(&id);
+
+    let manifest = session_store::get_session(&rig.root, &id).unwrap();
+    assert_eq!(manifest.telemetry_frame_schema_version, 2);
+    // The container framing and the manifest's own JSON shape did not change,
+    // so neither of their versions may move with the canonical schema.
+    assert_eq!(manifest.frame_format_version, 1);
+    assert_eq!(manifest.schema_version, 1);
+
+    let (header, frames) =
+        session_format::read_all_frames(&rig.directory(&id).join(FRAME_FILE_NAME)).unwrap();
+    assert_eq!(header.telemetry_frame_schema_version, 2);
+    // And the promoted canonical values really are in the recording.
+    assert_eq!(frames[0].frame.engine.power_w, Some(84_286.8));
+    assert_eq!(frames[0].frame.engine.torque_nm, Some(140.55));
 }

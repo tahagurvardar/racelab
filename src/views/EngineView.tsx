@@ -13,7 +13,7 @@ export default function EngineView({ state }: { state: LiveFrameState }) {
     <>
       <ViewHeader
         title="Engine"
-        summary="Canonical engine telemetry. RPM is the only engine channel the canonical TelemetryFrame carries today."
+        summary="Canonical engine telemetry: RPM, power and torque."
       />
       <EmptyTelemetryState state={state} />
 
@@ -37,11 +37,19 @@ export default function EngineView({ state }: { state: LiveFrameState }) {
       </TelemetrySection>
 
       <TelemetrySection
-        eyebrow="NOT IN CANONICAL TELEMETRY"
-        title="Output and fluids"
-        description="FH6 transmits power, torque, boost and fuel, but their units are not established, so they are not promoted into canonical telemetry and no W-to-kW conversion is applied anywhere in the product. The decoded raw values are available in Diagnostics."
+        eyebrow="CANONICAL OUTPUT"
+        title="Power and torque"
+        description="Canonical power is watts and canonical torque is newton-metres, established by power = torque × angular velocity holding across real FH6 captures. Kilowatts is an exact presentation of the same canonical watts."
       >
-        <MetricGrid metrics={model.output} columns={4} />
+        <MetricGrid metrics={model.output} columns={3} />
+      </TelemetrySection>
+
+      <TelemetrySection
+        eyebrow="NOT IN CANONICAL TELEMETRY"
+        title="Fluids and boost"
+        description="FH6 transmits boost and fuel, but their units are not established — boost saturates at a constant with no known scale, and fuel held a single value in every captured packet. Neither is promoted; the decoded raw values stay in Diagnostics."
+      >
+        <MetricGrid metrics={model.unavailable} columns={2} />
       </TelemetrySection>
     </>
   );

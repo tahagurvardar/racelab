@@ -37,11 +37,24 @@ test("acceleration converts m/s squared to g using standard gravity", () => {
   assert.equal(gForce(4.903325), "0.50");
 });
 
-test("no watt-to-kilowatt conversion is offered, because none is used", async () => {
-  // V0.7 has no canonical power field, and the FH6 power unit is unverified.
-  // The conversion is absent on purpose rather than applied speculatively.
-  const formatting = await import("../src/telemetry/formatting.ts");
-  assert.equal(formatting.kilowatts, undefined);
+test("presentation conversions are exact and never mutate canonical units", async () => {
+  const { kilowatts, millimetres, revolutionsPerMinute } = await import(
+    "../src/telemetry/formatting.ts"
+  );
+  // Canonical power stays watts; kW is exactly 1000 W.
+  assert.equal(kilowatts(150_000), "150.0");
+  assert.equal(kilowatts(0), "0.0");
+  assert.equal(kilowatts(-41_052.3), "-41.1");
+  assert.equal(kilowatts(null), UNAVAILABLE);
+  // Canonical suspension travel stays metres; mm is exactly 1000 per metre.
+  assert.equal(millimetres(0.0264), "26.4");
+  assert.equal(millimetres(-0.032505), "-32.5");
+  assert.equal(millimetres(0), "0.0");
+  assert.equal(millimetres(null), UNAVAILABLE);
+  // Canonical wheel rotation stays rad/s.
+  assert.equal(revolutionsPerMinute(2 * Math.PI), "60");
+  assert.equal(revolutionsPerMinute(0), "0");
+  assert.equal(revolutionsPerMinute(null), UNAVAILABLE);
 });
 
 test("normalized inputs become percentages and keep their sign", () => {

@@ -62,10 +62,14 @@ export default function OverviewView({ state }: { state: LiveFrameState }) {
 
       <TelemetrySection eyebrow="CANONICAL IDENTITY" title="Vehicle">
         <MetricGrid metrics={model.identity} columns={2} />
+      </TelemetrySection>
+
+      <TelemetrySection eyebrow="CANONICAL CODES" title="Configuration">
+        <MetricGrid metrics={model.configuration} columns={4} />
         <p className="section-footnote">
-          Car class, performance index, drivetrain and cylinder codes are
-          adapter values with no established meaning. They are shown in
-          Diagnostics rather than presented here as vehicle facts.
+          These are the codes the game sent, shown as codes. RaceLab has no
+          class, drivetrain or model database and never turns a code into a name
+          it cannot substantiate.
         </p>
       </TelemetrySection>
     </>

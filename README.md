@@ -2,13 +2,53 @@
 
 RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
 
+## V0.8: canonical telemetry expansion
+
+`TelemetryFrame` is now **schema version 2**. The FH6 fields whose offsets,
+types, units and ordering are supported by evidence are canonical, and the V0.7
+views that previously rendered their final structure empty now carry real data:
+
+- **Tires** — temperature in °C, slip ratio, slip angle, combined slip and wheel
+  rotation, per corner.
+- **Suspension** — normalized travel (0 = full droop, 1 = full compression) and
+  travel in millimetres, per corner.
+- **Engine** — power in watts (shown in kW as well) and torque in newton-metres.
+- **Overview** — vehicle class code, performance index, drivetrain code and
+  cylinder count, rendered honestly as codes.
+- **Race** — race time in seconds, lap number and race position.
+
+Wheel order is resolved once, in the FH6 adapter, from real-capture evidence:
+the front/rear split and the side pairing are each proven by several independent
+measurements. Which side is *left* is a parity choice that provably cannot be
+derived from kinematics; that single bit comes from the documented Forza Data
+Out field order, which the captures confirm in every other respect.
+
+**What is still deliberately empty.** Boost, fuel, lap times, the game's own
+distance counter, and the rumble-strip/puddle/surface-rumble bytes are **not**
+canonical. Each was either constant, always zero, or has no establishable unit —
+the reason for every one is recorded in
+[V0.8 validation](docs/V0.8-VALIDATION.md). They stay raw in Diagnostics rather
+than appearing as zeros. The raw FH6 gear code is still never shown as a gear.
+
+Existing V0.6/V0.7 recordings keep working. Schema-v1 frames decode through a
+frozen compatibility struct and convert faithfully — every old value preserved,
+every new field null — and **no recording on disk is ever rewritten**. The
+RLFRAMES container framing and the manifest's own JSON shape did not change, so
+neither of their versions moved.
+
+See [V0.8 schema](docs/V0.8-TELEMETRY-SCHEMA.md),
+[V0.8 validation](docs/V0.8-VALIDATION.md) and
+[the FH6 protocol contract](docs/FH6-PROTOCOL.md).
+**Real FH6 manual validation of V0.8 is still pending and V0.8 is not frozen
+until it passes.**
+
 ## V0.7: full telemetry dashboard
 
 RaceLab is now a dashboard rather than an engineering screen. Launch it and it waits for a supported game, detects Forza Horizon 6 on its own, starts a session, and shows live vehicle telemetry across a persistent shell: **Overview, Engine, Dynamics, Tires, Suspension, Inputs, Race and Sessions**, with all protocol, transport, recorder-queue and raw adapter data moved into a separated **Diagnostics** section. A global status bar always reports the detected game, connection, health, session state, recording state, vehicle ID and session duration — each with text and a glyph, never colour alone. The V0.6 recorder keeps running silently in the background.
 
 Every product view consumes the canonical `TelemetryFrame` and nothing else. `sourceSpecific` is read by exactly one module, which only Diagnostics imports, and tests fail the build if that stops being true. Unavailable values render as `—` and are never turned into zero; a measured zero still renders as `0`. Stale telemetry is never presented as live: when the game is in a menu, speed and RPM go unavailable rather than freezing at the last driving value.
 
-**What is deliberately empty.** Canonical telemetry carries speed, engine RPM, the acceleration/velocity/angular-velocity/orientation/position vectors and the five normalized driver inputs. It does **not** carry power, torque, boost, fuel, tire temperatures, per-wheel slip or rotation, suspension travel, lap number, race position, lap times or distance. Those are either FH6-only values with unverified units and wheel order, or — for the per-wheel and suspension channels — bytes the adapter deliberately does not decode. Tires, Suspension, Race and the Engine output cards therefore render their complete final structure filled with `—` and a stated reason, and the raw FH6 equivalents stay in Diagnostics. Nothing is labelled with a unit, wheel or enum the project has not verified. The raw FH6 gear code is never shown as a gear.
+**What was deliberately empty in V0.7** (superseded by V0.8 above). Canonical telemetry carried speed, engine RPM, the acceleration/velocity/angular-velocity/orientation/position vectors and the five normalized driver inputs. It did **not** carry power, torque, boost, fuel, tire temperatures, per-wheel slip or rotation, suspension travel, lap number, race position, lap times or distance. Those are either FH6-only values with unverified units and wheel order, or — for the per-wheel and suspension channels — bytes the adapter deliberately does not decode. Tires, Suspension, Race and the Engine output cards therefore rendered their complete final structure filled with `—` and a stated reason, and the raw FH6 equivalents stay in Diagnostics. Nothing is labelled with a unit, wheel or enum the project has not verified. The raw FH6 gear code is never shown as a gear.
 
 V0.7 is frontend only: `git diff v0.6.0 -- src-tauri/` is empty. See [V0.7 dashboard architecture](docs/V0.7-DASHBOARD.md) and [V0.7 validation](docs/V0.7-VALIDATION.md). **Real FH6 manual validation of V0.7 is still pending.**
 
@@ -125,7 +165,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm test:udp
 ```
 
-The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). V0.7 adds the presentation layer: unit conversions and nullable rendering, every dashboard view model, the FL/FR/RL/RR corner mapping, connection/session/stale presentation, the diagnostics boundary, and structural checks that no product view reads `sourceSpecific` and that exactly two polling loops exist in the whole frontend. Node cannot load `.tsx`, so component behaviour that is not expressible in a view model is asserted against the sources instead of a DOM renderer. Formatting covers `src`, `tests`, the fixture script and `package.json`, plus all Rust code.
+The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). V0.8 adds the canonical expansion: exact byte-offset, type and endianness tests for every promoted field, the FH6 wheel-order mapping index by index, the single Fahrenheit-to-Celsius conversion, the new semantic validation policies, and a persistence suite that writes schema-v1 records with a hand-frozen legacy struct to prove old recordings still decode. V0.7 added the presentation layer: unit conversions and nullable rendering, every dashboard view model, the FL/FR/RL/RR corner mapping, connection/session/stale presentation, the diagnostics boundary, and structural checks that no product view reads `sourceSpecific` and that exactly two polling loops exist in the whole frontend. Node cannot load `.tsx`, so component behaviour that is not expressible in a view model is asserted against the sources instead of a DOM renderer. Formatting covers `src`, `tests`, the fixture script and `package.json`, plus all Rust code.
 
 ## Limits and next evidence
 
@@ -133,6 +173,6 @@ UDP has no delivery guarantee. Counters describe datagrams received by this proc
 
 The listener binds IPv4 on all local interfaces. Real FH6 ingress and capture were manually verified and six recordings are now validated offline. The FH6 adapter accepts only the supplied 324-byte layout; unresolved fields remain opaque. No SQLite, AI, accounts, charts, driving analysis, F1 adapter or backend service is included.
 
-V0.7's dashboard has not yet been run against real Forza Horizon 6 traffic; the required manual procedure is in [V0.7 validation](docs/V0.7-VALIDATION.md) and V0.7 is not frozen until it passes. Populating the Tires, Suspension, Race and Engine-output views needs captured-packet evidence for FH6 bytes 68..211 and verified units, which is backend work with its own scope.
+V0.7's dashboard has not yet been run against real Forza Horizon 6 traffic; the required manual procedure is in [V0.7 validation](docs/V0.7-VALIDATION.md) and V0.7 is not frozen until it passes. V0.8 has since populated the Tires, Suspension, Race and Engine-output views from captured-packet evidence; its own manual procedure is in [V0.8 validation](docs/V0.8-VALIDATION.md) and V0.8 is likewise not frozen until it passes.
 
 See `docs/ROADMAP.md` and `docs/adr/0001-capture-before-parser.md` for scope and the capture-before-parser decision.

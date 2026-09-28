@@ -223,3 +223,70 @@ test("diagnostics keeps the existing engineering tools", () => {
     assert.ok(source.includes(expected), `diagnostics lost ${expected}`);
   }
 });
+
+test("the wheel corner mapping exists in exactly one frontend module", () => {
+  // Corner identity is resolved in the backend adapter. The frontend maps a
+  // corner code to a named field once; no view, component or second module may
+  // repeat it, because a duplicated mapping is how corners get transposed.
+  const mappers = ALL.filter((file) =>
+    /front_left|rear_right/.test(code(file)),
+  );
+  assert.deepEqual(mappers.sort(), [
+    "telemetry/frame.ts", // declares the shape
+    "telemetry/telemetry-view-model.ts", // maps corner -> field, once
+  ]);
+  // And no component or view indexes wheels positionally.
+  for (const view of [...PRODUCT_VIEWS, "components/WheelTelemetry.tsx"]) {
+    const source = code(view);
+    assert.ok(!/wheels\s*\[/.test(source), `${view} must not index wheels`);
+    assert.ok(
+      !/\.sort\(|\.reverse\(/.test(source),
+      `${view} must not reorder corners`,
+    );
+  }
+});
+
+test("no product view rescales a canonical telemetry unit itself", () => {
+  // Presentation conversions live in formatting.ts alone. A view doing its own
+  // arithmetic on a canonical measurement is how a unit silently drifts. A
+  // millisecond-to-second divide on a session duration is not one of those:
+  // the rule is about the telemetry units this phase introduced.
+  for (const view of PRODUCT_VIEWS) {
+    const source = code(view);
+    assert.ok(
+      !/- 32|\* 5 \/ 9|5 \/ 9/.test(source),
+      `${view} converts temperature`,
+    );
+    assert.ok(
+      !/(temperature|travel|power|torque|rotation)\w*\s*[*/]\s*\d/i.test(
+        source,
+      ),
+      `${view} rescales a canonical telemetry value`,
+    );
+  }
+  // The Fahrenheit conversion exists only in the Rust adapter, nowhere in the
+  // frontend at all.
+  for (const file of ALL) {
+    assert.ok(!/32\)\s*\* 5/.test(read(file)), `${file} converts temperature`);
+  }
+});
+
+test("diagnostics still exposes the raw per-wheel and race adapter values", () => {
+  const diagnostics = read("telemetry/diagnostics-view-model.ts");
+  for (const expected of [
+    "tire_temperatures",
+    "normalized_suspension_travel",
+    "tire_slip_ratio",
+    "tire_slip_angle",
+    "tire_combined_slip",
+    "wheel_rotation_rad_s",
+    "suspension_travel_metres",
+    "distance_traveled",
+    "best_lap",
+    "boost",
+    "fuel",
+    "Gear (raw code)",
+  ]) {
+    assert.ok(diagnostics.includes(expected), `diagnostics lost ${expected}`);
+  }
+});

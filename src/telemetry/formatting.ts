@@ -38,9 +38,24 @@ export function gForce(mps2: Nullable, digits = 2): string {
     : UNAVAILABLE;
 }
 
-// No watt-to-kilowatt conversion exists in V0.7. Canonical telemetry has no
-// power field, and the FH6 power value's unit is not established, so applying a
-// W -> kW conversion to it would assert a unit the project has not verified.
+/// W -> kW. Presentation only: canonical power stays in watts. Exactly 1000 W
+/// per kW, so this asserts nothing beyond the established canonical unit.
+export function kilowatts(watts: Nullable, digits = 1): string {
+  return usable(watts) ? (watts / 1000).toFixed(digits) : UNAVAILABLE;
+}
+
+/// m -> mm. Presentation only; suspension travel is canonically metres and
+/// spans a few centimetres, which is unreadable at metre precision.
+export function millimetres(metres: Nullable, digits = 1): string {
+  return usable(metres) ? (metres * 1000).toFixed(digits) : UNAVAILABLE;
+}
+
+/// rad/s -> rev/min for a rotating wheel. Presentation only.
+export function revolutionsPerMinute(radiansPerSecond: Nullable): string {
+  return usable(radiansPerSecond)
+    ? ((radiansPerSecond * 60) / (2 * Math.PI)).toFixed(0)
+    : UNAVAILABLE;
+}
 
 /// Normalized 0..1 (or -1..1) -> percent. A signed input keeps its sign, so
 /// left steering stays visibly negative.

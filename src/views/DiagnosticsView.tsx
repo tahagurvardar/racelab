@@ -150,14 +150,14 @@ export default function DiagnosticsView({
       <TelemetrySection
         eyebrow="SOURCE-SPECIFIC · FH6"
         title="Raw adapter values"
-        description="Decoded FH6 fields whose units, wheel order or enum meanings are not established. They are deliberately excluded from every product view."
+        description="The exact values the FH6 adapter read off the wire, in packet order. Some now also have a canonical form in the product views; keeping the wire reading here is what makes a suspected decode or corner error debuggable. Fields with no canonical form are unestablished, not merely unimplemented."
       >
         <p className="section-subtitle">Gear</p>
         <EntryTable entries={[fh6GearCode(frame)]} />
         <p className="section-subtitle">Powertrain</p>
         <EntryTable entries={fh6Powertrain(frame)} />
         <p className="section-subtitle">
-          Tire temperatures · ordered by packet offset, not by wheel
+          Per-wheel channels · ordered by packet offset, not by corner
         </p>
         <EntryTable entries={fh6TireTemperatures(frame)} />
         <p className="section-subtitle">Race</p>

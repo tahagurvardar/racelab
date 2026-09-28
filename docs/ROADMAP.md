@@ -37,17 +37,25 @@ fuel channel, so those views render their final structure with stated reasons
 rather than invented values. See [V0.7 dashboard](V0.7-DASHBOARD.md) and
 [V0.7 validation](V0.7-VALIDATION.md).
 
-## Deferred — Canonical channel coverage
-Decide, with captured-packet evidence, whether FH6 bytes 68..211 can be decoded
-and whether power, torque, boost, fuel, tire temperature, lap and race values
-can be promoted into canonical telemetry with verified units and wheel order.
-This is a parser and `TelemetryFrame` schema change, not a UI change, and it is
-what would populate the V0.7 Tires, Suspension, Race and Engine-output views.
+## V0.8 — Canonical telemetry expansion
+Promote the FH6 fields whose offsets, types, units, ordering and semantics are
+supported by evidence into `TelemetryFrame` **schema version 2**, and wire them
+into the existing V0.7 views. Per-wheel suspension travel, slip and rotation,
+tire temperature in Celsius, engine power and torque, vehicle configuration
+codes and race time/lap/position are promoted; boost, fuel, lap times, the
+distance counter and the rumble-strip/puddle/surface bytes are not, and the
+reason for each is recorded. Old schema-v1 recordings stay readable through a
+frozen compatibility struct and are never rewritten. See
+[V0.8 schema](V0.8-TELEMETRY-SCHEMA.md) and
+[V0.8 validation](V0.8-VALIDATION.md). **Not frozen until manual FH6
+acceptance passes.**
 
-## V0.8 — Game adapters
-Forza Motorsport and F1 adapter(s) feeding a canonical telemetry model.
+## V0.9 — Game adapters
+Forza Motorsport and F1 adapter(s) feeding the canonical telemetry model.
+Also the natural home for the lap-timing and distance fields V0.8 deferred,
+once a real race has been captured.
 
-## V0.9 — Engineer layer
+## V1.0-pre — Engineer layer
 Deterministic findings first; optional AI explanation grounded only in computed telemetry evidence.
 
 ## V1.0

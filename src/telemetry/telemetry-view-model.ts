@@ -8,18 +8,22 @@
 /// 2. Unavailable is not zero. A field the backend reports as null, or any
 ///    field with no canonical representation yet, renders as `UNAVAILABLE` and
 ///    carries a note explaining why.
-import type { TelemetryFrame, Vector3 } from "./frame.ts";
+import type { TelemetryFrame, Vector3, Wheel, Wheels } from "./frame.ts";
 import type { LiveSnapshot } from "./live-snapshot.ts";
 import {
   UNAVAILABLE,
+  code,
   degrees,
   elapsed,
   gForce,
   integer,
+  kilowatts,
   lapTime,
+  millimetres,
   number,
   percent,
   rangeFraction,
+  revolutionsPerMinute,
   speedKmh,
   text,
 } from "./formatting.ts";
@@ -30,6 +34,10 @@ export const NO_CANONICAL_FIELD =
   "Not in canonical telemetry. The FH6 value exists but its units are unverified, so it stays in Diagnostics.";
 export const NOT_DECODED =
   "Not in canonical telemetry. The FH6 adapter does not decode this field.";
+/// The FH6 bytes exist and are preserved, but every captured packet held zero,
+/// so nothing about the value has been established.
+export const NEVER_OBSERVED =
+  "Not in canonical telemetry. Every FH6 packet captured so far carries zero here, so its unit and meaning are unestablished.";
 export const GEAR_UNVALIDATED =
   "FH6 gear semantics are not established. The raw code is in Diagnostics and is never shown as a gear.";
 
@@ -63,6 +71,23 @@ export const CORNER_LABELS: Record<WheelCorner, string> = {
 /// A per-wheel value set keyed by corner. Building rows from this shape is the
 /// only way corners reach the UI, so a corner cannot be silently reordered.
 export type CornerSet<T> = Record<WheelCorner, T>;
+
+/// The one place a canonical corner maps to a field of `Wheels`. The backend
+/// already resolved wheel identity from the source protocol; this is a name
+/// lookup, never a reordering.
+const CORNER_FIELDS: Record<WheelCorner, keyof Wheels> = {
+  FL: "front_left",
+  FR: "front_right",
+  RL: "rear_left",
+  RR: "rear_right",
+};
+
+export function wheelOf(
+  wheels: Wheels | undefined,
+  corner: WheelCorner,
+): Wheel | undefined {
+  return wheels?.[CORNER_FIELDS[corner]];
+}
 
 export interface CornerRow<T> {
   corner: WheelCorner;
@@ -364,6 +389,7 @@ export interface OverviewModel {
   gear: Metric;
   inputs: BarMetric[];
   identity: Metric[];
+  configuration: Metric[];
 }
 
 export function buildOverview(state: LiveFrameState): OverviewModel {
@@ -384,6 +410,18 @@ export function buildOverview(state: LiveFrameState): OverviewModel {
       metric("vehicle", "Vehicle ID", text(frame?.vehicle_id)),
       metric("game", "Game", text(frame?.game)),
     ],
+    // Codes, never names. RaceLab has no class or drivetrain database, so each
+    // of these renders as the integer the game sent and nothing more.
+    configuration: [
+      metric("class", "Class code", code(frame?.vehicle.class_code)),
+      metric("pi", "Performance index", code(frame?.vehicle.performance_index)),
+      metric(
+        "drivetrain",
+        "Drivetrain code",
+        code(frame?.vehicle.drivetrain_code),
+      ),
+      metric("cylinders", "Cylinders", code(frame?.vehicle.cylinders)),
+    ],
   };
 }
 
@@ -391,7 +429,11 @@ export interface EngineModel {
   rpm: string;
   rpmFraction: number | null;
   range: Metric[];
+  /// Promoted engine output. Canonical units are W and N·m; kW is an exact
+  /// presentation conversion of the same canonical watts.
   output: Metric[];
+  /// Engine channels FH6 transmits that stay uncanonicalized.
+  unavailable: Metric[];
 }
 
 export function buildEngine(state: LiveFrameState): EngineModel {
@@ -405,8 +447,11 @@ export function buildEngine(state: LiveFrameState): EngineModel {
       metric("max", "Max RPM", number(engine?.max_rpm, 0), "rpm"),
     ],
     output: [
-      absent("power", "Power", NO_CANONICAL_FIELD),
-      absent("torque", "Torque", NO_CANONICAL_FIELD),
+      metric("power", "Power", kilowatts(engine?.power_w), "kW"),
+      metric("power-w", "Power", number(engine?.power_w, 0), "W"),
+      metric("torque", "Torque", number(engine?.torque_nm, 1), "N·m"),
+    ],
+    unavailable: [
       absent("boost", "Boost", NO_CANONICAL_FIELD),
       absent("fuel", "Fuel", NO_CANONICAL_FIELD),
     ],
@@ -476,61 +521,121 @@ export function buildDynamics(state: LiveFrameState): DynamicsModel {
   };
 }
 
-interface Channel {
+/// Canonical per-wheel channels, in the order each corner panel renders them.
+/// A channel is listed here only once its meaning is established; the FH6
+/// rumble-strip, puddle-depth and surface-rumble bytes are preserved on the
+/// wire but never reached this list, so they cannot appear as a zero.
+const TIRE_CHANNELS = [
+  {
+    key: "temperature",
+    label: "Temperature",
+    unit: "°C",
+    render: (wheel?: Wheel) => number(wheel?.temperature_c, 1),
+  },
+  {
+    key: "slip-ratio",
+    label: "Slip ratio",
+    unit: null,
+    render: (wheel?: Wheel) => number(wheel?.slip_ratio, 3),
+  },
+  {
+    key: "slip-angle",
+    label: "Slip angle",
+    unit: null,
+    render: (wheel?: Wheel) => number(wheel?.slip_angle, 3),
+  },
+  {
+    key: "combined-slip",
+    label: "Combined slip",
+    unit: null,
+    render: (wheel?: Wheel) => number(wheel?.combined_slip, 3),
+  },
+  {
+    key: "rotation",
+    label: "Wheel rotation",
+    unit: "rad/s",
+    render: (wheel?: Wheel) => number(wheel?.rotation_rad_s, 1),
+  },
+  {
+    key: "rotation-rpm",
+    label: "Wheel rotation",
+    unit: "rpm",
+    render: (wheel?: Wheel) => revolutionsPerMinute(wheel?.rotation_rad_s),
+  },
+] as const;
+
+const SUSPENSION_CHANNELS = [
+  {
+    key: "normalized",
+    label: "Normalized travel",
+    unit: null,
+    render: (wheel?: Wheel) => number(wheel?.normalized_suspension_travel, 3),
+  },
+  {
+    key: "meters",
+    label: "Travel",
+    unit: "mm",
+    render: (wheel?: Wheel) => millimetres(wheel?.suspension_travel_m),
+  },
+] as const;
+
+type WheelChannel = {
   key: string;
   label: string;
-  note: string;
-}
+  unit: string | null;
+  render: (wheel?: Wheel) => string;
+};
 
-const TIRE_CHANNELS: Channel[] = [
-  { key: "temperature", label: "Temperature", note: NO_CANONICAL_FIELD },
-  { key: "slip-ratio", label: "Slip ratio", note: NOT_DECODED },
-  { key: "slip-angle", label: "Slip angle", note: NOT_DECODED },
-  { key: "combined-slip", label: "Combined slip", note: NOT_DECODED },
-  { key: "rotation", label: "Wheel rotation", note: NOT_DECODED },
-  { key: "rumble-strip", label: "Rumble strip", note: NOT_DECODED },
-  { key: "puddle", label: "Puddle depth", note: NOT_DECODED },
-  { key: "surface-rumble", label: "Surface rumble", note: NOT_DECODED },
-];
-
-const SUSPENSION_CHANNELS: Channel[] = [
-  { key: "normalized", label: "Normalized travel", note: NOT_DECODED },
-  { key: "meters", label: "Travel", note: NOT_DECODED },
-];
-
-/// Canonical telemetry carries no per-wheel channel today. The corner layout is
-/// still built from a `CornerSet`, so the FL/FR/RL/RR mapping is fixed and
-/// tested now and stays correct when canonical wheel data arrives.
-function emptyCornerSet(channels: Channel[]): CornerSet<Metric[]> {
-  const build = (corner: WheelCorner) =>
-    channels.map((channel) =>
-      absent(`${corner}-${channel.key}`, channel.label, channel.note),
+/// Builds a corner set by name lookup through `wheelOf`. Every corner runs the
+/// same channel list in the same order, so a corner cannot acquire a different
+/// set of values from its neighbours.
+function cornerSet(
+  frame: TelemetryFrame | null,
+  channels: readonly WheelChannel[],
+): CornerSet<Metric[]> {
+  const build = (corner: WheelCorner) => {
+    const wheel = wheelOf(frame?.wheels, corner);
+    return channels.map((channel) =>
+      metric(
+        `${corner}-${channel.key}`,
+        channel.label,
+        channel.render(wheel),
+        channel.unit,
+      ),
     );
+  };
   return { FL: build("FL"), FR: build("FR"), RL: build("RL"), RR: build("RR") };
 }
 
 export interface CornerModel {
   rows: CornerRow<Metric[]>[];
-  /// False while no canonical per-wheel channel exists.
+  /// True once canonical per-wheel data exists for this channel group. It does
+  /// not mean a live frame is present: a corner reads `—` with no live frame.
   available: boolean;
   reason: string;
+  /// Channels FH6 transmits that are deliberately not canonical.
+  unavailable: Metric[];
 }
 
-export function buildTires(): CornerModel {
+export function buildTires(state: LiveFrameState): CornerModel {
   return {
-    rows: cornerRows(emptyCornerSet(TIRE_CHANNELS)),
-    available: false,
-    reason:
-      "Canonical telemetry carries no per-wheel tire channel. FH6 transmits four tire temperatures, but their wheel order and units are unverified, so they appear only as raw adapter values in Diagnostics.",
+    rows: cornerRows(cornerSet(state.frame, TIRE_CHANNELS)),
+    available: true,
+    reason: "",
+    unavailable: [
+      absent("rumble-strip", "Rumble strip", NEVER_OBSERVED),
+      absent("puddle", "Puddle depth", NEVER_OBSERVED),
+      absent("surface-rumble", "Surface rumble", NOT_DECODED),
+    ],
   };
 }
 
-export function buildSuspension(): CornerModel {
+export function buildSuspension(state: LiveFrameState): CornerModel {
   return {
-    rows: cornerRows(emptyCornerSet(SUSPENSION_CHANNELS)),
-    available: false,
-    reason:
-      "Canonical telemetry carries no suspension channel. The FH6 adapter does not decode suspension travel; those bytes stay opaque rather than guessed.",
+    rows: cornerRows(cornerSet(state.frame, SUSPENSION_CHANNELS)),
+    available: true,
+    reason: "",
+    unavailable: [],
   };
 }
 
@@ -551,59 +656,49 @@ export function buildInputs(state: LiveFrameState): InputsModel {
   };
 }
 
-/// Canonical race telemetry. FH6 supplies none of these through the canonical
-/// model yet, so each value resolves through the same formatter it will use
-/// when it does: adding the field becomes a data change, not a UI change.
+/// Canonical race telemetry as schema v2 carries it. Lap timing and the game's
+/// own distance counter are not fields of the canonical frame: no FH6 capture
+/// has ever held a non-zero value for them, so their unit and semantics are
+/// unestablished and they are not reconstructed from adapter data here.
 export interface CanonicalRace {
   lapNumber: number | null;
   position: number | null;
-  currentLapSeconds: number | null;
-  lastLapSeconds: number | null;
-  bestLapSeconds: number | null;
   raceTimeSeconds: number | null;
-  distanceMeters: number | null;
 }
 
 export const NO_RACE_DATA: CanonicalRace = {
   lapNumber: null,
   position: null,
-  currentLapSeconds: null,
-  lastLapSeconds: null,
-  bestLapSeconds: null,
   raceTimeSeconds: null,
-  distanceMeters: null,
 };
 
-/// Canonical `TelemetryFrame` has no race fields. This reads only canonical
-/// data and therefore always reports none; it never falls back to the adapter.
-export function canonicalRace(_frame: TelemetryFrame | null): CanonicalRace {
-  return NO_RACE_DATA;
+/// Reads canonical data only; it never falls back to the adapter envelope.
+export function canonicalRace(frame: TelemetryFrame | null): CanonicalRace {
+  if (!frame) return NO_RACE_DATA;
+  return {
+    lapNumber: frame.race.lap_number,
+    position: frame.race.race_position,
+    raceTimeSeconds: frame.race.race_time_seconds,
+  };
 }
 
 export interface RaceModel {
   timing: Metric[];
   standing: Metric[];
-  available: boolean;
-  reason: string;
+  /// Lap-timing channels FH6 transmits that stay uncanonicalized.
+  unavailable: Metric[];
 }
 
 export function buildRace(state: LiveFrameState): RaceModel {
   const race = canonicalRace(state.frame);
-  const note = NO_CANONICAL_FIELD;
-  const explain = (m: Metric): Metric => (m.available ? m : { ...m, note });
   return {
     timing: [
-      metric("current-lap", "Current lap", lapTime(race.currentLapSeconds)),
-      metric("last-lap", "Last lap", lapTime(race.lastLapSeconds)),
-      metric("best-lap", "Best lap", lapTime(race.bestLapSeconds)),
-      metric("race-time", "Race time", lapTime(race.raceTimeSeconds)),
-    ].map(explain),
-    standing: [
-      ...[
-        metric("lap", "Lap", integer(race.lapNumber)),
-        metric("position", "Position", integer(race.position)),
-        metric("distance", "Distance", number(race.distanceMeters, 0), "m"),
-      ].map(explain),
+      metric("race-time", "Race time", elapsed(race.raceTimeSeconds)),
+      metric(
+        "race-time-precise",
+        "Race time (exact)",
+        lapTime(race.raceTimeSeconds),
+      ),
       // Canonical and unrelated to race timing: unavailable here only means
       // there is no live frame, so it carries no adapter caveat.
       metric(
@@ -614,8 +709,15 @@ export function buildRace(state: LiveFrameState): RaceModel {
           : elapsed(state.frame.game_timestamp_ms / 1000),
       ),
     ],
-    available: false,
-    reason:
-      "Canonical telemetry carries no lap or race timing. FH6 transmits lap counters and lap times, but their units and sentinel conventions are unverified, so they stay raw adapter values in Diagnostics.",
+    standing: [
+      metric("lap", "Lap", integer(race.lapNumber)),
+      metric("position", "Position", integer(race.position)),
+    ],
+    unavailable: [
+      absent("current-lap", "Current lap", NEVER_OBSERVED),
+      absent("last-lap", "Last lap", NEVER_OBSERVED),
+      absent("best-lap", "Best lap", NEVER_OBSERVED),
+      absent("distance", "Distance", NEVER_OBSERVED),
+    ],
   };
 }

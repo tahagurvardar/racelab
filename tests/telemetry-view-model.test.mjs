@@ -14,18 +14,40 @@ import {
   buildStatus,
   buildSuspension,
   buildTires,
+  NO_RACE_DATA,
   canonicalRace,
   cornerRows,
   gearMetric,
   resolveLiveFrame,
+  wheelOf,
 } from "../src/telemetry/telemetry-view-model.ts";
+
+/// Distinct per-channel, per-corner values. Every number differs from every
+/// other, so a transposed corner or channel cannot pass a test by coincidence.
+function corner(base) {
+  return {
+    temperature_c: base + 0.5,
+    slip_ratio: base + 1.25,
+    slip_angle: base + 2.125,
+    combined_slip: base + 3.0625,
+    rotation_rad_s: base + 4.5,
+    normalized_suspension_travel: base / 100,
+    suspension_travel_m: base / 1000,
+  };
+}
 
 const activeFrame = {
   active: true,
   game: "fh6",
   vehicle_id: "2599",
   game_timestamp_ms: 65_000,
-  engine: { rpm: 4321.5, idle_rpm: 800, max_rpm: 7600 },
+  engine: {
+    rpm: 4321.5,
+    idle_rpm: 800,
+    max_rpm: 7600,
+    power_w: 150_000,
+    torque_nm: 331.5,
+  },
   acceleration: { x: 9.80665, y: -4.903325, z: 0 },
   velocity: { x: 10, y: 0, z: 0 },
   angular_velocity: { x: 0.125, y: -0.5, z: 0 },
@@ -41,13 +63,67 @@ const activeFrame = {
   },
   // FH6 supplies no canonical gear. The raw code lives only in sourceSpecific.
   gear: null,
-  sourceSpecific: { fh6: { gear: 11, power: 150000 } },
+  vehicle: {
+    class_code: 2,
+    performance_index: 600,
+    drivetrain_code: 1,
+    cylinders: 4,
+  },
+  wheels: {
+    front_left: corner(10),
+    front_right: corner(20),
+    rear_left: corner(30),
+    rear_right: corner(40),
+  },
+  race: { lap_number: 3, race_position: 7, race_time_seconds: 125.25 },
+  sourceSpecific: {
+    fh6: {
+      gear: 11,
+      power: 150000,
+      // Deliberately different from every canonical value above: a product
+      // view that fell back to the adapter would show these numbers.
+      tire_temperatures: [900.5, 901.5, 902.5, 903.5],
+      current_lap: 88.5,
+      distance_traveled: 4242.5,
+      boost: 24.99,
+      fuel: 1,
+    },
+  },
+};
+
+const emptyCorner = {
+  temperature_c: null,
+  slip_ratio: null,
+  slip_angle: null,
+  combined_slip: null,
+  rotation_rad_s: null,
+  normalized_suspension_travel: null,
+  suspension_travel_m: null,
 };
 
 const inactiveFrame = {
   ...activeFrame,
   active: false,
-  engine: { rpm: null, idle_rpm: null, max_rpm: null },
+  engine: {
+    rpm: null,
+    idle_rpm: null,
+    max_rpm: null,
+    power_w: null,
+    torque_nm: null,
+  },
+  vehicle: {
+    class_code: null,
+    performance_index: null,
+    drivetrain_code: null,
+    cylinders: null,
+  },
+  wheels: {
+    front_left: emptyCorner,
+    front_right: emptyCorner,
+    rear_left: emptyCorner,
+    rear_right: emptyCorner,
+  },
+  race: { lap_number: null, race_position: null, race_time_seconds: null },
   acceleration: null,
   velocity: null,
   angular_velocity: null,
@@ -190,16 +266,74 @@ test("engine values come from canonical engine telemetry", () => {
   assert.equal(model.rpmFraction.toFixed(2), "51.79");
 });
 
-test("engine output and fluids are unavailable, explained and never zero", () => {
+test("engine output presents canonical power and torque in their own units", () => {
   const model = buildEngine(live());
   assert.deepEqual(
-    model.output.map((item) => item.label),
-    ["Power", "Torque", "Boost", "Fuel"],
+    model.output.map((item) => [item.key, item.value, item.unit]),
+    [
+      // 150 000 W canonical, shown as kW and as the canonical watts.
+      ["power", "150.0", "kW"],
+      ["power-w", "150000", "W"],
+      ["torque", "331.5", "N\u00b7m"],
+    ],
   );
-  for (const item of model.output) {
+  assert.ok(model.output.every((item) => item.available));
+});
+
+test("boost and fuel stay unavailable, explained and never zero", () => {
+  const model = buildEngine(live());
+  assert.deepEqual(
+    model.unavailable.map((item) => item.label),
+    ["Boost", "Fuel"],
+  );
+  for (const item of model.unavailable) {
     assert.equal(item.value, UNAVAILABLE);
     assert.equal(item.available, false);
     assert.ok(item.note.length > 0);
+  }
+  // The adapter holds both values; neither may reach this view.
+  const rendered = JSON.stringify(model);
+  assert.ok(!rendered.includes("24.99"));
+});
+
+test("engine output is unavailable rather than zero with no live frame", () => {
+  const model = buildEngine({ frame: null, availability: "idle", reason: "" });
+  for (const item of model.output) {
+    assert.equal(item.value, UNAVAILABLE);
+    assert.equal(item.available, false);
+  }
+});
+
+// -------------------------------------------------------- vehicle codes
+
+test("vehicle configuration renders as codes and never as invented names", () => {
+  const model = buildOverview(live());
+  assert.deepEqual(
+    model.configuration.map((item) => [item.key, item.label, item.value]),
+    [
+      ["class", "Class code", "2"],
+      ["pi", "Performance index", "600"],
+      ["drivetrain", "Drivetrain code", "1"],
+      ["cylinders", "Cylinders", "4"],
+    ],
+  );
+  // No class letter, drivetrain name or car name is derived from a code.
+  const rendered = JSON.stringify(model.configuration);
+  assert.ok(!/AWD|RWD|FWD|\bclass [A-S]\b/i.test(rendered));
+  // Codes are never digit-grouped: grouping implies a magnitude an
+  // identifier does not have.
+  assert.ok(model.configuration.every((item) => !item.value.includes(",")));
+});
+
+test("vehicle codes read unavailable without a live frame", () => {
+  const model = buildOverview({
+    frame: null,
+    availability: "idle",
+    reason: "",
+  });
+  for (const item of model.configuration) {
+    assert.equal(item.value, UNAVAILABLE);
+    assert.equal(item.available, false);
   }
 });
 
@@ -245,8 +379,8 @@ test("dynamics presents SI values and a g conversion without renaming axes", () 
 
 // ------------------------------------------------------- corner ordering
 
-test("tire corners are always FL, FR, RL, RR and never swapped", () => {
-  const model = buildTires();
+test("tire corners are always FL, FR, RL, RR and carry their own values", () => {
+  const model = buildTires(live());
   assert.deepEqual(
     model.rows.map((row) => row.corner),
     ["FL", "FR", "RL", "RR"],
@@ -258,14 +392,58 @@ test("tire corners are always FL, FR, RL, RR and never swapped", () => {
   // Each corner owns its own metric keys, so two corners cannot share a cell.
   for (const row of model.rows) {
     for (const item of row.values) {
-      assert.ok(item.key.startsWith(`${row.corner}-`));
-      assert.equal(item.value, UNAVAILABLE);
+      assert.ok(item.key.startsWith(row.corner + "-"));
     }
   }
 });
 
+test("each corner renders the value of that corner and no other", () => {
+  const rows = buildTires(live()).rows;
+  const value = (corner, key) =>
+    rows
+      .find((row) => row.corner === corner)
+      .values.find((item) => item.key === corner + "-" + key).value;
+  // corner(10) is front left, corner(20) front right, 30 rear left, 40 rear
+  // right. A swapped pair would read another corner's number here.
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "temperature")),
+    ["10.5", "20.5", "30.5", "40.5"],
+  );
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "slip-ratio")),
+    ["11.250", "21.250", "31.250", "41.250"],
+  );
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "slip-angle")),
+    ["12.125", "22.125", "32.125", "42.125"],
+  );
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "combined-slip")),
+    ["13.063", "23.063", "33.063", "43.063"],
+  );
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "rotation")),
+    ["14.5", "24.5", "34.5", "44.5"],
+  );
+  // wheelOf is the single name lookup; it must agree with the rendered rows.
+  assert.equal(wheelOf(activeFrame.wheels, "RL").temperature_c, 30.5);
+  assert.equal(wheelOf(activeFrame.wheels, "FR").slip_ratio, 21.25);
+});
+
+test("tire values carry their established units and no invented one", () => {
+  const values = buildTires(live()).rows[0].values;
+  const unit = (key) => values.find((item) => item.key === "FL-" + key).unit;
+  assert.equal(unit("temperature"), "\u00b0C");
+  assert.equal(unit("rotation"), "rad/s");
+  assert.equal(unit("rotation-rpm"), "rpm");
+  // The slip channels are dimensionless: no unit may be asserted for them.
+  assert.equal(unit("slip-ratio"), null);
+  assert.equal(unit("slip-angle"), null);
+  assert.equal(unit("combined-slip"), null);
+});
+
 test("suspension corners are always FL, FR, RL, RR and never swapped", () => {
-  const model = buildSuspension();
+  const model = buildSuspension(live());
   assert.deepEqual(
     model.rows.map((row) => row.corner),
     ["FL", "FR", "RL", "RR"],
@@ -274,6 +452,20 @@ test("suspension corners are always FL, FR, RL, RR and never swapped", () => {
     model.rows.map((row) => row.values.map((item) => item.label)),
     Array.from({ length: 4 }, () => ["Normalized travel", "Travel"]),
   );
+  const value = (corner, key) =>
+    model.rows
+      .find((row) => row.corner === corner)
+      .values.find((item) => item.key === corner + "-" + key);
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "normalized").value),
+    ["0.100", "0.200", "0.300", "0.400"],
+  );
+  // Canonical metres, presented in millimetres. 0.010 m -> 10.0 mm.
+  assert.deepEqual(
+    ["FL", "FR", "RL", "RR"].map((corner) => value(corner, "meters").value),
+    ["10.0", "20.0", "30.0", "40.0"],
+  );
+  assert.equal(value("FL", "meters").unit, "mm");
 });
 
 test("a corner set maps every value to its own corner in a fixed order", () => {
@@ -293,37 +485,113 @@ test("a corner set maps every value to its own corner in a fixed order", () => {
   assert.equal(CORNER_LABELS.FR, "Front right");
 });
 
-test("per-wheel channels are unavailable and say so, rather than reading zero", () => {
-  for (const model of [buildTires(), buildSuspension()]) {
-    assert.equal(model.available, false);
-    assert.ok(model.reason.length > 0);
-    assert.ok(model.rows.every((row) => row.values.length > 0));
+test("per-wheel channels read unavailable with no live frame, never zero", () => {
+  const absent = { frame: null, availability: "idle", reason: "no frame" };
+  for (const model of [buildTires(absent), buildSuspension(absent)]) {
+    for (const row of model.rows) {
+      assert.ok(row.values.length > 0);
+      for (const item of row.values) {
+        assert.equal(item.value, UNAVAILABLE);
+        assert.equal(item.available, false);
+      }
+    }
+  }
+});
+
+test("unpromoted surface channels stay unavailable and explained", () => {
+  const model = buildTires(live());
+  assert.deepEqual(
+    model.unavailable.map((item) => item.key),
+    ["rumble-strip", "puddle", "surface-rumble"],
+  );
+  for (const item of model.unavailable) {
+    assert.equal(item.value, UNAVAILABLE);
+    assert.equal(item.available, false);
+    assert.ok(item.note.length > 0);
   }
 });
 
 // ------------------------------------------------------------------- race
 
-test("race values have no canonical source and are never fabricated", () => {
+test("race presents canonical lap, position and elapsed seconds", () => {
   const model = buildRace(live());
-  assert.equal(model.available, false);
   assert.deepEqual(canonicalRace(activeFrame), {
-    lapNumber: null,
-    position: null,
-    currentLapSeconds: null,
-    lastLapSeconds: null,
-    bestLapSeconds: null,
-    raceTimeSeconds: null,
-    distanceMeters: null,
+    lapNumber: 3,
+    position: 7,
+    raceTimeSeconds: 125.25,
   });
-  for (const item of [...model.timing, ...model.standing]) {
-    if (item.key === "game-clock") continue;
+  const timing = Object.fromEntries(
+    model.timing.map((item) => [item.key, item.value]),
+  );
+  assert.equal(timing["race-time"], "2:05");
+  assert.equal(timing["race-time-precise"], "2:05.250");
+  // The canonical game clock is a separate reading and is still shown.
+  assert.equal(timing["game-clock"], "1:05");
+  assert.deepEqual(
+    model.standing.map((item) => [item.key, item.value]),
+    [
+      ["lap", "3"],
+      ["position", "7"],
+    ],
+  );
+});
+
+test("a measured lap zero renders as zero, not as unavailable", () => {
+  const frame = {
+    ...activeFrame,
+    race: { lap_number: 0, race_position: 0, race_time_seconds: 0 },
+  };
+  const model = buildRace({ frame, availability: "live", reason: "" });
+  assert.deepEqual(
+    model.standing.map((item) => item.value),
+    ["0", "0"],
+  );
+  assert.ok(model.standing.every((item) => item.available));
+});
+
+test("unpromoted lap timing and distance are never fabricated", () => {
+  const model = buildRace(live());
+  assert.deepEqual(
+    model.unavailable.map((item) => item.key),
+    ["current-lap", "last-lap", "best-lap", "distance"],
+  );
+  for (const item of model.unavailable) {
     assert.equal(item.value, UNAVAILABLE);
     assert.ok(item.note.length > 0);
   }
-  // The canonical game clock is real and is still shown.
-  const clock = model.standing.find((item) => item.key === "game-clock");
-  assert.equal(clock.value, "1:05");
-  assert.equal(clock.note, undefined);
+  // The adapter does hold values for them; they must not leak into the view.
+  const rendered = JSON.stringify(model);
+  assert.ok(!rendered.includes("88.5"));
+  assert.ok(!rendered.includes("4242.5"));
+});
+
+test("race reads unavailable with no live frame", () => {
+  const model = buildRace({ frame: null, availability: "idle", reason: "" });
+  for (const item of [...model.timing, ...model.standing]) {
+    assert.equal(item.value, UNAVAILABLE);
+  }
+  assert.deepEqual(canonicalRace(null), NO_RACE_DATA);
+});
+
+// ------------------------------------------------------- source isolation
+
+test("no product view model substitutes adapter data for a canonical field", () => {
+  const state = live();
+  const rendered = JSON.stringify([
+    buildOverview(state),
+    buildEngine(state),
+    buildDynamics(state),
+    buildTires(state),
+    buildSuspension(state),
+    buildInputs(state),
+    buildRace(state),
+  ]);
+  // Every one of these numbers exists only in sourceSpecific.
+  for (const leaked of ["900.5", "901.5", "902.5", "903.5", "88.5", "4242.5"]) {
+    assert.ok(!rendered.includes(leaked), "leaked " + leaked);
+  }
+  // And the raw gear code never appears as a gear.
+  assert.equal(gearMetric(activeFrame).value, UNAVAILABLE);
 });
 
 // ------------------------------------------------------ stale and absent

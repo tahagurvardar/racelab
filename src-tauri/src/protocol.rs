@@ -32,6 +32,9 @@ impl ProtocolAdapter for Fh6Adapter {
                 rpm: Some(f(16)),
                 idle_rpm: Some(f(12)),
                 max_rpm: Some(f(8)),
+                // Detection rests on motion and RPM plausibility alone; the
+                // probe deliberately adds no field the validator does not use.
+                ..Engine::default()
             };
         }
         let issues = fh6::physical_issues(&check);

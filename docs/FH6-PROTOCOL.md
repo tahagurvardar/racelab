@@ -1,4 +1,4 @@
-# FH6 adapter — V0.5.1 contract and limits
+# FH6 adapter — contract and limits (V0.5.1 baseline, V0.8 expansion)
 
 This adapter implements the **user-supplied 324-byte FH6 Car Dash contract** and validates it against six local real-game captures. Packet size alone cannot authenticate the sending game. The parser is explicitly FH6-specific; transport remains game-agnostic and unchanged. All multibyte fields are little endian, read individually without packed-struct alignment or unsafe casts. Unsupported lengths return a structured error before any indexed reads.
 
@@ -13,24 +13,96 @@ This adapter implements the **user-supplied 324-byte FH6 Car Dash contract** and
 | velocity X/Y/Z | 32 / 36 / 40 | f32 | Canonical vector; magnitude checked against speed |
 | angularVelocity X/Y/Z | 44 / 48 / 52 | f32 | Canonical vector, no axis transform |
 | yaw / pitch / roll | 56 / 60 / 64 | f32 | Canonical orientation x/y/z respectively |
-| Unimplemented preceding fields | 68..211 inclusive | 144 raw bytes | Opaque, preserved separately |
-| carOrdinal / carClass / carPerformanceIndex | 212 / 216 / 220 | s32 | FH6 extension; no enum/name inference |
-| drivetrainType / numCylinders | 224 / 228 | s32 | FH6 extension; no drivetrain enum inference |
+| normalized suspension travel | 68 / 72 / 76 / 80 | f32 | Canonical per wheel, 0..1 |
+| tire slip ratio | 84 / 88 / 92 / 96 | f32 | Canonical per wheel, dimensionless |
+| wheel rotation | 100 / 104 / 108 / 112 | f32 | Canonical per wheel, rad/s |
+| Undecoded wheel-block bytes | 116..163 inclusive | 48 raw bytes | Opaque; zero in every captured packet |
+| tire slip angle | 164 / 168 / 172 / 176 | f32 | Canonical per wheel, dimensionless |
+| tire combined slip | 180 / 184 / 188 / 192 | f32 | Canonical per wheel, dimensionless |
+| suspension travel | 196 / 200 / 204 / 208 | f32 | Canonical per wheel, metres |
+| carOrdinal | 212 | s32 | Canonical vehicle ID when positive |
+| carClass / carPerformanceIndex | 216 / 220 | s32 | Canonical **codes**; no enum/name inference |
+| drivetrainType / numCylinders | 224 / 228 | s32 | Canonical code / count; no drivetrain enum inference |
 | Horizon block | 232..243 inclusive | 12 raw bytes | Explicitly unknown, preserved exactly |
 | position X/Y/Z | 244 / 248 / 252 | f32 | Canonical position, no coordinate transform |
 | speed | 256 | f32 | m/s; UI multiplies by 3.6 for km/h |
-| power / torque | 260 / 264 | f32 | FH6 extension, units not converted |
-| tire temperatures | 268 / 272 / 276 / 280 | f32 | Ordered by offset; wheel labels/units unconfirmed |
-| boost / fuel / distanceTraveled | 284 / 288 / 292 | f32 | FH6 extension, units not converted |
-| bestLap / lastLap / currentLap / currentRaceTime | 296 / 300 / 304 / 308 | f32 | FH6 extension; no timing analysis |
-| lapNumber | 312 | u16 | FH6 extension |
-| racePosition | 314 | u8 | FH6 extension |
+| power / torque | 260 / 264 | f32 | Canonical watts / newton-metres |
+| tire temperatures | 268 / 272 / 276 / 280 | f32 | Fahrenheit on the wire; canonical Celsius per wheel |
+| boost / fuel / distanceTraveled | 284 / 288 / 292 | f32 | Preserved raw; **not canonical**, units unestablished |
+| bestLap / lastLap / currentLap | 296 / 300 / 304 | f32 | Preserved raw; **not canonical**, never non-zero in any capture |
+| currentRaceTime | 308 | f32 | Canonical seconds |
+| lapNumber | 312 | u16 | Canonical count |
+| racePosition | 314 | u8 | Canonical ordinal |
 | throttle / brake / clutch / handbrake | 315 / 316 / 317 / 318 | u8 | Raw codes preserved; canonical value = code / 255 |
 | gear | 319 | u8 | Canonical gear is null; exact raw code in `sourceSpecific.fh6.gear` |
 | steering | 320 | i8 | Reject -128; canonical value = code / 127 |
 | Unknown trailer | 321..323 inclusive | 3 raw bytes | Preserved exactly |
 
 The supplied request explicitly typed header fields and tail controls. The float groups above use f32; vehicle fields use signed 32-bit integers. Tests verify these byte widths and signedness with independent sentinels. Real physical consistency strongly corroborates speed, velocity, RPM and controls, but is not proof of every label, unit or enum in the packet. The adapter does not name unknown fields merely because their bytes vary.
+
+
+## V0.8 promoted fields: offsets, units and evidence
+
+Every field below is decoded by the FH6 adapter and reaches the canonical
+`TelemetryFrame` schema v2. `i` is the source wheel-block index 0..3; the
+mapping from index to corner is [below](#wheel-order-v08). Full derivations,
+statistics and controls are in [V0.8-VALIDATION.md](V0.8-VALIDATION.md).
+
+| Canonical field | Offset | Type | Source unit | Canonical unit | Evidence | Status |
+|---|---|---|---|---|---|---|
+| `engine.power_w` | 260 | f32 LE | watts | watts | `P = τ·ω` holds to a 2.2e-4 median relative error over 14,200 samples; no other unit pair is within three orders of magnitude | proven |
+| `engine.torque_nm` | 264 | f32 LE | N·m | N·m | same identity | proven |
+| `vehicle.class_code` | 216 | s32 LE | code | code | repo FH6 contract; rendered as a code, never a name | code known |
+| `vehicle.performance_index` | 220 | s32 LE | index | index | repo FH6 contract; observed 600 | code known |
+| `vehicle.drivetrain_code` | 224 | s32 LE | code | code | repo FH6 contract; rendered as a code, never a name | code known |
+| `vehicle.cylinders` | 228 | s32 LE | count | count | repo FH6 contract; observed 4 | code known |
+| `wheel.normalized_suspension_travel` | 68 + 4i | f32 LE | 0..1 | 0..1 | spans exactly [0,1] over 14,237 packets; exactly affine to the metres channel; direction anchored on airborne/landing frames | proven |
+| `wheel.slip_ratio` | 84 + 4i | f32 LE | dimensionless | dimensionless | matches `(ω·r − v)/v`; orthogonal partner in the combined-slip identity | proven |
+| `wheel.rotation_rad_s` | 100 + 4i | f32 LE | rad/s | rad/s | `speed / ω` is a constant 0.3247 m (front) / 0.3232 m (rear) effective rolling radius | proven |
+| `wheel.slip_angle` | 164 + 4i | f32 LE | dimensionless | dimensionless | lateral partner in the combined-slip identity; **not radians**, and deliberately not named `_rad` | proven |
+| `wheel.combined_slip` | 180 + 4i | f32 LE | dimensionless | dimensionless | `= hypot(slip_ratio, slip_angle)` to a max residual of 8.95e-7; cross-pairing controls fail by 5.8–12.5 | proven |
+| `wheel.suspension_travel_m` | 196 + 4i | f32 LE | metres | metres | exact affine map from the normalized channel, r = 1.000000, max residual 1.8e-9; ±3 cm range | proven |
+| `wheel.temperature_c` | 268 + 4i | f32 LE | **Fahrenheit** | **Celsius** | wire range 141–335 is impossible as °C but is 61–168 °C as °F; corroborated by independent FH6 implementations. Converted once, in the adapter | proven (combined) |
+| `race.race_time_seconds` | 308 | f32 LE | seconds | seconds | tracks the game clock 1:1; ≤34 ms cumulative drift over 82 s | proven |
+| `race.lap_number` | 312 | u16 LE | count | count | repo FH6 contract; a count has no unit to establish | code known |
+| `race.race_position` | 314 | u8 | ordinal | ordinal | repo FH6 contract | code known |
+
+All reads are bounds-safe little-endian reads of a length-checked 324-byte
+array, with no packed-struct alignment and no unsafe casts. Every promoted f32
+is in `FLOAT_FIELDS` and is therefore rejected as a decode error if non-finite,
+reporting its own field name and byte offset.
+
+### Deliberately not promoted
+
+| Field | Offset | Why |
+|---|---|---|
+| boost | 284 | saturates at a constant with no establishable scale (psi / bar / kPa) |
+| fuel | 288 | exactly 1.0 in all 14,237 active packets |
+| wheel on rumble strip | 116 + 4i | every byte zero in all 18,165 packets; even the type is unestablished |
+| wheel in puddle depth | 132 + 4i | every byte zero in all 18,165 packets |
+| surface rumble | 148 + 4i | only three distinct values ever observed; domain unknown |
+| distanceTraveled | 292 | exactly 0.0 while demonstrably driving, so it does **not** mean session distance in free roam |
+| bestLap / lastLap / currentLap | 296 / 300 / 304 | never non-zero in any capture; unit inferred from a sibling field is not evidence |
+| gear | 319 | semantics unestablished; canonical gear stays null and the raw code stays in Diagnostics |
+
+Bytes 116..=163 are not decoded as floats at all. They remain raw inside the
+`wheel_block_68_211` envelope so that nothing reinterprets them.
+
+### Wheel order (V0.8)
+
+| Source index | Canonical corner |
+|---|---|
+| 0 | front left |
+| 1 | front right |
+| 2 | rear left |
+| 3 | rear right |
+
+Established from real captures: the axle split (`{0,1}` front, `{2,3}` rear) and
+the side pairing (`{0,2}` one side, `{1,3}` the other) are each proven by
+multiple independent measurements. Which side is *left* is a parity choice that
+is provably not derivable from kinematics and is taken from the documented Forza
+Data Out per-wheel field order, whose every other prediction the captures
+confirm. `adapters::fh6::WHEEL_ORDER` is the only place this mapping exists.
 
 ## Canonical model and invalid values
 
@@ -80,11 +152,16 @@ Private captures stay in the application data directory. The public [fixture dir
 
 ## Remaining uncertainties
 
-- Meanings of bytes 232..243 and 321..323, and the unimplemented 68..211 region.
+- Meanings of bytes 232..243, 321..323 and the still-undecoded 116..163 region.
 - FH6-specific coordinate axes/sign conventions beyond preserving supplied X/Y/Z order.
-- Tire-temperature wheel order/units; power, torque, boost, fuel, distance and lap/race-time units and special sentinel conventions.
+- Boost and fuel units; the distance counter's semantics; lap-time units and sentinel conventions. Tire-temperature order and unit, power, torque, wheel rotation, slip and suspension units are now established — see the V0.8 table above.
 - Vehicle enum meanings and drivetrain mapping.
 - Gear code semantics, especially observed 0 and 11. The UI deliberately labels **Gear (code)**; no reverse/neutral mapping has been invented.
 - Reset behavior outside the tested captures and plausibility limits for other vehicles/game states.
 
-No AI, database analytics, coaching, lap detection, F1 adapter or visual redesign is part of V0.5.
+No AI, database analytics, coaching, lap detection, F1 adapter or visual redesign is part of V0.5 or V0.8.
+
+V0.8 expanded the canonical model to schema version 2. See
+[V0.8-TELEMETRY-SCHEMA.md](V0.8-TELEMETRY-SCHEMA.md) for the schema and its
+backward compatibility, and [V0.8-VALIDATION.md](V0.8-VALIDATION.md) for the
+evidence audit and the manual acceptance plan that V0.8 has **not yet passed**.

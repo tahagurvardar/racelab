@@ -14,6 +14,7 @@ pub mod session_store;
 pub mod session_summary;
 pub mod telemetry;
 pub mod telemetry_hub;
+pub mod telemetry_v1;
 
 use appliance::{Appliance, DEFAULT_FH6_PORT};
 use capture::{CaptureSnapshot, RawCaptureSink};

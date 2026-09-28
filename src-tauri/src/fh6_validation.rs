@@ -2,6 +2,7 @@
 use crate::{
     adapters::fh6::{self, Issue, TimestampEvent, TimestampValidator},
     capture_format::CaptureReader,
+    telemetry::{TelemetryFrame, WHEEL_POSITIONS},
 };
 use serde::Serialize;
 use std::{
@@ -48,9 +49,107 @@ pub struct ValidationReport {
     pub brake: Range,
     pub steering: Range,
     pub gear_codes: BTreeMap<u8, u64>,
+    /// V0.8 promoted-field ranges over active packets, keyed
+    /// `corner.channel` for per-wheel channels and by field name otherwise.
+    /// This is the evidence table docs/V0.8-VALIDATION.md reports.
+    pub promoted: BTreeMap<String, Range>,
+    /// Largest observed `|combined_slip - hypot(slip_ratio, slip_angle)|`.
+    /// Reported, never enforced: it is the measured invariant that identified
+    /// the three slip blocks, not a protocol guarantee.
+    pub combined_slip_residual_max: f64,
+    /// Largest observed relative error of `power == torque * angular velocity`
+    /// where `|torque * omega| > 1000 W`. Establishes watts and newton-metres.
+    pub power_torque_relative_error_max: f64,
+    pub power_torque_samples: u64,
     pub issue_samples: Vec<PacketIssue>,
     pub omitted_issue_packets: u64,
     pub valid: bool,
+}
+
+impl ValidationReport {
+    fn add(&mut self, key: &str, value: Option<f32>) {
+        if let Some(value) = value {
+            self.promoted
+                .entry(key.into())
+                .or_default()
+                .add(f64::from(value));
+        }
+    }
+
+    /// Bounded work per packet: four corners times seven channels plus a
+    /// handful of scalars, all folded into running ranges.
+    fn observe_promoted(&mut self, frame: &TelemetryFrame) {
+        for position in WHEEL_POSITIONS {
+            let wheel = frame.wheels.get(position);
+            let corner = match position {
+                crate::telemetry::WheelPosition::FrontLeft => "front_left",
+                crate::telemetry::WheelPosition::FrontRight => "front_right",
+                crate::telemetry::WheelPosition::RearLeft => "rear_left",
+                crate::telemetry::WheelPosition::RearRight => "rear_right",
+            };
+            self.add(&format!("{corner}.temperature_c"), wheel.temperature_c);
+            self.add(&format!("{corner}.slip_ratio"), wheel.slip_ratio);
+            self.add(&format!("{corner}.slip_angle"), wheel.slip_angle);
+            self.add(&format!("{corner}.combined_slip"), wheel.combined_slip);
+            self.add(&format!("{corner}.rotation_rad_s"), wheel.rotation_rad_s);
+            self.add(
+                &format!("{corner}.normalized_suspension_travel"),
+                wheel.normalized_suspension_travel,
+            );
+            self.add(
+                &format!("{corner}.suspension_travel_m"),
+                wheel.suspension_travel_m,
+            );
+            if let (Some(combined), Some(ratio), Some(angle)) =
+                (wheel.combined_slip, wheel.slip_ratio, wheel.slip_angle)
+            {
+                let residual =
+                    (f64::from(combined) - f64::from(ratio).hypot(f64::from(angle))).abs();
+                self.combined_slip_residual_max = self.combined_slip_residual_max.max(residual);
+            }
+        }
+        self.add("engine.power_w", frame.engine.power_w);
+        self.add("engine.torque_nm", frame.engine.torque_nm);
+        self.add("race.race_time_seconds", frame.race.race_time_seconds);
+        self.add(
+            "race.lap_number",
+            frame.race.lap_number.map(|value| value as f32),
+        );
+        self.add(
+            "race.race_position",
+            frame.race.race_position.map(|value| value as f32),
+        );
+        self.add(
+            "vehicle.class_code",
+            frame.vehicle.class_code.map(|value| value as f32),
+        );
+        self.add(
+            "vehicle.performance_index",
+            frame.vehicle.performance_index.map(|value| value as f32),
+        );
+        self.add(
+            "vehicle.drivetrain_code",
+            frame.vehicle.drivetrain_code.map(|value| value as f32),
+        );
+        self.add(
+            "vehicle.cylinders",
+            frame.vehicle.cylinders.map(|value| value as f32),
+        );
+        if let (Some(power), Some(torque), Some(rpm)) = (
+            frame.engine.power_w,
+            frame.engine.torque_nm,
+            frame.engine.rpm,
+        ) {
+            let omega = f64::from(rpm) * std::f64::consts::TAU / 60.0;
+            let predicted = f64::from(torque) * omega;
+            if predicted.abs() > 1000.0 {
+                self.power_torque_samples += 1;
+                self.power_torque_relative_error_max = self
+                    .power_torque_relative_error_max
+                    .max((f64::from(power) - predicted).abs() / predicted.abs());
+            }
+        }
+    }
 }
 
 pub fn validate_capture<R: Read>(
@@ -92,6 +191,7 @@ pub fn validate_capture<R: Read>(
                     report.brake.add(f64::from(decoded.fh6.brake));
                     report.steering.add(f64::from(decoded.fh6.steering));
                     *report.gear_codes.entry(decoded.fh6.gear).or_default() += 1;
+                    report.observe_promoted(f);
                 } else {
                     report.inactive_packets += 1;
                 }

@@ -1,6 +1,10 @@
-//! RLFRAMES v1 normalized session storage. See docs/V0.6-SESSION-FORMAT.md.
+//! RLFRAMES v1 normalized session storage. See docs/V0.6-SESSION-FORMAT.md and
+//! docs/V0.8-TELEMETRY-SCHEMA.md. The container framing is version 1; the
+//! canonical frame payload it carries is separately versioned and is now 2.
 //! Stores canonical `TelemetryFrame` records, never raw game datagrams.
-use crate::{session_summary::SessionSummaryV1, telemetry::TelemetryFrame};
+use crate::{
+    session_summary::SessionSummaryV1, telemetry::TelemetryFrame, telemetry_v1::StoredFrameV1,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
@@ -11,8 +15,14 @@ use std::{
 const MAGIC: &[u8; 8] = b"RLFRM\r\n\0";
 /// Container framing version. Bump only for framing/record-envelope changes.
 pub const FRAME_FORMAT_VERSION: u32 = 1;
-/// Canonical `TelemetryFrame` schema version. Bump when canonical fields change.
-pub const TELEMETRY_FRAME_SCHEMA_VERSION: u32 = 1;
+/// Canonical `TelemetryFrame` schema version *written* by this build. Bump when
+/// canonical fields change. The container framing above is independent of it.
+pub const TELEMETRY_FRAME_SCHEMA_VERSION: u32 = 2;
+/// Canonical schema versions this build can *read*. Old recordings are decoded
+/// through a frozen compatibility struct and converted; they are never
+/// rewritten, and an unlisted version is rejected rather than guessed at.
+pub const SUPPORTED_TELEMETRY_FRAME_SCHEMA_VERSIONS: &[u32] = &[1, 2];
+
 pub const MANIFEST_SCHEMA_VERSION: u32 = 1;
 /// One canonical frame, including its source-specific envelope, stays far below
 /// this. The guard bounds reader memory on a truncated or corrupt file.
@@ -20,6 +30,10 @@ pub const MAX_RECORD_BYTES: usize = 1 << 20;
 pub const MAX_SESSION_ID_BYTES: usize = 128;
 pub const FRAME_FILE_NAME: &str = "frames.rlframes";
 pub const MANIFEST_FILE_NAME: &str = "manifest.json";
+
+pub fn supports_telemetry_frame_schema(version: u32) -> bool {
+    SUPPORTED_TELEMETRY_FRAME_SCHEMA_VERSIONS.contains(&version)
+}
 
 pub fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message.into())
@@ -144,7 +158,7 @@ pub fn read_manifest(directory: &Path) -> io::Result<SessionManifestV1> {
             manifest.frame_format_version
         )));
     }
-    if manifest.telemetry_frame_schema_version != TELEMETRY_FRAME_SCHEMA_VERSION {
+    if !supports_telemetry_frame_schema(manifest.telemetry_frame_schema_version) {
         return Err(invalid(format!(
             "Unsupported telemetry frame schema version {}",
             manifest.telemetry_frame_schema_version
@@ -153,10 +167,13 @@ pub fn read_manifest(directory: &Path) -> io::Result<SessionManifestV1> {
     Ok(manifest)
 }
 
-/// One stored canonical frame. Decoding target; the writer serializes a
-/// borrowed equivalent so ingestion never clones a frame.
+/// One stored canonical frame, always in this build's current canonical
+/// schema. Decoding target; the writer serializes a borrowed equivalent so
+/// ingestion never clones a frame. A record read from an older schema is
+/// converted into this shape by `decode_record`, so callers never branch on a
+/// stored schema version.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecordedFrameV1 {
+pub struct RecordedFrame {
     /// Hub publication sequence; strictly increasing within a session.
     pub sequence: u64,
     /// Capture monotonic milliseconds, the authoritative timing source for all
@@ -185,6 +202,29 @@ pub struct FrameStreamEnd {
     pub frame_count: u64,
     pub duration_us: u64,
     pub recorder_dropped_frames: u64,
+}
+
+/// The one place a stored schema version turns into the current canonical
+/// frame. Schema 2 is this build's own shape; schema 1 is decoded through the
+/// frozen `telemetry_v1` structs and converted, preserving every V1 value and
+/// leaving every V2-only field unavailable. Nothing on disk is modified.
+fn decode_record(schema_version: u32, payload: &[u8]) -> io::Result<RecordedFrame> {
+    let failed =
+        |error: rmp_serde::decode::Error| invalid(format!("Could not decode frame: {error}"));
+    match schema_version {
+        TELEMETRY_FRAME_SCHEMA_VERSION => rmp_serde::from_slice(payload).map_err(failed),
+        1 => {
+            let stored: StoredFrameV1 = rmp_serde::from_slice(payload).map_err(failed)?;
+            Ok(RecordedFrame {
+                sequence: stored.sequence,
+                monotonic_ms: stored.monotonic_ms,
+                frame: TelemetryFrame::from(stored.frame),
+            })
+        }
+        other => Err(invalid(format!(
+            "Unsupported telemetry frame schema version {other}"
+        ))),
+    }
 }
 
 const RECORD_TAG: u8 = 1;
@@ -261,11 +301,12 @@ impl<R: Read> FrameStreamReader<R> {
             )));
         }
         let telemetry_frame_schema_version = u32::from_le_bytes(read_bytes(&mut reader)?);
-        // A future canonical `TelemetryFrame` is not decoded on a best-effort
-        // basis: named MessagePack would silently drop or default unknown
-        // fields, which is exactly the silent compatibility assumption this
-        // reader must never make.
-        if telemetry_frame_schema_version != TELEMETRY_FRAME_SCHEMA_VERSION {
+        // A *future* canonical `TelemetryFrame` is still not decoded on a
+        // best-effort basis: named MessagePack would silently drop or default
+        // unknown fields, which is exactly the silent compatibility assumption
+        // this reader must never make. Known past schemas are different: each
+        // has its own frozen decode target, so nothing is guessed.
+        if !supports_telemetry_frame_schema(telemetry_frame_schema_version) {
             return Err(invalid(format!(
                 "Unsupported telemetry frame schema version {telemetry_frame_schema_version}"
             )));
@@ -297,7 +338,7 @@ impl<R: Read> FrameStreamReader<R> {
         })
     }
 
-    pub fn next_frame(&mut self) -> io::Result<Option<RecordedFrameV1>> {
+    pub fn next_frame(&mut self) -> io::Result<Option<RecordedFrame>> {
         if self.finished {
             return Ok(None);
         }
@@ -315,8 +356,7 @@ impl<R: Read> FrameStreamReader<R> {
                 }
                 let mut payload = vec![0; len];
                 self.reader.read_exact(&mut payload)?;
-                let record: RecordedFrameV1 = rmp_serde::from_slice(&payload)
-                    .map_err(|error| invalid(format!("Could not decode frame: {error}")))?;
+                let record = decode_record(self.header.telemetry_frame_schema_version, &payload)?;
                 if record.monotonic_ms < self.last_monotonic_ms {
                     return Err(invalid("Decreasing monotonic frame timestamp"));
                 }
@@ -344,7 +384,7 @@ impl<R: Read> FrameStreamReader<R> {
 
 /// Internal reader used by tests and future offline analysis. Deliberately not
 /// exposed through a Tauri command: React never receives a frame array.
-pub fn read_all_frames(path: &Path) -> io::Result<(FrameStreamHeader, Vec<RecordedFrameV1>)> {
+pub fn read_all_frames(path: &Path) -> io::Result<(FrameStreamHeader, Vec<RecordedFrame>)> {
     let mut reader = FrameStreamReader::new(io::BufReader::new(File::open(path)?))?;
     let mut frames = Vec::new();
     while let Some(frame) = reader.next_frame()? {

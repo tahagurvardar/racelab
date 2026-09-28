@@ -53,38 +53,58 @@ test("diagnostics is the only place the raw FH6 gear code is shown", () => {
   assert.match(entry.caveat, /never shown as a gear/i);
 });
 
-test("adapter values are shown as raw numbers with an explicit unit caveat", () => {
+test("wire powertrain values stay raw, with no unit asserted for boost or fuel", () => {
   const powertrain = fh6Powertrain(frame);
   assert.deepEqual(
     powertrain.map((item) => [item.label, item.value]),
     [
-      ["Power", "150000.3"],
-      ["Torque", "480.5"],
+      ["Power (wire)", "150000.3"],
+      ["Torque (wire)", "480.5"],
       ["Boost", "1.250"],
       ["Fuel", "0.875"],
     ],
   );
-  // No unit is asserted anywhere: power is not labelled W or kW.
+  // Diagnostics reports the wire reading, so it still asserts no unit here.
   for (const item of powertrain) {
-    assert.match(item.caveat, /unit unverified/i);
-    assert.ok(!/\bkW\b|\bwatt/i.test(`${item.label}${item.value}`));
+    assert.ok(!/\bkW\b/i.test(item.label + item.value));
   }
+  const byKey = Object.fromEntries(powertrain.map((item) => [item.key, item]));
+  assert.match(byKey.boost.caveat, /unit unverified/i);
+  assert.match(byKey.fuel.caveat, /unit unverified/i);
 });
 
-test("tire temperatures keep packet order and are never labelled by wheel", () => {
+test("per-wheel diagnostics keep packet order and are never labelled by corner", () => {
   const entries = fh6TireTemperatures(frame);
+  const temperatures = entries.filter((item) =>
+    item.key.startsWith("tire-temp-"),
+  );
   assert.deepEqual(
-    entries.map((item) => [item.label, item.value]),
+    temperatures.map((item) => [item.label, item.value]),
     [
-      ["Tire temperature 0", "70.5"],
-      ["Tire temperature 1", "71.3"],
-      ["Tire temperature 2", "68.0"],
-      ["Tire temperature 3", "69.8"],
+      ["Tire temperature (\u00b0F) 0", "70.5"],
+      ["Tire temperature (\u00b0F) 1", "71.3"],
+      ["Tire temperature (\u00b0F) 2", "68.0"],
+      ["Tire temperature (\u00b0F) 3", "69.8"],
     ],
   );
-  // The wheel order is unverified, so no FL/FR/RL/RR label may appear.
+  // Diagnostics is the wire view: it stays in source order and uses no corner
+  // name, so a suspected corner error can be checked against the packet.
   assert.ok(!/\b(FL|FR|RL|RR)\b/.test(JSON.stringify(entries)));
-  assert.ok(entries.every((item) => /wheel order/i.test(item.caveat)));
+  assert.ok(entries.every((item) => /packet-offset order/i.test(item.caveat)));
+  // Every promoted per-wheel channel is still reachable in raw form.
+  for (const key of [
+    "travel-normalized-0",
+    "travel-m-3",
+    "slip-ratio-1",
+    "slip-angle-2",
+    "combined-slip-0",
+    "rotation-3",
+  ]) {
+    assert.ok(
+      entries.some((item) => item.key === key),
+      "missing " + key,
+    );
+  }
 });
 
 test("vehicle configuration values stay opaque codes with no inferred meaning", () => {
