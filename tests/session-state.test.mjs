@@ -169,13 +169,23 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
   const invoked = [
     ...`${panel}${hook}`.matchAll(/invoke<[^>]+>\("([a-z_]+)"/g),
   ].map((match) => match[1]);
+  // V0.9 adds exactly one command, and it is manifest-scale too: the analysis
+  // document is events and segments the backend already reduced, never frames.
   assert.deepEqual(
     new Set(invoked),
-    new Set(["get_recorder_status", "list_recent_sessions", "get_session"]),
+    new Set([
+      "get_recorder_status",
+      "list_recent_sessions",
+      "get_session",
+      "get_session_analysis",
+    ]),
   );
   // No frame-stream command exists to call, and recording is never user-started:
   // no button in the panel starts, stops or otherwise controls a recording.
   assert.ok(!/read_frames|get_frames|frame_stream/.test(panel));
+  // Analysis is automatic. The development-only reanalyze command exists in the
+  // backend, but no product view may offer it as a control.
+  assert.ok(!/reanalyze_session/.test(panel));
   const buttons = [
     ...panel.matchAll(/<button[\s\S]*?>([\s\S]*?)<\/button>/g),
   ].map((match) => match[1]);

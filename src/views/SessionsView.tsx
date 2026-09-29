@@ -13,9 +13,65 @@ import {
   type RecorderStatus,
   type SessionManifest,
 } from "../session-state.ts";
+import {
+  analysisBanner,
+  channelNote,
+  drivingEventRows,
+  heuristicNotes,
+  qualityLines,
+  slipEpisodeRows,
+  suspensionEventRows,
+  turnRows,
+  type EventRow,
+  type SessionAnalysisState,
+} from "../analysis-state.ts";
 import type { Metric } from "../telemetry/telemetry-view-model.ts";
 
 const RECENT_LIMIT = 20;
+
+/// One event, rendered as a compact reading rather than a log line. The view
+/// model already produced every string; this only places them.
+function EventList({
+  rows,
+  empty,
+  note,
+}: {
+  rows: EventRow[];
+  empty: string;
+  note: string | null;
+}) {
+  if (note != null) {
+    return (
+      <p className="section-footnote" role="status">
+        {note}
+      </p>
+    );
+  }
+  if (rows.length === 0) {
+    return <p className="section-description">{empty}</p>;
+  }
+  return (
+    <ul className="session-list">
+      {rows.map((row) => (
+        <li key={row.key} className="panel session-row">
+          <div className="session-row-main">
+            <p className="session-row-title">
+              {row.label}
+              {row.hasCorner ? ` · ${row.corner}` : ""}
+            </p>
+            <p className="session-row-meta">
+              {row.time} · {row.duration}
+            </p>
+          </div>
+          <div className="session-row-figures">
+            <span>{row.speed}</span>
+          </div>
+          <p className="session-row-status">{row.detail}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /// V0.6 semantics are unchanged: manifest metadata only, no frame stream in
 /// React, and no user-facing recording control. Only the presentation changed.
@@ -38,6 +94,8 @@ export default function SessionsView({
 }) {
   const [recent, setRecent] = useState<RecentSessions | null>(null);
   const [selected, setSelected] = useState<SessionManifest | null>(null);
+  const [analysis, setAnalysis] = useState<SessionAnalysisState | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Manifest metadata only. The frame stream is never requested from React.
@@ -66,18 +124,37 @@ export default function SessionsView({
     if (completed != null) void refresh();
   }, [completed, refresh]);
 
+  // Two manifest-scale reads: the session's metadata and its derived analysis.
+  // Neither opens the frame stream; there is no command that would let React
+  // ask for one, and the analysis is already reduced to events and segments.
   async function open(sessionId: string) {
+    setAnalysis(null);
+    setAnalysisError(null);
     try {
       setSelected(await invoke<SessionManifest>("get_session", { sessionId }));
       setError(null);
     } catch (reason) {
       setError(String(reason));
+      return;
+    }
+    try {
+      setAnalysis(
+        await invoke<SessionAnalysisState>("get_session_analysis", {
+          sessionId,
+        }),
+      );
+    } catch (reason) {
+      // An analysis that cannot be read is its own failure. The session is
+      // already open and stays open.
+      setAnalysisError(String(reason));
     }
   }
 
   const rows = orderSessions(recent?.sessions ?? []).map(sessionRow);
   const summary = selected?.summary ?? null;
   const message = error ?? recorderError ?? recorder?.last_error ?? null;
+  const banner = analysisBanner(analysis, analysisError);
+  const document = banner.showAnalysis ? (analysis?.analysis ?? null) : null;
 
   return (
     <>
@@ -296,6 +373,156 @@ export default function SessionsView({
             timing. Details come from the manifest and summary alone; the frame
             stream is never loaded here.
           </p>
+        </TelemetrySection>
+      ) : null}
+
+      {selected ? (
+        <TelemetrySection
+          eyebrow="V0.9 · DERIVED ANALYSIS"
+          title="Session analysis"
+          aside={<span className="section-status">{banner.headline}</span>}
+          description="Derived from the recorded session after it completed. These are RaceLab measurements and RaceLab definitions, not judgements: nothing here rates a lap, a line or a driver."
+        >
+          <p
+            className={banner.problem ? "banner" : "section-description"}
+            role={banner.problem ? "alert" : "status"}
+          >
+            {banner.detail}
+          </p>
+          {document ? (
+            <>
+              <MetricGrid
+                columns={4}
+                metrics={[
+                  detail(
+                    "events",
+                    "Events",
+                    document.driving_summary.event_count.toLocaleString(),
+                  ),
+                  detail(
+                    "slip",
+                    "Slip episodes",
+                    document.driving_summary.slip_episode_count.toLocaleString(),
+                  ),
+                  detail(
+                    "turns",
+                    "Turn segments",
+                    document.driving_summary.turn_segment_count.toLocaleString(),
+                  ),
+                  detail(
+                    "analyzed",
+                    "Analyzed time",
+                    duration(document.coverage.analyzed_seconds),
+                  ),
+                ]}
+              />
+              <h3 className="section-subtitle">Driving events</h3>
+              <EventList
+                rows={drivingEventRows(document)}
+                empty="No throttle, brake or acceleration events crossed a RaceLab threshold in this session."
+                note={null}
+              />
+
+              <h3 className="section-subtitle">Turn segments</h3>
+              {turnRows(document).length === 0 ? (
+                <p className="section-description">
+                  {channelNote(document, "orientation") ??
+                    "No yaw-rate interval met the turn-segment thresholds in this session."}
+                </p>
+              ) : (
+                <ul className="session-list">
+                  {turnRows(document).map((turn) => (
+                    <li key={turn.key} className="panel session-row">
+                      <div className="session-row-main">
+                        <p className="session-row-title">{turn.title}</p>
+                        <p className="session-row-meta">
+                          {turn.time} · {turn.duration} · yaw {turn.yawChange}
+                        </p>
+                      </div>
+                      <div className="session-row-figures">
+                        <span>
+                          entry {turn.entrySpeed} · min {turn.minSpeed} · exit{" "}
+                          {turn.exitSpeed} km/h
+                        </span>
+                        <span>avg {turn.averageSpeed} km/h</span>
+                      </div>
+                      <p className="session-row-status">
+                        brake {turn.brakeTime} · full throttle{" "}
+                        {turn.fullThrottleTime} · max brake {turn.maxBrake} ·
+                        peak slip {turn.peakSlip}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h3 className="section-subtitle">High slip episodes</h3>
+              {channelNote(document, "wheel") ? (
+                <p className="section-footnote" role="status">
+                  {channelNote(document, "wheel")}
+                </p>
+              ) : slipEpisodeRows(document).length === 0 ? (
+                <p className="section-description">
+                  No corner's slip channels crossed a RaceLab threshold for long
+                  enough to report in this session.
+                </p>
+              ) : (
+                <ul className="session-list">
+                  {slipEpisodeRows(document).map((episode) => (
+                    <li key={episode.key} className="panel session-row">
+                      <div className="session-row-main">
+                        <p className="session-row-title">{episode.title}</p>
+                        <p className="session-row-meta">
+                          {episode.time} · {episode.duration} ·{" "}
+                          {episode.engaged}
+                        </p>
+                      </div>
+                      <div className="session-row-figures">
+                        <span>{episode.speed}</span>
+                        <span>{episode.peak}</span>
+                      </div>
+                      <p className="session-row-status">
+                        {episode.corners} · {episode.channels}
+                      </p>
+                      <p className="section-footnote">
+                        {episode.cornerPeaks.map((corner) => (
+                          <span key={corner.key}>
+                            {corner.label}: {corner.value}
+                            {"  "}
+                          </span>
+                        ))}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h3 className="section-subtitle">Suspension events</h3>
+              <EventList
+                rows={suspensionEventRows(document)}
+                empty="No corner's normalized suspension travel crossed a RaceLab threshold in this session."
+                note={channelNote(document, "suspension")}
+              />
+
+              <h3 className="section-subtitle">Data quality</h3>
+              <MetricGrid
+                columns={4}
+                metrics={qualityLines(document).map((line) => ({
+                  key: line.key,
+                  label: line.label,
+                  value: line.value,
+                  unit: null,
+                  available: line.available,
+                }))}
+              />
+
+              {heuristicNotes(document).map((note, index) => (
+                <p className="section-footnote" key={`heuristic-${index}`}>
+                  {note}
+                </p>
+              ))}
+            </>
+          ) : null}
         </TelemetrySection>
       ) : null}
     </>

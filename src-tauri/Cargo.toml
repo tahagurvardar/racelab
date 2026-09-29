@@ -1,6 +1,6 @@
 [package]
 name = "racelab"
-version = "0.8.0"
+version = "0.9.0"
 description = "RaceLab telemetry desktop application"
 authors = ["Taha Gürvardar"]
 edition = "2021"

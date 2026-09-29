@@ -2,6 +2,57 @@
 
 RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
 
+## V0.9: driving event engine and session analysis
+
+When a session completes, RaceLab analyzes its own recorded frame stream on a
+background thread and writes a versioned `analysis.json` beside the manifest.
+Opening the session shows the existing summary plus driving events, turn
+segments, wheel-slip and suspension events, and a data-quality report. **No
+Analyze button exists**: drive, stop, open the session, and the analysis is
+already there.
+
+Analysis is a **derived layer**, kept deliberately separate from canonical
+telemetry — there is no `TelemetryFrame` schema v3, and nothing in this phase
+changes what a telemetry field means. Three categories run through the output:
+*measured* canonical values, *derived* mathematical consequences of them and the
+monotonic capture clock, and *heuristic* RaceLab thresholds. Every heuristic is
+documented and stored inside the analysis that used it.
+
+The language stays neutral on purpose. RaceLab reports "high combined slip",
+"high suspension extension" and "turn segment"; it never says wheelspin, wheel
+lock, understeer, oversteer, bottoming out, left, right, good or bad, because
+the telemetry does not mathematically establish any of them. **V0.9 measures and
+segments. It does not coach** — there is no score, rating or racing-line
+judgement anywhere.
+
+It is streaming and O(n): a real 11,006-frame session with a 32 MB frame file
+analyzes in 309 ms using 4.5 MB of resident memory, because no frame is ever
+retained. Analysis can never block UDP ingestion, the telemetry hub or the
+recorder — the completion notification is one non-blocking send onto a bounded
+queue, issued after the recording is already durable — and a failed analysis
+leaves a completed session exactly as it was. Old schema-v1 recordings are
+analyzed partially: speed, input and turn analysis work, and the V2-only wheel
+and suspension channels are reported *unavailable* rather than reconstructed
+from adapter data. A missing, corrupt or future-schema `analysis.json` is its
+own explicit state and never takes a session down with it.
+
+See [V0.9 analysis](docs/V0.9-ANALYSIS.md) and
+[V0.9 validation](docs/V0.9-VALIDATION.md).
+
+V0.9 was validated against a real Forza Horizon 6 drive, which exposed
+product-level event noise rather than analysis errors; the
+[hardening pass](docs/V0.9-VALIDATION.md#v09-hardening-pass--first-real-fh6-acceptance)
+that followed coalesced slip into episodes, added a significance rule to
+suspension events and required a minimum net heading change of a turn segment.
+
+**One known risk ships with V0.9 and is carried into V0.10:**
+[cross-car slip-threshold portability](docs/V0.9-VALIDATION.md#carried-into-v010-cross-car-slip-threshold-portability)
+has not been validated against a second vehicle. The two cars measured so far
+disagree about the slip scale by more than an order of magnitude, so the same
+fixed threshold selected 24% of frames on one and 81% on the other. Nothing is
+hidden by it: every analysis reports how much of the drive its slip thresholds
+selected.
+
 ## V0.8: canonical telemetry expansion
 
 `TelemetryFrame` is now **schema version 2**. The FH6 fields whose offsets,
@@ -172,6 +223,8 @@ The historical paced ingress matrix is ignored by the default Rust suite; `pnpm 
 UDP has no delivery guarantee. Counters describe datagrams received by this process; they cannot detect packets dropped by the OS or network before `recv_from`. The product requests `SO_RCVBUF = 4 MiB`; tests can leave that option untouched with `ReceiveBuffer::SystemDefault`. On Windows, `receive_buffer_bytes` is the value Winsock accepted/read back. It is not a guaranteed OS allocation or proof of actual queue capacity. The earlier 989/1000 result has no sequence evidence and cannot be attributed to receive buffering. Loopback synthetic results do not establish loss-free performance with game traffic, bursty large payloads, CPU contention, or real network conditions. Persistence occurs only between Start Capture and Stop Capture; interrupted recordings are not guaranteed complete and fail full validation without a valid footer.
 
 The listener binds IPv4 on all local interfaces. Real FH6 ingress and capture were manually verified and six recordings are now validated offline. The FH6 adapter accepts only the supplied 324-byte layout; unresolved fields remain opaque. No SQLite, AI, accounts, charts, driving analysis, F1 adapter or backend service is included.
+
+V0.9's analysis layer has been run against real Forza Horizon 6 traffic once; the drive and the hardening it produced are in [V0.9 validation](docs/V0.9-VALIDATION.md), along with the one cross-car validation that is carried into V0.10.
 
 V0.7's dashboard has not yet been run against real Forza Horizon 6 traffic; the required manual procedure is in [V0.7 validation](docs/V0.7-VALIDATION.md) and V0.7 is not frozen until it passes. V0.8 has since populated the Tires, Suspension, Race and Engine-output views from captured-packet evidence; its own manual procedure is in [V0.8 validation](docs/V0.8-VALIDATION.md) and V0.8 is likewise not frozen until it passes.
 

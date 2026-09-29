@@ -1,4 +1,7 @@
 pub mod adapters;
+pub mod analysis;
+pub mod analysis_engine;
+pub mod analysis_job;
 pub mod appliance;
 pub mod capture;
 pub mod capture_format;
@@ -16,13 +19,15 @@ pub mod telemetry;
 pub mod telemetry_hub;
 pub mod telemetry_v1;
 
+use analysis::AnalysisConfigV1;
+use analysis_job::{AnalysisRunner, AnalysisRunnerStatus};
 use appliance::{Appliance, DEFAULT_FH6_PORT};
 use capture::{CaptureSnapshot, RawCaptureSink};
 use ingress::StatsSnapshot;
 use live_telemetry::{ConnectionConfig, LiveSnapshot};
 use session_format::SessionManifestV1;
 use session_recorder::{RecorderStatus, SessionRecorder};
-use session_store::RecentSessions;
+use session_store::{RecentSessions, SessionAnalysisState};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -113,6 +118,46 @@ async fn get_session(
     .map_err(|error| format!("Session read failed: {error}"))?
 }
 
+/// Derived analysis for one session. The frame stream is still never exposed:
+/// this returns the analysis document alone, already reduced to events and
+/// segments in the backend.
+#[tauri::command]
+async fn get_session_analysis(
+    recorder: State<'_, Arc<SessionRecorder>>,
+    analyzer: State<'_, Arc<AnalysisRunner>>,
+    session_id: String,
+) -> Result<SessionAnalysisState, String> {
+    let recorder = Arc::clone(recorder.inner());
+    let analyzer = Arc::clone(analyzer.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = analyzer.is_pending(&session_id);
+        session_store::get_session_analysis(recorder.root(), &session_id, pending)
+    })
+    .await
+    .map_err(|error| format!("Session analysis read failed: {error}"))?
+}
+
+/// Development affordance only. The product flow is automatic: a session is
+/// analyzed when it completes, and nothing in the UI asks a user to press
+/// anything. This exists so an already-recorded session can be re-analyzed
+/// after a threshold change without replaying a drive.
+#[tauri::command]
+fn reanalyze_session(
+    analyzer: State<'_, Arc<AnalysisRunner>>,
+    session_id: String,
+) -> Result<AnalysisRunnerStatus, String> {
+    if !session_format::is_safe_session_id(&session_id) {
+        return Err("Unknown session".into());
+    }
+    analyzer.request(&session_id);
+    Ok(analyzer.status())
+}
+
+#[tauri::command]
+fn get_analysis_status(analyzer: State<'_, Arc<AnalysisRunner>>) -> AnalysisRunnerStatus {
+    analyzer.status()
+}
+
 struct Publisher {
     stop: mpsc::SyncSender<()>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -153,9 +198,20 @@ pub fn run() {
                 .hub
                 .attach_recorder(Arc::clone(&recorder) as Arc<_>)
                 .map_err(std::io::Error::other)?;
+            // Analysis is automatic and additive: the runner observes a
+            // finished recording and does its work on its own thread. Nothing
+            // in ingestion, the hub or the recorder waits for it, and a session
+            // records identically whether or not this succeeded.
+            let analyzer =
+                AnalysisRunner::new(recorder.root().to_path_buf(), AnalysisConfigV1::default())
+                    .map_err(std::io::Error::other)?;
+            recorder
+                .attach_completion_hook(Arc::clone(&analyzer) as Arc<_>)
+                .map_err(std::io::Error::other)?;
             app.manage(Arc::clone(&capture));
             app.manage(Arc::clone(&appliance));
             app.manage(Arc::clone(&recorder));
+            app.manage(Arc::clone(&analyzer));
             let handle = app.handle().clone();
             let (stop, receiver) = mpsc::sync_channel(1);
             let worker = thread::Builder::new()
@@ -201,7 +257,10 @@ pub fn run() {
             get_live_telemetry,
             get_recorder_status,
             list_recent_sessions,
-            get_session
+            get_session,
+            get_session_analysis,
+            get_analysis_status,
+            reanalyze_session
         ])
         .build(tauri::generate_context!())
         .expect("error while building RaceLab");
@@ -218,6 +277,9 @@ pub fn run() {
             // Appliance stop already completed any open session; this drains
             // and finalizes the writer before the process exits.
             handle.state::<Arc<SessionRecorder>>().shutdown();
+            // Drained last, so an analysis queued by that final completion
+            // still runs. Recording was already durable before this point.
+            handle.state::<Arc<AnalysisRunner>>().shutdown();
         }
     });
 }

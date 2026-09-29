@@ -20,7 +20,7 @@ use std::{
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         mpsc::{self, Receiver, RecvTimeoutError, SyncSender},
-        Arc, Mutex, MutexGuard,
+        Arc, Mutex, MutexGuard, OnceLock,
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -43,6 +43,23 @@ pub const CHECKPOINT_INTERVAL: Duration = Duration::from_secs(5);
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
+}
+
+/// Additive notification that a recording finished **successfully** and is
+/// already durable on disk: the frame stream carries its footer and the
+/// manifest says `completed` before this is called.
+///
+/// Implementations run on the recorder's writer thread, which also drains the
+/// frame queue, so a method here must return immediately and must never block,
+/// touch disk or call back into the recorder. The V0.9 implementation performs
+/// exactly one `try_send` on a bounded queue.
+///
+/// This is deliberately *not* part of the recorder's own responsibilities: it
+/// observes a completion, it never participates in one. A hook that panics or
+/// misbehaves cannot change a session's status, because the status was written
+/// before the hook was reached.
+pub trait SessionCompletionHook: Send + Sync {
+    fn session_completed(&self, session_id: &str, directory: &Path);
 }
 
 fn unix_ms() -> u64 {
@@ -143,6 +160,9 @@ struct Shared {
     dropped: Arc<AtomicU64>,
     /// Reset to zero when a session starts; read directly by `status()`.
     session_dropped: Arc<AtomicU64>,
+    /// Set once, before telemetry flows. Read by the writer thread only after
+    /// a session is already finalized on disk.
+    completion_hook: OnceLock<Arc<dyn SessionCompletionHook>>,
 }
 
 impl Shared {
@@ -198,6 +218,7 @@ impl SessionRecorder {
             queued: Arc::clone(&queued),
             dropped: Arc::clone(&dropped),
             session_dropped: Arc::clone(&session_dropped),
+            completion_hook: OnceLock::new(),
         });
         if let Err(error) = &interrupted {
             shared.update(|status| status.last_error = Some(error.clone()));
@@ -221,6 +242,18 @@ impl SessionRecorder {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// Attach the post-completion observer once, before telemetry starts
+    /// flowing. Recording behaves identically whether or not one is attached.
+    pub fn attach_completion_hook(
+        &self,
+        hook: Arc<dyn SessionCompletionHook>,
+    ) -> Result<(), String> {
+        self.shared
+            .completion_hook
+            .set(hook)
+            .map_err(|_| "A session completion hook is already attached".to_string())
     }
 
     pub fn status(&self) -> RecorderStatus {
@@ -636,6 +669,16 @@ fn finalize(open: &mut Option<OpenSession>, shared: &Arc<Shared>, completed: Opt
     }
     let id = session.id.clone();
     let completed_ok = session.manifest.status == SessionStatus::Completed;
+    // Everything this session owns is durable and final at this point: the
+    // frame stream is closed and the manifest has been written atomically. Only
+    // now is the completion observable, and only for a session that actually
+    // completed. The call is non-blocking by contract; nothing it does can
+    // change what was just written.
+    if completed_ok {
+        if let Some(hook) = shared.completion_hook.get() {
+            hook.session_completed(&id, &session.directory);
+        }
+    }
     shared.update(|status| {
         status.recording = false;
         status.session_id = None;

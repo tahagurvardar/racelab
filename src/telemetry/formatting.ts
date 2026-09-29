@@ -86,6 +86,18 @@ export function lapTime(seconds: Nullable): string {
   return `${minutes}:${rest.toFixed(3).padStart(6, "0")}`;
 }
 
+/// Milliseconds since the start of a session -> m:ss.mmm. This is an offset
+/// into a recording, not a lap time and not a clock time: derived analysis
+/// reports session-relative monotonic milliseconds and this is how they read.
+export function offsetClock(milliseconds: Nullable): string {
+  if (!usable(milliseconds) || milliseconds < 0) return UNAVAILABLE;
+  const total = Math.round(milliseconds);
+  const minutes = Math.floor(total / 60_000);
+  const seconds = Math.floor((total % 60_000) / 1000);
+  const rest = total % 1000;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(rest).padStart(3, "0")}`;
+}
+
 /// Seconds -> h:mm:ss / m:ss. For elapsed wall time, not lap timing.
 export function elapsed(seconds: Nullable): string {
   if (!usable(seconds) || seconds < 0) return UNAVAILABLE;

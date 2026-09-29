@@ -89,6 +89,48 @@ export function wheelOf(
   return wheels?.[CORNER_FIELDS[corner]];
 }
 
+/// The inverse of `CORNER_FIELDS`, derived from it rather than written out a
+/// second time. Derived session analysis names its corners with the canonical
+/// snake_case codes the backend serializes (`front_left`, …); this turns one
+/// into the corner the rest of the frontend already speaks, so no second module
+/// ever has to repeat the mapping. An unrecognised code returns null instead of
+/// guessing a corner.
+const CANONICAL_CORNERS = new Map<string, WheelCorner>(
+  WHEEL_CORNERS.map((corner) => [CORNER_FIELDS[corner], corner]),
+);
+
+export function cornerOf(
+  canonical: string | null | undefined,
+): WheelCorner | null {
+  return canonical == null ? null : (CANONICAL_CORNERS.get(canonical) ?? null);
+}
+
+/// The corner's display label, or `UNAVAILABLE` for an event that belongs to no
+/// particular corner. Never invents a corner for an unknown code.
+export function cornerLabelOf(canonical: string | null | undefined): string {
+  const corner = cornerOf(canonical);
+  return corner == null ? UNAVAILABLE : CORNER_LABELS[corner];
+}
+
+/// A per-corner value set keyed by the *canonical* field names, which is how
+/// derived analysis serializes one. Declared in terms of `Wheels` rather than
+/// by spelling the four names again, so there is still exactly one place in the
+/// frontend that knows them.
+export type CanonicalCornerSet<T> = Record<keyof Wheels, T>;
+
+/// Always FL, FR, RL, RR, with each corner's label attached. Any module that
+/// needs to walk an analysis's per-corner values uses this instead of indexing
+/// the object itself, which is how a corner would get transposed.
+export function canonicalCornerRows<T>(
+  values: CanonicalCornerSet<T>,
+): CornerRow<T>[] {
+  return WHEEL_CORNERS.map((corner) => ({
+    corner,
+    label: CORNER_LABELS[corner],
+    values: values[CORNER_FIELDS[corner]],
+  }));
+}
+
 export interface CornerRow<T> {
   corner: WheelCorner;
   label: string;

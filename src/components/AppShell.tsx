@@ -62,7 +62,7 @@ export function AppShell({
           <span className="sidebar-mark" aria-hidden="true" />
           <span>
             RaceLab
-            <em>V0.8.0</em>
+            <em>V0.9.0</em>
           </span>
         </div>
         <NavGroup
