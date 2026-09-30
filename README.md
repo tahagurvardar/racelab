@@ -1,6 +1,51 @@
 # RaceLab
 
-RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions.
+RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions. V0.10 bounds what the product stores, recovers what a crash would otherwise lose, and states why an analysis is or is not ready.
+
+## V0.10: FH6 product hardening
+
+V0.10 makes the existing FH6 product reliable enough to be the V1.0 functional
+baseline. It adds no features: it bounds what was unbounded, recovers what was
+being lost, and says out loud what was previously implied.
+
+**Bounded storage.** Recordings cost about 0.8 GB per hour, so the sessions
+directory now has a budget — 8 GiB by default, `RACELAB_STORAGE_BUDGET_BYTES` to
+change it, `0` to disable deletion. When it is exceeded, whole sessions are
+deleted oldest-first, and never the session being recorded, a session queued for
+or undergoing analysis, or a session RaceLab cannot identify. Nothing is deleted
+silently: usage, deletions and space reclaimed are all reported in Sessions.
+
+**Interrupted-session recovery.** A crashed recording leaves an append-only frame
+stream that is ahead of its last manifest checkpoint. On this machine that meant
+13 real sessions each reporting `frame_count: 0` beside megabytes of perfectly
+readable frames. RaceLab now reads those streams and reports what is in them —
+**71,625 frames, 18.4 minutes of driving, previously reported as nothing.**
+`frames.rlframes` is never written, and an interrupted recording is still never
+presented as a finished session: it stays interrupted and never gains a summary.
+
+**Analysis job state.** Six explicit states replace V0.9's single "pending":
+not analyzed, queued, analyzing, available, failed, unsupported schema. Queued
+and analyzing are separate because a session waiting behind a long analysis is
+not a session being worked on, and a failure is separate from an absence because
+a failure that renders as an absence is a silent one. Queue wait and analysis
+time are reported as separate figures and never summed.
+
+**Re-analysis.** A recovery path, not a driving control: offered only where the
+automatic path already failed or produced an unreadable schema. It rewrites
+`analysis.json` atomically and touches neither the frame stream nor the manifest.
+
+**Two evidence questions answered, and neither promoted.** The cross-car slip
+threshold carried over from V0.9 **is not portable** — the same absolute value
+selects 21% of one car's driving and 67% of another's — so the semantics are
+deliberately left unchanged rather than retuned on two cars. A re-audit of every
+still-deferred FH6 field promoted nothing, and corrected three V0.8
+observations in the process. `TelemetryFrame` stays at schema 2.
+
+See [V0.10 hardening](docs/V0.10-HARDENING.md),
+[V0.10 evidence](docs/V0.10-EVIDENCE.md) and
+[V0.10 validation](docs/V0.10-VALIDATION.md). V0.10 is **not frozen** until the
+manual FH6 acceptance procedure in the last of those passes; the app version
+stays 0.9.0 until it does.
 
 ## V0.9: driving event engine and session analysis
 
@@ -45,13 +90,12 @@ product-level event noise rather than analysis errors; the
 that followed coalesced slip into episodes, added a significance rule to
 suspension events and required a minimum net heading change of a turn segment.
 
-**One known risk ships with V0.9 and is carried into V0.10:**
-[cross-car slip-threshold portability](docs/V0.9-VALIDATION.md#carried-into-v010-cross-car-slip-threshold-portability)
-has not been validated against a second vehicle. The two cars measured so far
-disagree about the slip scale by more than an order of magnitude, so the same
-fixed threshold selected 24% of frames on one and 81% on the other. Nothing is
-hidden by it: every analysis reports how much of the drive its slip thresholds
-selected.
+**The one known risk V0.9 carried into V0.10 has now been measured.**
+[Cross-car slip-threshold portability](docs/V0.10-EVIDENCE.md#1-cross-car-slip-portability)
+was tested across every persisted schema-2 session: the threshold is **not
+portable**, and the thresholds are deliberately left unchanged rather than
+retuned on a two-car corpus. Nothing is hidden by it: every analysis reports how
+much of the drive its slip thresholds selected.
 
 ## V0.8: canonical telemetry expansion
 
@@ -224,7 +268,9 @@ UDP has no delivery guarantee. Counters describe datagrams received by this proc
 
 The listener binds IPv4 on all local interfaces. Real FH6 ingress and capture were manually verified and six recordings are now validated offline. The FH6 adapter accepts only the supplied 324-byte layout; unresolved fields remain opaque. No SQLite, AI, accounts, charts, driving analysis, F1 adapter or backend service is included.
 
-V0.9's analysis layer has been run against real Forza Horizon 6 traffic once; the drive and the hardening it produced are in [V0.9 validation](docs/V0.9-VALIDATION.md), along with the one cross-car validation that is carried into V0.10.
+V0.9's analysis layer has been run against real Forza Horizon 6 traffic once; the drive and the hardening it produced are in [V0.9 validation](docs/V0.9-VALIDATION.md).
+
+V0.10's storage retention, interrupted-session recovery, analysis job states and re-analysis are covered by 240 Rust and 131 frontend tests, and recovery has additionally been validated against copies of 13 real crashed recordings. None of it has been run against live FH6 yet: the required manual procedure is in [V0.10 validation](docs/V0.10-VALIDATION.md), and V0.10 is not frozen until it passes. Five known limitations are listed there, four of which are RaceLab declining to assert something the telemetry does not establish — cross-car slip portability, gear-code semantics, lap and event fields, and the unit of `boost`.
 
 V0.7's dashboard has not yet been run against real Forza Horizon 6 traffic; the required manual procedure is in [V0.7 validation](docs/V0.7-VALIDATION.md) and V0.7 is not frozen until it passes. V0.8 has since populated the Tires, Suspension, Race and Engine-output views from captured-packet evidence; its own manual procedure is in [V0.8 validation](docs/V0.8-VALIDATION.md) and V0.8 is likewise not frozen until it passes.
 

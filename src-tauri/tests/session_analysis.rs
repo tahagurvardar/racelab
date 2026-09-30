@@ -11,7 +11,7 @@ use racelab_lib::{
         SlipEpisodeV1, SlipFamily, ANALYSIS_FILE_NAME, ANALYSIS_SCHEMA_VERSION,
     },
     analysis_engine::{self, wrap_angle, AnalysisAccumulator},
-    analysis_job::{self, AnalysisRunner, ANALYSIS_QUEUE_CAPACITY},
+    analysis_job::{self, AnalysisRunner, JobRecord, ANALYSIS_QUEUE_CAPACITY},
     session_format::{
         self, FrameStreamReader, RecordedFrame, SessionManifestV1, SessionStatus, FRAME_FILE_NAME,
         FRAME_FORMAT_VERSION, TELEMETRY_FRAME_SCHEMA_VERSION,
@@ -1217,6 +1217,60 @@ fn v2_session(root: &Path, session_id: &str, records: &[RecordedFrame]) {
 }
 
 /// A drive that exercises every detector at least once.
+/// Genuine damage in the *middle* of a frame stream, as distinct from a stream
+/// that merely stops.
+///
+/// The distinction matters and is easy to get wrong: truncating a file and
+/// appending a handful of junk bytes does **not** produce a corrupt record, it
+/// produces a longer truncated one, because the reader still runs out of bytes
+/// part-way through the record it is assembling. Real damage means a record
+/// whose length prefix is honoured in full and whose payload is then
+/// undecodable, with valid records on both sides of it.
+///
+/// `0xC1` is the one byte MessagePack permanently reserves and never assigns,
+/// so a payload of `0xC1` bytes cannot decode as anything.
+fn damaged_stream(session_id: &str, records: &[RecordedFrame]) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    session_format::write_stream_header(
+        &mut bytes,
+        &session_format::FrameStreamHeader {
+            frame_format_version: FRAME_FORMAT_VERSION,
+            telemetry_frame_schema_version: TELEMETRY_FRAME_SCHEMA_VERSION,
+            session_id: session_id.into(),
+            started_at_unix_ms: 1_800_000_000_000,
+        },
+    )
+    .unwrap();
+    for (index, record) in records.iter().enumerate() {
+        if index == 1 {
+            // Record tag, a four-byte length that is fully present, and a
+            // payload no decoder can accept.
+            bytes.push(1);
+            bytes.extend_from_slice(&8_u32.to_le_bytes());
+            bytes.extend_from_slice(&[0xC1; 8]);
+        }
+        session_format::write_frame(
+            &mut bytes,
+            record.sequence,
+            record.monotonic_ms,
+            &record.frame,
+        )
+        .unwrap();
+    }
+    bytes
+}
+
+/// A session directory whose frame stream is damaged mid-file.
+fn damaged_session(root: &Path, session_id: &str, records: &[RecordedFrame]) {
+    v2_session(root, session_id, records);
+    let directory = root.join(session_id);
+    fs::write(
+        directory.join(FRAME_FILE_NAME),
+        damaged_stream(session_id, records),
+    )
+    .unwrap();
+}
+
 fn rich_records() -> Vec<RecordedFrame> {
     let mut yaw = 0.0_f64;
     let mut records = Vec::new();
@@ -1308,18 +1362,14 @@ fn analysis_only_adds_a_file_to_the_session_directory() {
 
 // --------------------------------------------------------------- resilience
 
-/// Case 26. A corrupt frame stream produces no analysis at all. A partial analysis
-/// that looks complete would be worse than none.
+/// Case 26. A frame stream damaged in the middle produces no analysis at all. A
+/// partial analysis that looked complete would be worse than none, and a record
+/// whose payload is present but undecodable is damage rather than an ending.
 #[test]
 fn a_corrupt_frame_stream_fails_without_writing_an_analysis() {
     let root = scratch("corrupt-stream");
-    v2_session(&root, "broken-1", &rich_records());
+    damaged_session(&root, "broken-1", &rich_records());
     let directory = root.join("broken-1");
-    // Truncate a record mid-payload and follow it with garbage.
-    let mut bytes = fs::read(directory.join(FRAME_FILE_NAME)).unwrap();
-    bytes.truncate(120);
-    bytes.extend_from_slice(&[0xFF; 32]);
-    fs::write(directory.join(FRAME_FILE_NAME), &bytes).unwrap();
 
     let error = analysis_job::analyze_one(&root, "broken-1", AnalysisConfigV1::default())
         .expect_err("a corrupt stream must fail");
@@ -1329,6 +1379,55 @@ fn a_corrupt_frame_stream_fails_without_writing_an_analysis() {
     // The session itself is untouched and still readable.
     let manifest = session_store::get_session(&root, "broken-1").unwrap();
     assert_eq!(manifest.status, SessionStatus::Completed);
+}
+
+/// A stream that stops part-way through a record — the ordinary shape of a
+/// recording killed by a crash — keeps every complete frame before the cut.
+///
+/// This is the opposite half of the case above and the distinction is the whole
+/// point of V0.10 recovery: a file that *stops* is analyzed up to where it
+/// stops, a file that is *wrong* is refused. Discarding a whole session because
+/// its last few bytes never reached the disk would throw away minutes of
+/// verified telemetry to avoid mis-reading one frame.
+#[test]
+fn a_stream_that_stops_mid_record_is_analyzed_up_to_the_last_complete_frame() {
+    let root = scratch("truncated-stream");
+    let records = rich_records();
+    v2_session(&root, "cut-1", &records);
+    let directory = root.join("cut-1");
+
+    // Cut inside the final record, leaving the earlier ones whole. The 25-byte
+    // footer goes first, then part of the last record's payload, so the cut is
+    // genuinely mid-record and not merely a missing end marker.
+    let bytes = fs::read(directory.join(FRAME_FILE_NAME)).unwrap();
+    let whole = {
+        let mut reader = FrameStreamReader::new(Cursor::new(bytes.clone())).unwrap();
+        let mut count = 0;
+        while matches!(reader.next_frame(), Ok(Some(_))) {
+            count += 1;
+        }
+        count
+    };
+    assert!(whole >= 2, "the fixture needs several records");
+    fs::write(
+        directory.join(FRAME_FILE_NAME),
+        &bytes[..bytes.len().saturating_sub(25 + 20)],
+    )
+    .unwrap();
+
+    analysis_job::analyze_one(&root, "cut-1", AnalysisConfigV1::default())
+        .expect("a stream that stops must still be analyzed");
+    let analysis = analysis::read_analysis(&directory).unwrap();
+    assert!(
+        analysis.data_quality.frames_read > 0,
+        "the readable prefix must be kept"
+    );
+    assert!(
+        analysis.data_quality.frames_read < whole,
+        "the cut record must not be counted"
+    );
+    // It must never claim to be a complete recording.
+    assert!(!analysis.data_quality.frame_stream_complete);
 }
 
 /// A stream with no footer — a session lost to a crash — is still analyzed, and
@@ -1371,8 +1470,8 @@ fn a_corrupt_analysis_file_is_isolated() {
     let directory = root.join("modern-3");
     fs::write(directory.join(ANALYSIS_FILE_NAME), b"{ not json at all").unwrap();
 
-    let state = session_store::get_session_analysis(&root, "modern-3", false).unwrap();
-    assert_eq!(state.state, AnalysisAvailability::Corrupt);
+    let state = session_store::get_session_analysis(&root, "modern-3", None).unwrap();
+    assert_eq!(state.state, AnalysisAvailability::Failed);
     assert!(state.analysis.is_none());
     assert!(state.message.is_some());
     // Neither the session nor the listing is affected.
@@ -1403,8 +1502,8 @@ fn an_unsupported_analysis_schema_is_refused_by_version() {
     )
     .unwrap();
 
-    let state = session_store::get_session_analysis(&root, "modern-4", false).unwrap();
-    assert_eq!(state.state, AnalysisAvailability::Unsupported);
+    let state = session_store::get_session_analysis(&root, "modern-4", None).unwrap();
+    assert_eq!(state.state, AnalysisAvailability::UnsupportedSchema);
     assert_eq!(
         state.analysis_schema_version,
         Some(ANALYSIS_SCHEMA_VERSION + 7)
@@ -1422,13 +1521,18 @@ fn an_unsupported_analysis_schema_is_refused_by_version() {
 fn a_session_without_an_analysis_reports_absence_not_emptiness() {
     let root = scratch("absent-analysis");
     v2_session(&root, "modern-5", &rich_records());
-    let state = session_store::get_session_analysis(&root, "modern-5", false).unwrap();
-    assert_eq!(state.state, AnalysisAvailability::Absent);
+    let state = session_store::get_session_analysis(&root, "modern-5", None).unwrap();
+    assert_eq!(state.state, AnalysisAvailability::NotAnalyzed);
     assert!(state.analysis.is_none());
     assert!(state.message.is_some());
     // And the same session, while a job for it is queued, is pending.
-    let pending = session_store::get_session_analysis(&root, "modern-5", true).unwrap();
-    assert_eq!(pending.state, AnalysisAvailability::Pending);
+    let pending = session_store::get_session_analysis(
+        &root,
+        "modern-5",
+        Some(JobRecord::queued("modern-5", 0)),
+    )
+    .unwrap();
+    assert_eq!(pending.state, AnalysisAvailability::Queued);
 }
 
 /// A crafted session identifier can never escape the sessions root, on either
@@ -1438,7 +1542,7 @@ fn analysis_rejects_unsafe_session_identifiers() {
     let root = scratch("unsafe-id");
     for id in ["../escape", "a/b", "", "with space", "..\\escape"] {
         assert!(
-            session_store::get_session_analysis(&root, id, false).is_err(),
+            session_store::get_session_analysis(&root, id, None).is_err(),
             "{id}"
         );
         assert!(
@@ -1603,12 +1707,14 @@ fn an_analysis_failure_does_not_affect_the_completed_session() {
     v2_session(&root, "modern-7", &rich_records());
     let directory = root.join("modern-7");
     let manifest_before = fs::read(directory.join("manifest.json")).unwrap();
-    // Corrupt the stream so analysis is guaranteed to fail.
-    let mut bytes = fs::read(directory.join(FRAME_FILE_NAME)).unwrap();
-    bytes.truncate(90);
-    bytes.push(0x7F);
-    bytes.extend_from_slice(&[0xAB; 16]);
-    fs::write(directory.join(FRAME_FILE_NAME), &bytes).unwrap();
+    // Damage the stream mid-file so analysis is guaranteed to fail. A record
+    // that is present but undecodable is damage; a file that merely stops is
+    // not, and would now be analyzed up to where it stops.
+    fs::write(
+        directory.join(FRAME_FILE_NAME),
+        damaged_stream("modern-7", &rich_records()),
+    )
+    .unwrap();
 
     let analyzer = AnalysisRunner::new(root.clone(), AnalysisConfigV1::default()).unwrap();
     assert!(analyzer.request("modern-7"));
@@ -1630,8 +1736,8 @@ fn an_analysis_failure_does_not_affect_the_completed_session() {
     let manifest = session_store::get_session(&root, "modern-7").unwrap();
     assert_eq!(manifest.status, SessionStatus::Completed);
     assert!(!directory.join(ANALYSIS_FILE_NAME).exists());
-    let state = session_store::get_session_analysis(&root, "modern-7", false).unwrap();
-    assert_eq!(state.state, AnalysisAvailability::Absent);
+    let state = session_store::get_session_analysis(&root, "modern-7", None).unwrap();
+    assert_eq!(state.state, AnalysisAvailability::NotAnalyzed);
 }
 
 /// Case 32. Ingestion and the recorder never wait for analysis. A deliberately slow
@@ -2387,8 +2493,8 @@ fn a_pre_hardening_analysis_document_is_refused_by_version() {
     )
     .unwrap();
 
-    let state = session_store::get_session_analysis(&root, "stale-1", false).unwrap();
-    assert_eq!(state.state, AnalysisAvailability::Unsupported);
+    let state = session_store::get_session_analysis(&root, "stale-1", None).unwrap();
+    assert_eq!(state.state, AnalysisAvailability::UnsupportedSchema);
     assert_eq!(state.analysis_schema_version, Some(1));
     assert_eq!(state.supported_analysis_schema_version, 2);
     assert!(state.analysis.is_none());
@@ -2398,6 +2504,6 @@ fn a_pre_hardening_analysis_document_is_refused_by_version() {
         SessionStatus::Completed
     );
     analysis_job::analyze_one(&root, "stale-1", AnalysisConfigV1::default()).unwrap();
-    let refreshed = session_store::get_session_analysis(&root, "stale-1", false).unwrap();
+    let refreshed = session_store::get_session_analysis(&root, "stale-1", None).unwrap();
     assert_eq!(refreshed.state, AnalysisAvailability::Available);
 }

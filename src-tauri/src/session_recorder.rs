@@ -8,6 +8,8 @@ use crate::{
         self, FrameStreamEnd, FrameStreamHeader, FrameStreamWriter, SessionManifestV1,
         SessionStatus, FRAME_FILE_NAME, FRAME_FORMAT_VERSION, TELEMETRY_FRAME_SCHEMA_VERSION,
     },
+    session_recovery,
+    session_retention::SessionProtection,
     session_summary::SummaryAccumulator,
     telemetry::TelemetryFrame,
     telemetry_hub::SessionRecorderHook,
@@ -702,35 +704,56 @@ fn finalize(open: &mut Option<OpenSession>, shared: &Arc<Shared>, completed: Opt
 /// A manifest still marked `recording` at startup belongs to a session this
 /// process never finished. It is reclassified as interrupted, never completed,
 /// and never gains a summary.
+///
+/// The implementation moved to `session_recovery` in V0.10, which additionally
+/// marks the session as awaiting a frame-stream scan. This remains the
+/// recorder's entry point so a recorder constructed on its own — which is how
+/// every recorder test constructs one — still performs the same startup
+/// classification it always has.
 pub fn classify_interrupted_sessions(root: &Path) -> Result<u64, String> {
-    let entries = match fs::read_dir(root) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
-        Err(error) => return Err(format!("Could not read the sessions directory: {error}")),
-    };
-    let mut reclassified = 0;
-    for entry in entries.flatten() {
-        let directory = entry.path();
-        if !directory.is_dir() {
-            continue;
-        }
-        let Ok(mut manifest) = session_format::read_manifest(&directory) else {
-            continue; // One unreadable session must never block the others.
-        };
-        if manifest.status != SessionStatus::Recording {
-            continue;
-        }
-        manifest.status = SessionStatus::Interrupted;
-        manifest.summary = None;
-        manifest.completion_reason = Some("interrupted_racelab_did_not_finalize".into());
-        if manifest.ended_at_unix_ms.is_none() {
-            manifest.ended_at_unix_ms = manifest
-                .started_at_unix_ms
-                .map(|started| started.saturating_add(manifest.duration_us / 1000));
-        }
-        if session_format::write_manifest_atomically(&directory, &manifest).is_ok() {
-            reclassified += 1;
+    session_recovery::classify_interrupted_sessions(root)
+}
+
+/// Fans one completion out to several observers, in order.
+///
+/// The recorder deliberately accepts exactly one hook, because "who observes a
+/// completion" is a wiring decision and not something the recorder should hold
+/// a list of. V0.10 has two observers — the analyzer and retention — so the
+/// wiring supplies one hook that calls both.
+///
+/// Every contract of `SessionCompletionHook` still applies to this type and to
+/// each member: it runs on the writer thread and must return immediately.
+pub struct CompletionFanout {
+    hooks: Vec<Arc<dyn SessionCompletionHook>>,
+}
+
+impl CompletionFanout {
+    pub fn new(hooks: Vec<Arc<dyn SessionCompletionHook>>) -> Arc<Self> {
+        Arc::new(Self { hooks })
+    }
+}
+
+impl SessionCompletionHook for CompletionFanout {
+    fn session_completed(&self, session_id: &str, directory: &Path) {
+        for hook in &self.hooks {
+            hook.session_completed(session_id, directory);
         }
     }
-    Ok(reclassified)
+}
+
+/// The session currently being recorded, or being finalized, is never deleted.
+///
+/// `status.session_id` is set by the writer thread in the same step that
+/// creates the session directory, and cleared only after the manifest has been
+/// finalized and the completion hook has run. There is therefore no instant at
+/// which a directory exists on disk for a live recording without this
+/// reporting it as protected.
+impl SessionProtection for SessionRecorder {
+    fn is_protected(&self, session_id: &str) -> bool {
+        lock(&self.shared.status).session_id.as_deref() == Some(session_id)
+    }
+
+    fn protection_reason(&self) -> &'static str {
+        "being recorded"
+    }
 }

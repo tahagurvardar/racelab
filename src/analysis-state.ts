@@ -237,13 +237,21 @@ export interface SessionAnalysis {
   data_quality: AnalysisDataQuality;
 }
 
+/// The six product states an analysis can be in, exactly as
+/// `session_store::AnalysisAvailability` serializes them.
+///
+/// `queued` and `analyzing` are separate on purpose: a session waiting behind
+/// another is not a session being worked on, and a user watching "in progress"
+/// for a minute deserves to know which one they are looking at. `failed` is
+/// separate from `not_analyzed` for the same reason - a failure that renders as
+/// an absence is a silent failure.
 export type AnalysisAvailability =
   | "available"
-  | "pending"
-  | "absent"
-  | "corrupt"
-  | "unsupported"
-  | "error";
+  | "queued"
+  | "analyzing"
+  | "not_analyzed"
+  | "failed"
+  | "unsupported_schema";
 
 export interface SessionAnalysisState {
   session_id: string;
@@ -253,6 +261,14 @@ export interface SessionAnalysisState {
   supported_analysis_schema_version: number;
   message: string | null;
   file: string;
+  /// How long this session has waited for the analysis worker.
+  queued_ms: number | null;
+  /// How long analyzing it took, once it ran.
+  analysis_duration_ms: number | null;
+  failure_reason: string | null;
+  /// Whether offering a re-run makes sense. Never true while a job is in
+  /// flight, and never true for a recording with no readable frames.
+  can_reanalyze: boolean;
 }
 
 /// Neutral event names. Each states the channel and the direction; none of them
@@ -302,6 +318,17 @@ export interface AnalysisBanner {
   detail: string;
   /// True for a state the user may want to act on or report.
   problem: boolean;
+  /// Whether to offer the re-run action. Recovery only: this is never shown
+  /// for a session whose analysis is simply on its way.
+  offerReanalysis: boolean;
+}
+
+/// A duration a person reads, from milliseconds. Sub-second waits are not worth
+/// a number: "a moment" is both truer and more useful than "0.4 s".
+function waited(ms: number | null | undefined): string | null {
+  if (ms == null || !Number.isFinite(ms) || ms < 1_000) return null;
+  if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
+  return `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1000)} s`;
 }
 
 /// The one place that turns a backend availability state into what the user
@@ -313,22 +340,25 @@ export function analysisBanner(
 ): AnalysisBanner {
   if (error != null) {
     return {
-      state: "error",
+      state: "failed",
       showAnalysis: false,
       headline: "Analysis unavailable",
       detail: error,
       problem: true,
+      offerReanalysis: false,
     };
   }
   if (state == null) {
     return {
-      state: "pending",
+      state: "queued",
       showAnalysis: false,
       headline: "Loading analysis…",
       detail: "Reading the analysis for this session.",
       problem: false,
+      offerReanalysis: false,
     };
   }
+  const offerReanalysis = state.can_reanalyze;
   switch (state.state) {
     case "available":
       return {
@@ -337,17 +367,33 @@ export function analysisBanner(
         headline: "Analysis available",
         detail: `Analysis schema v${state.analysis_schema_version ?? "?"}.`,
         problem: false,
+        offerReanalysis,
       };
-    case "pending":
+    case "queued": {
+      const wait = waited(state.queued_ms);
+      return {
+        state: state.state,
+        showAnalysis: false,
+        headline: "Waiting to be analyzed",
+        detail:
+          "Sessions are analyzed one at a time, in the order they finished. This one is waiting its turn" +
+          (wait == null ? "." : `, and has been waiting ${wait}.`) +
+          " The recording itself is already saved and complete.",
+        problem: false,
+        offerReanalysis: false,
+      };
+    }
+    case "analyzing":
       return {
         state: state.state,
         showAnalysis: false,
         headline: "Analysis in progress",
         detail:
-          "This session is being analyzed. Reopen it in a moment to see the result.",
+          "This session is being analyzed now. Reopen it in a moment to see the result.",
         problem: false,
+        offerReanalysis: false,
       };
-    case "absent":
+    case "not_analyzed":
       return {
         state: state.state,
         showAnalysis: false,
@@ -355,37 +401,60 @@ export function analysisBanner(
         detail:
           "No analysis exists for this session. Sessions are analyzed when they complete; recordings made before V0.9 are not analyzed retroactively. This is not the same as an analysis that found no events.",
         problem: false,
+        offerReanalysis,
       };
-    case "unsupported":
+    case "unsupported_schema":
       return {
         state: state.state,
         showAnalysis: false,
         headline: "Unsupported analysis version",
-        detail: `This session's analysis was written in schema v${
+        detail: `This analysis was written in schema v${
           state.analysis_schema_version ?? "?"
-        }; this build reads v${state.supported_analysis_schema_version}. The recording itself is unaffected.`,
+        }; this build reads v${state.supported_analysis_schema_version}. The recording itself is unaffected, and the analysis can be produced again from it.`,
         problem: true,
-      };
-    case "corrupt":
-      return {
-        state: state.state,
-        showAnalysis: false,
-        headline: "Analysis unreadable",
-        detail:
-          `${state.file} could not be read. The recording itself is unaffected. ${
-            state.message ?? ""
-          }`.trim(),
-        problem: true,
+        offerReanalysis,
       };
     default:
       return {
-        state: "error",
+        state: "failed",
         showAnalysis: false,
-        headline: "Analysis unavailable",
-        detail: state.message ?? "The analysis could not be read.",
+        headline: "Analysis failed",
+        detail: `${
+          state.failure_reason ??
+          state.message ??
+          "The analysis could not be produced."
+        } The recording itself is unaffected.`.trim(),
         problem: true,
+        offerReanalysis,
       };
   }
+}
+
+/// Bounded diagnostics for one analysis job, as short readable lines.
+///
+/// These exist so a queue wait is explicable rather than mysterious. They are
+/// deliberately the only job internals that reach a user: there is no queue
+/// depth, no worker name and no thread state here.
+export function analysisJobLines(
+  state: SessionAnalysisState | null,
+): { key: string; label: string; value: string }[] {
+  if (state == null) return [];
+  const lines: { key: string; label: string; value: string }[] = [];
+  const wait = waited(state.queued_ms);
+  if (wait != null) {
+    lines.push({ key: "queued", label: "Waited in queue", value: wait });
+  }
+  if (state.analysis_duration_ms != null) {
+    lines.push({
+      key: "duration",
+      label: "Analysis took",
+      value:
+        state.analysis_duration_ms < 1_000
+          ? `${state.analysis_duration_ms} ms`
+          : `${(state.analysis_duration_ms / 1000).toFixed(1)} s`,
+    });
+  }
+  return lines;
 }
 
 export interface EventRow {

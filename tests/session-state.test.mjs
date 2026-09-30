@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  bytes,
+  recoveryLabel,
+  recoveryNote,
+  retentionNote,
   clockTime,
   duration,
   newerRecorder,
@@ -169,8 +173,9 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
   const invoked = [
     ...`${panel}${hook}`.matchAll(/invoke<[^>]+>\("([a-z_]+)"/g),
   ].map((match) => match[1]);
-  // V0.9 adds exactly one command, and it is manifest-scale too: the analysis
-  // document is events and segments the backend already reduced, never frames.
+  // V0.9 added the analysis document; V0.10 adds housekeeping status. Both are
+  // manifest-scale: events and segments the backend already reduced, and
+  // counters it already holds. Neither is a frame.
   assert.deepEqual(
     new Set(invoked),
     new Set([
@@ -178,20 +183,40 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
       "list_recent_sessions",
       "get_session",
       "get_session_analysis",
+      "get_storage_status",
     ]),
   );
   // No frame-stream command exists to call, and recording is never user-started:
   // no button in the panel starts, stops or otherwise controls a recording.
   assert.ok(!/read_frames|get_frames|frame_stream/.test(panel));
-  // Analysis is automatic. The development-only reanalyze command exists in the
-  // backend, but no product view may offer it as a control.
-  assert.ok(!/reanalyze_session/.test(panel));
   const buttons = [
     ...panel.matchAll(/<button[\s\S]*?>([\s\S]*?)<\/button>/g),
   ].map((match) => match[1]);
   assert.ok(buttons.length > 0);
   assert.ok(
     buttons.every((label) => !/record/i.test(label)),
+    buttons.join("|"),
+  );
+  // V0.10 allows re-analysis as a *recovery* affordance and nothing more. It
+  // reaches the panel, but it is not part of the normal flow: it appears only
+  // behind a state the analysis is already known to be broken in, and it is
+  // never offered while a job is on its way. The guard is asserted here because
+  // that gating is the entire difference between a recovery path and a control
+  // a driver is invited to press after every lap.
+  assert.equal(
+    [...panel.matchAll(/reanalyze_session/g)].length,
+    1,
+    "re-analysis must have exactly one call site",
+  );
+  assert.ok(
+    /banner\.offerReanalysis && banner\.problem/.test(panel),
+    "the re-run action must be gated on a problem state",
+  );
+  // And it never becomes a recording control by another name.
+  assert.ok(
+    buttons.every(
+      (label) => !/analy[sz]e/i.test(label) || /Re-run/.test(label),
+    ),
     buttons.join("|"),
   );
   const app = await readFile(
@@ -208,4 +233,174 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
     "utf8",
   );
   assert.ok(diagnostics.includes("<CapturePanel"));
+});
+
+// ------------------------------------------------- V0.10 recovery and storage
+
+/// A manifest written before V0.10 carries no recovery record at all, and the
+/// UI must handle that without inventing one.
+function interruptedManifest(recovery) {
+  return {
+    schema_version: 1,
+    session_id: "crash-1",
+    status: "interrupted",
+    game: "fh6",
+    protocol: "fh6",
+    vehicle_id: "3520",
+    started_at_unix_ms: 1_800_000_000_000,
+    ended_at_unix_ms: 1_800_000_060_000,
+    duration_us: 60_000_000,
+    frame_count: 0,
+    active_frame_count: 0,
+    inactive_frame_count: 0,
+    recorder_dropped_frames: 0,
+    completion_reason: "interrupted_racelab_did_not_finalize",
+    frame_file: "frames.rlframes",
+    frame_format_version: 1,
+    telemetry_frame_schema_version: 2,
+    summary: null,
+    created_by_racelab_version: "0.9.0",
+    ...(recovery === undefined ? {} : { recovery }),
+  };
+}
+
+function scan(overrides = {}) {
+  return {
+    outcome: "truncated",
+    scanned_at_unix_ms: 1_800_000_100_000,
+    readable_frame_count: 4321,
+    readable_active_frame_count: 4000,
+    readable_duration_us: 57_000_000,
+    frame_stream_complete: false,
+    unreadable_tail_bytes: 0,
+    detail: null,
+    recovered_by_racelab_version: "0.9.0",
+    ...overrides,
+  };
+}
+
+test("a completed session never carries a recovery note", () => {
+  const completed = { ...interruptedManifest(undefined), status: "completed" };
+  assert.equal(recoveryNote(completed), null);
+  assert.equal(recoveryLabel(completed), null);
+});
+
+test("an interrupted session with no recovery record says it has not been checked", () => {
+  const note = recoveryNote(interruptedManifest(undefined));
+  assert.match(note, /did not finish/i);
+  // It must not claim to know how much survived, because nothing has looked.
+  assert.match(note, /not yet known/i);
+  assert.equal(recoveryLabel(interruptedManifest(undefined)), "not checked");
+});
+
+test("a truncated recording reports how many frames were recovered", () => {
+  // The count is grouped for the reader, so the expectation is written the
+  // same way rather than assuming a separator this machine may not use.
+  const grouped = (4321).toLocaleString();
+  const note = recoveryNote(interruptedManifest(scan()));
+  assert.match(note, new RegExp(`${grouped} frames were recovered`));
+  assert.match(note, /never reached the disk/i);
+  assert.equal(
+    recoveryLabel(interruptedManifest(scan())),
+    `${grouped} frames recovered`,
+  );
+});
+
+test("a fully readable interrupted recording still says it is not a finished session", () => {
+  const note = recoveryNote(
+    interruptedManifest(
+      scan({ outcome: "complete", frame_stream_complete: true }),
+    ),
+  );
+  assert.match(note, /intact/i);
+  // The crucial half: intact telemetry is still not a completed session.
+  assert.match(note, /did not finish/i);
+  assert.match(note, /no session summary/i);
+});
+
+test("a damaged recording claims only the frames before the damage", () => {
+  const note = recoveryNote(interruptedManifest(scan({ outcome: "damaged" })));
+  assert.match(note, /damaged/i);
+  assert.match(note, new RegExp(`first ${(4321).toLocaleString()} frames`));
+});
+
+test("an unreadable recording claims nothing at all", () => {
+  const note = recoveryNote(
+    interruptedManifest(
+      scan({ outcome: "unreadable", readable_frame_count: 0 }),
+    ),
+  );
+  assert.match(note, /could not be read/i);
+  assert.ok(!/recovered/i.test(note), note);
+  assert.equal(
+    recoveryLabel(interruptedManifest(scan({ outcome: "unreadable" }))),
+    "unreadable",
+  );
+});
+
+test("a recording still being checked says so rather than guessing", () => {
+  const note = recoveryNote(interruptedManifest(scan({ outcome: "pending" })));
+  assert.match(note, /being checked/i);
+  assert.equal(
+    recoveryLabel(interruptedManifest(scan({ outcome: "pending" }))),
+    "checking",
+  );
+});
+
+function retention(overrides = {}) {
+  return {
+    budget_bytes: 8 * 1024 * 1024 * 1024,
+    enabled: true,
+    used_bytes: 1_610_612_736,
+    over_budget: false,
+    retained_sessions: 12,
+    protected_sessions: 0,
+    unidentifiable_sessions: 0,
+    unidentifiable_bytes: 0,
+    deleted_sessions: 0,
+    reclaimed_bytes: 0,
+    failed_deletions: 0,
+    sweeps: 1,
+    last_sweep_unix_ms: 1_800_000_000_000,
+    last_deleted_session_id: null,
+    last_error: null,
+    ...overrides,
+  };
+}
+
+test("bytes render as a figure a person reads", () => {
+  assert.equal(bytes(0), "0 B");
+  assert.equal(bytes(1_610_612_736), "1.5 GB");
+  assert.equal(bytes(null), "\u2014");
+});
+
+test("storage status always states usage against the limit", () => {
+  const note = retentionNote(retention());
+  assert.match(note, /1\.5 GB of 8\.0 GB used/);
+  assert.match(note, /12 session/);
+});
+
+test("a deletion is never silent", () => {
+  const note = retentionNote(
+    retention({ deleted_sessions: 3, reclaimed_bytes: 3_221_225_472 }),
+  );
+  // Both the count and the space are named.
+  assert.match(note, /3 oldest session\(s\) deleted/);
+  assert.match(note, /3\.0 GB/);
+});
+
+test("a budget that cannot be met explains itself instead of looking broken", () => {
+  const note = retentionNote(retention({ over_budget: true }));
+  assert.match(note, /Over the limit/);
+  assert.match(note, /still in use/i);
+});
+
+test("a disabled budget promises not to delete anything", () => {
+  const note = retentionNote(retention({ enabled: false }));
+  assert.match(note, /will not delete/i);
+  assert.ok(!/of 8\.0 GB used/.test(note), note);
+});
+
+test("no storage status produces no claim about storage", () => {
+  assert.equal(retentionNote(null), null);
 });

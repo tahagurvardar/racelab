@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analysisBanner,
+  analysisJobLines,
   channelNote,
   drivingEventRows,
   eventRow,
@@ -233,6 +234,10 @@ function state(overrides = {}) {
     supported_analysis_schema_version: 2,
     message: null,
     file: "analysis.json",
+    queued_ms: null,
+    analysis_duration_ms: null,
+    failure_reason: null,
+    can_reanalyze: true,
     ...overrides,
   };
 }
@@ -246,16 +251,46 @@ test("an available analysis is shown", () => {
   assert.equal(banner.problem, false);
 });
 
-test("a pending analysis is its own state and shows nothing", () => {
-  const banner = analysisBanner(state({ state: "pending", analysis: null }));
-  assert.equal(banner.state, "pending");
+test("a queued analysis says it is waiting, not that it is being worked on", () => {
+  const banner = analysisBanner(
+    state({ state: "queued", analysis: null, queued_ms: 42_000 }),
+  );
+  assert.equal(banner.state, "queued");
   assert.equal(banner.showAnalysis, false);
-  assert.match(banner.detail, /being analyzed/i);
   assert.equal(banner.problem, false);
+  // The wait is stated, which is what stops a queue looking like a hang.
+  assert.match(banner.detail, /waiting/i);
+  assert.match(banner.detail, /42 s/);
+  // The recording is already safe, and says so.
+  assert.match(banner.detail, /already saved/i);
+  // Nothing is offered to press: it is already on its way.
+  assert.equal(banner.offerReanalysis, false);
 });
 
-test("an absent analysis never reads as an analysis that found nothing", () => {
-  const banner = analysisBanner(state({ state: "absent", analysis: null }));
+test("a queued analysis and one being analyzed are different states", () => {
+  const queued = analysisBanner(state({ state: "queued", analysis: null }));
+  const analyzing = analysisBanner(
+    state({ state: "analyzing", analysis: null }),
+  );
+  assert.notEqual(queued.state, analyzing.state);
+  assert.notEqual(queued.headline, analyzing.headline);
+  assert.match(analyzing.detail, /being analyzed/i);
+  assert.equal(analyzing.problem, false);
+  assert.equal(analyzing.offerReanalysis, false);
+});
+
+test("a short wait is not reported as a number", () => {
+  const banner = analysisBanner(
+    state({ state: "queued", analysis: null, queued_ms: 300 }),
+  );
+  assert.ok(!/300/.test(banner.detail), banner.detail);
+  assert.deepEqual(analysisJobLines(state({ queued_ms: 300 })), []);
+});
+
+test("an unanalyzed session never reads as an analysis that found nothing", () => {
+  const banner = analysisBanner(
+    state({ state: "not_analyzed", analysis: null }),
+  );
   assert.equal(banner.showAnalysis, false);
   assert.match(banner.headline, /Not analyzed/);
   // The distinction is stated outright, because it is the whole point.
@@ -269,25 +304,36 @@ test("an absent analysis never reads as an analysis that found nothing", () => {
   assert.deepEqual(qualityLines(null), []);
 });
 
-test("a corrupt analysis is isolated and flagged, and says the recording is fine", () => {
+test("a failed analysis says so and offers to run again", () => {
   const banner = analysisBanner(
     state({
-      state: "corrupt",
+      state: "failed",
       analysis: null,
-      message: "expected value at line 1",
+      failure_reason: "Could not analyze the frame stream: unexpected end",
     }),
   );
-  assert.equal(banner.state, "corrupt");
+  assert.equal(banner.state, "failed");
   assert.equal(banner.showAnalysis, false);
   assert.equal(banner.problem, true);
-  assert.match(banner.detail, /analysis\.json/);
+  // A failure is never presented as an absence.
+  assert.ok(!/Not analyzed/.test(banner.headline), banner.headline);
+  assert.match(banner.detail, /unexpected end/);
   assert.match(banner.detail, /recording itself is unaffected/i);
+  assert.equal(banner.offerReanalysis, true);
+});
+
+test("a failed analysis on an unreadable recording is not offered a re-run", () => {
+  const banner = analysisBanner(
+    state({ state: "failed", analysis: null, can_reanalyze: false }),
+  );
+  assert.equal(banner.problem, true);
+  assert.equal(banner.offerReanalysis, false);
 });
 
 test("an unsupported analysis schema names both versions", () => {
   const banner = analysisBanner(
     state({
-      state: "unsupported",
+      state: "unsupported_schema",
       analysis: null,
       analysis_schema_version: 9,
       supported_analysis_schema_version: 1,
@@ -297,17 +343,39 @@ test("an unsupported analysis schema names both versions", () => {
   assert.equal(banner.problem, true);
   assert.match(banner.detail, /v9/);
   assert.match(banner.detail, /v1/);
+  // It can be regenerated, and the offer is made.
+  assert.equal(banner.offerReanalysis, true);
 });
 
-test("a read failure is an error state, not an empty analysis", () => {
+test("a read failure is a failed state, not an empty analysis", () => {
   const banner = analysisBanner(
     null,
     "Session analysis read failed: disk error",
   );
-  assert.equal(banner.state, "error");
+  assert.equal(banner.state, "failed");
   assert.equal(banner.showAnalysis, false);
   assert.equal(banner.problem, true);
   assert.match(banner.detail, /disk error/);
+  assert.equal(banner.offerReanalysis, false);
+});
+
+test("job diagnostics are bounded to wait and duration", () => {
+  const lines = analysisJobLines(
+    state({ queued_ms: 125_000, analysis_duration_ms: 2_400 }),
+  );
+  assert.deepEqual(
+    lines.map((line) => line.label),
+    ["Waited in queue", "Analysis took"],
+  );
+  assert.equal(lines[0].value, "2 min 5 s");
+  assert.equal(lines[1].value, "2.4 s");
+  // Nothing internal leaks: no queue depth, no worker, no thread.
+  const text = JSON.stringify(lines);
+  assert.ok(!/queue_capacity|pending|thread|worker/i.test(text), text);
+});
+
+test("no job diagnostics exist before a job does", () => {
+  assert.deepEqual(analysisJobLines(null), []);
 });
 
 test("no state is fabricated before the first read completes", () => {

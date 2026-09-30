@@ -24,10 +24,11 @@ use crate::{
     analysis_engine,
     session_format::is_safe_session_id,
     session_recorder::SessionCompletionHook,
+    session_retention::SessionProtection,
 };
 use serde::Serialize;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
     sync::{
         mpsc::{self, Receiver, SyncSender},
@@ -48,8 +49,161 @@ fn unix_ms() -> u64 {
 /// deeper than this would only be hiding a real problem.
 pub const ANALYSIS_QUEUE_CAPACITY: usize = 8;
 
+/// How many finished jobs the ledger remembers. In-flight jobs are additionally
+/// bounded by the queue itself, so total memory is bounded whatever happens.
+/// Finished records exist so a *failure* survives long enough to be read by the
+/// UI; a success is already represented by `analysis.json` on disk.
+pub const JOB_LEDGER_CAPACITY: usize = 64;
+
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
+}
+
+/// Where one session's analysis job is in its life.
+///
+/// `Queued` and `Analyzing` are kept apart deliberately. V0.9 collapsed both
+/// into one "pending" state, which meant a session waiting behind a long
+/// analysis was indistinguishable from one being analyzed, and a user watching
+/// a session sit at "in progress" for a minute had no way to tell whether
+/// anything was wrong. They are different facts and the product states both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobState {
+    Queued,
+    Analyzing,
+    Succeeded,
+    Failed,
+}
+
+impl JobState {
+    /// A job holding a session open. Retention must not delete one of these,
+    /// and the session's analysis state is "coming" rather than "absent".
+    pub fn in_flight(self) -> bool {
+        matches!(self, Self::Queued | Self::Analyzing)
+    }
+}
+
+/// Bounded per-session diagnostics. Every duration here is a wall-clock
+/// measurement of this process, never anything read off a file.
+#[derive(Debug, Clone, Serialize)]
+pub struct JobRecord {
+    pub session_id: String,
+    pub state: JobState,
+    pub requested_at_unix_ms: u64,
+    /// When the worker picked the job up. `None` while still queued.
+    pub started_at_unix_ms: Option<u64>,
+    pub finished_at_unix_ms: Option<u64>,
+    /// Time spent waiting for the worker. Measured live while queued, so a
+    /// session that has been waiting thirty seconds says thirty seconds.
+    pub queued_ms: u64,
+    /// Time spent analyzing, excluding the wait. `None` until the job ends.
+    pub analysis_duration_ms: Option<u64>,
+    /// Present only for `Failed`, and written for a reader rather than a log.
+    pub failure_reason: Option<String>,
+}
+
+impl JobRecord {
+    /// A job that has been accepted into the queue and not yet started.
+    /// Public so a test can state the job state it is exercising directly,
+    /// rather than racing a real worker to observe one.
+    pub fn queued(session_id: &str, requested_at_unix_ms: u64) -> Self {
+        Self {
+            session_id: session_id.to_string(),
+            state: JobState::Queued,
+            requested_at_unix_ms,
+            started_at_unix_ms: None,
+            finished_at_unix_ms: None,
+            queued_ms: 0,
+            analysis_duration_ms: None,
+            failure_reason: None,
+        }
+    }
+
+    /// A job the worker has picked up.
+    pub fn analyzing(session_id: &str, requested_at_unix_ms: u64, queued_ms: u64) -> Self {
+        Self {
+            state: JobState::Analyzing,
+            started_at_unix_ms: Some(requested_at_unix_ms.saturating_add(queued_ms)),
+            queued_ms,
+            ..Self::queued(session_id, requested_at_unix_ms)
+        }
+    }
+
+    /// A job that ran and did not produce an analysis.
+    pub fn failed(session_id: &str, reason: &str) -> Self {
+        Self {
+            state: JobState::Failed,
+            finished_at_unix_ms: Some(0),
+            analysis_duration_ms: Some(0),
+            failure_reason: Some(reason.to_string()),
+            ..Self::queued(session_id, 0)
+        }
+    }
+
+    /// A queued job's wait is still growing, so it is reported as of now.
+    fn observed(mut self, now: u64) -> Self {
+        if self.state == JobState::Queued {
+            self.queued_ms = now.saturating_sub(self.requested_at_unix_ms);
+        }
+        self
+    }
+}
+
+/// Bounded map of session id to job record, with the oldest *finished* record
+/// evicted first. An in-flight record is never evicted: losing one would make
+/// a running analysis look as though it had never been requested.
+#[derive(Default)]
+struct Ledger {
+    records: HashMap<String, JobRecord>,
+    /// Finished session ids, oldest first.
+    finished: VecDeque<String>,
+}
+
+impl Ledger {
+    fn insert_queued(&mut self, session_id: &str, requested_at_unix_ms: u64) {
+        self.records.insert(
+            session_id.to_string(),
+            JobRecord::queued(session_id, requested_at_unix_ms),
+        );
+        // A re-request replaces a previous terminal record for the same id.
+        self.finished.retain(|id| id != session_id);
+    }
+
+    fn remove(&mut self, session_id: &str) {
+        self.records.remove(session_id);
+        self.finished.retain(|id| id != session_id);
+    }
+
+    fn edit(&mut self, session_id: &str, edit: impl FnOnce(&mut JobRecord)) {
+        if let Some(record) = self.records.get_mut(session_id) {
+            edit(record);
+        }
+    }
+
+    fn finish(&mut self, session_id: &str) {
+        self.finished.push_back(session_id.to_string());
+        while self.finished.len() > JOB_LEDGER_CAPACITY {
+            if let Some(oldest) = self.finished.pop_front() {
+                self.records.remove(&oldest);
+            }
+        }
+    }
+
+    fn in_flight(&self) -> usize {
+        self.records
+            .values()
+            .filter(|record| record.state.in_flight())
+            .count()
+    }
+}
+
+/// Told when a job finishes, whatever its outcome.
+///
+/// The one implementation is retention: a finished analysis releases a session
+/// it was protecting, so the storage budget can be reconsidered. The call runs
+/// on the analysis worker thread and must return immediately.
+pub trait AnalysisJobObserver: Send + Sync {
+    fn job_finished(&self, session_id: &str, state: JobState);
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -89,20 +243,29 @@ struct Job {
 struct Shared {
     root: PathBuf,
     config: AnalysisConfigV1,
-    /// Bounded by the queue capacity plus the one in flight.
-    pending: Mutex<HashSet<String>>,
+    /// In-flight entries are bounded by the queue capacity plus the one being
+    /// analyzed; finished entries by `JOB_LEDGER_CAPACITY`.
+    ledger: Mutex<Ledger>,
     status: Mutex<AnalysisRunnerStatus>,
+    observer: Mutex<Option<Arc<dyn AnalysisJobObserver>>>,
 }
 
 impl Shared {
     /// Edits the status counters only. It deliberately does **not** read
-    /// `pending`: some callers already hold that lock, and a `Mutex` is not
-    /// reentrant. `pending` is filled in by `status()`, which holds neither
-    /// lock when it starts.
+    /// `ledger`: some callers already hold that lock, and a `Mutex` is not
+    /// reentrant. The pending count is filled in by `status()`, which holds
+    /// neither lock when it starts.
     fn update(&self, edit: impl FnOnce(&mut AnalysisRunnerStatus)) {
         let mut status = lock(&self.status);
         edit(&mut status);
         status.queue_capacity = ANALYSIS_QUEUE_CAPACITY;
+    }
+
+    fn notify(&self, session_id: &str, state: JobState) {
+        let observer = lock(&self.observer).clone();
+        if let Some(observer) = observer {
+            observer.job_finished(session_id, state);
+        }
     }
 }
 
@@ -119,11 +282,12 @@ impl AnalysisRunner {
         let shared = Arc::new(Shared {
             root,
             config,
-            pending: Mutex::new(HashSet::new()),
+            ledger: Mutex::new(Ledger::default()),
             status: Mutex::new(AnalysisRunnerStatus {
                 queue_capacity: ANALYSIS_QUEUE_CAPACITY,
                 ..AnalysisRunnerStatus::default()
             }),
+            observer: Mutex::new(None),
         });
         let (sender, receiver) = mpsc::sync_channel(ANALYSIS_QUEUE_CAPACITY);
         let worker_shared = Arc::clone(&shared);
@@ -142,18 +306,43 @@ impl AnalysisRunner {
         self.shared.config
     }
 
+    /// Attach the post-job observer once, before telemetry starts flowing.
+    pub fn attach_observer(&self, observer: Arc<dyn AnalysisJobObserver>) -> Result<(), String> {
+        let mut slot = lock(&self.shared.observer);
+        if slot.is_some() {
+            return Err("An analysis job observer is already attached".into());
+        }
+        *slot = Some(observer);
+        Ok(())
+    }
+
     pub fn status(&self) -> AnalysisRunnerStatus {
         let mut status = lock(&self.shared.status).clone();
-        status.pending = lock(&self.shared.pending).len();
+        status.pending = lock(&self.shared.ledger).in_flight();
         status.queue_capacity = ANALYSIS_QUEUE_CAPACITY;
         status
     }
 
-    /// Is this session queued or currently being analyzed? The UI uses this to
-    /// show a genuine "pending" state instead of pretending an analysis that
-    /// has not run yet found nothing.
+    /// This session's job, if this process still remembers one.
+    ///
+    /// `None` is not "never analyzed": a session analyzed by an earlier run of
+    /// RaceLab has its result on disk and no ledger entry here. The two are
+    /// combined in `session_store::get_session_analysis`, which is the only
+    /// place that decides what a session's analysis state actually is.
+    pub fn job(&self, session_id: &str) -> Option<JobRecord> {
+        lock(&self.shared.ledger)
+            .records
+            .get(session_id)
+            .cloned()
+            .map(|record| record.observed(unix_ms()))
+    }
+
+    /// Is this session queued or currently being analyzed?
     pub fn is_pending(&self, session_id: &str) -> bool {
-        lock(&self.shared.pending).contains(session_id)
+        lock(&self.shared.ledger)
+            .records
+            .get(session_id)
+            .is_some_and(|record| record.state.in_flight())
     }
 
     /// Queue a session. **Never blocks and never fails loudly**: a full queue
@@ -167,23 +356,42 @@ impl AnalysisRunner {
             });
             return false;
         }
+        let requested_at_unix_ms = unix_ms();
         {
-            let mut pending = lock(&self.shared.pending);
-            if pending.contains(session_id) {
+            let mut ledger = lock(&self.shared.ledger);
+            // Already queued or running: the second request is the first one.
+            if ledger
+                .records
+                .get(session_id)
+                .is_some_and(|record| record.state.in_flight())
+            {
                 self.shared.update(|status| status.rejected_requests += 1);
                 return false;
             }
-            pending.insert(session_id.to_string());
+            ledger.insert_queued(session_id, requested_at_unix_ms);
         }
         let job = Job {
             session_id: session_id.to_string(),
-            requested_at_unix_ms: unix_ms(),
+            requested_at_unix_ms,
         };
         let queued = lock(&self.sender)
             .as_ref()
             .is_some_and(|sender| sender.try_send(job).is_ok());
         if !queued {
-            lock(&self.shared.pending).remove(session_id);
+            // The refusal is recorded as a failed job rather than erased, so a
+            // session refused by a full queue reports *why* it has no analysis
+            // instead of looking as though nothing was ever attempted.
+            let mut ledger = lock(&self.shared.ledger);
+            ledger.edit(session_id, |record| {
+                record.state = JobState::Failed;
+                record.finished_at_unix_ms = Some(unix_ms());
+                record.failure_reason = Some(
+                    "The analysis queue was full when this session finished, so it was not analyzed."
+                        .into(),
+                );
+            });
+            ledger.finish(session_id);
+            drop(ledger);
             self.shared.update(|status| {
                 status.rejected_requests += 1;
                 status.last_error = Some(format!(
@@ -193,6 +401,12 @@ impl AnalysisRunner {
             return false;
         }
         true
+    }
+
+    /// Forget this session's job record. Used when a session is deleted, so a
+    /// stale record can never describe something that is no longer on disk.
+    pub fn forget(&self, session_id: &str) {
+        lock(&self.shared.ledger).remove(session_id);
     }
 
     /// Drops the sender, then joins. Everything already queued still runs;
@@ -219,6 +433,18 @@ impl SessionCompletionHook for AnalysisRunner {
     }
 }
 
+/// A session queued for analysis, or being analyzed, must survive long enough
+/// to be analyzed. Retention asks this before every deletion.
+impl SessionProtection for AnalysisRunner {
+    fn is_protected(&self, session_id: &str) -> bool {
+        self.is_pending(session_id)
+    }
+
+    fn protection_reason(&self) -> &'static str {
+        "queued for or undergoing analysis"
+    }
+}
+
 fn run_worker(receiver: Receiver<Job>, shared: Arc<Shared>) {
     while let Ok(job) = receiver.recv() {
         let Job {
@@ -228,7 +454,15 @@ fn run_worker(receiver: Receiver<Job>, shared: Arc<Shared>) {
         let started = Instant::now();
         // Queue wait, measured before any work begins. The two numbers answer
         // different questions and must never be summed into one.
-        let queued_ms = unix_ms().saturating_sub(requested_at_unix_ms);
+        let started_at_unix_ms = unix_ms();
+        let queued_ms = started_at_unix_ms.saturating_sub(requested_at_unix_ms);
+        // Visible before the work starts, so a session being analyzed says so
+        // rather than continuing to claim it is waiting in a queue.
+        lock(&shared.ledger).edit(&session_id, |record| {
+            record.state = JobState::Analyzing;
+            record.started_at_unix_ms = Some(started_at_unix_ms);
+            record.queued_ms = queued_ms;
+        });
         let outcome = analyze_with_timing(
             &shared.root,
             &session_id,
@@ -239,7 +473,22 @@ fn run_worker(receiver: Receiver<Job>, shared: Arc<Shared>) {
             }),
         );
         let elapsed_ms = started.elapsed().as_millis() as u64;
-        lock(&shared.pending).remove(&session_id);
+        let state = if outcome.is_ok() {
+            JobState::Succeeded
+        } else {
+            JobState::Failed
+        };
+        {
+            let mut ledger = lock(&shared.ledger);
+            let failure = outcome.as_ref().err().cloned();
+            ledger.edit(&session_id, |record| {
+                record.state = state;
+                record.finished_at_unix_ms = Some(unix_ms());
+                record.analysis_duration_ms = Some(elapsed_ms);
+                record.failure_reason = failure;
+            });
+            ledger.finish(&session_id);
+        }
         match outcome {
             Ok(()) => shared.update(|status| {
                 status.analyzed_sessions += 1;
@@ -263,6 +512,9 @@ fn run_worker(receiver: Receiver<Job>, shared: Arc<Shared>) {
                 });
             }
         }
+        // Last, and outside every lock: the session is no longer in flight, so
+        // whatever was holding it open may now let go.
+        shared.notify(&session_id, state);
     }
 }
 
@@ -292,6 +544,23 @@ fn analyze_with_timing(
         return Err("Session identifier is not usable".into());
     }
     let directory = root.join(session_id);
+    // Only a session whose frames are safe to read is read.
+    //
+    // A completed session always qualifies. An interrupted one qualifies only
+    // once a recovery scan has established that it holds a readable prefix, and
+    // a session still being recorded never qualifies: its frame file is open
+    // and growing, so any analysis of it would describe a moment that has
+    // already passed.
+    let manifest = crate::session_format::read_manifest(&directory)
+        .map_err(|error| format!("Could not read the session manifest: {error}"))?;
+    if !manifest.has_analyzable_coverage() {
+        return Err(match manifest.status {
+            crate::session_format::SessionStatus::Recording => {
+                "This session is still being recorded and cannot be analyzed yet.".into()
+            }
+            _ => "This session has no safely readable frames to analyze.".to_string(),
+        });
+    }
     let mut analysis = analysis_engine::analyze_session_directory(&directory, config)
         .map_err(|error| format!("Could not analyze the frame stream: {error}"))?;
     if let Some(timing) = timing {

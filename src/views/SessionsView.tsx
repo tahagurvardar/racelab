@@ -3,18 +3,24 @@ import { invoke } from "@tauri-apps/api/core";
 import { MetricGrid } from "../components/MetricCard";
 import { TelemetrySection, ViewHeader } from "../components/TelemetrySection";
 import {
+  bytes,
   clockTime,
   duration,
   orderSessions,
+  recoveryLabel,
+  recoveryNote,
+  retentionNote,
   sessionRow,
   statusLabel,
   value,
   type RecentSessions,
   type RecorderStatus,
   type SessionManifest,
+  type StorageStatus,
 } from "../session-state.ts";
 import {
   analysisBanner,
+  analysisJobLines,
   channelNote,
   drivingEventRows,
   heuristicNotes,
@@ -96,9 +102,13 @@ export default function SessionsView({
   const [selected, setSelected] = useState<SessionManifest | null>(null);
   const [analysis, setAnalysis] = useState<SessionAnalysisState | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageStatus | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Manifest metadata only. The frame stream is never requested from React.
+  // Storage status is a second metadata-sized read of counters the backend
+  // already holds; neither opens a recording.
   const refresh = useCallback(async () => {
     try {
       setRecent(
@@ -109,6 +119,13 @@ export default function SessionsView({
       setError(null);
     } catch (reason) {
       setError(String(reason));
+    }
+    try {
+      setStorage(await invoke<StorageStatus>("get_storage_status"));
+    } catch {
+      // Housekeeping status is additive. Failing to read it must never stop
+      // the sessions list from rendering.
+      setStorage(null);
     }
   }, []);
 
@@ -150,8 +167,34 @@ export default function SessionsView({
     }
   }
 
-  const rows = orderSessions(recent?.sessions ?? []).map(sessionRow);
+  // Recovery only, and deliberately not a driving control: this is offered for
+  // a failed or unreadable analysis, never as part of a normal drive. It
+  // rewrites `analysis.json` and nothing else.
+  async function reanalyze(sessionId: string) {
+    setReanalyzing(true);
+    try {
+      await invoke("reanalyze_session", { sessionId });
+      setAnalysisError(null);
+      setAnalysis(
+        await invoke<SessionAnalysisState>("get_session_analysis", {
+          sessionId,
+        }),
+      );
+    } catch (reason) {
+      setAnalysisError(String(reason));
+    } finally {
+      setReanalyzing(false);
+    }
+  }
+
+  const ordered = orderSessions(recent?.sessions ?? []);
+  const rows = ordered.map((manifest) => ({
+    ...sessionRow(manifest),
+    recovery: recoveryLabel(manifest),
+  }));
   const summary = selected?.summary ?? null;
+  const storageNote = retentionNote(storage?.retention ?? null);
+  const recovering = storage?.recovery ?? null;
   const message = error ?? recorderError ?? recorder?.last_error ?? null;
   const banner = analysisBanner(analysis, analysisError);
   const document = banner.showAnalysis ? (analysis?.analysis ?? null) : null;
@@ -220,6 +263,13 @@ export default function SessionsView({
         />
         <p className="section-footnote path">
           Sessions directory: {recorder?.sessions_directory ?? "—"}
+          {storage
+            ? ` · ${bytes(storage.retention.used_bytes)} used${
+                storage.retention.enabled
+                  ? ` of a ${bytes(storage.retention.budget_bytes)} limit`
+                  : ", no storage limit set"
+              }`
+            : ""}
         </p>
       </TelemetrySection>
 
@@ -232,6 +282,26 @@ export default function SessionsView({
           <p className="section-footnote" role="status">
             {recent?.unreadable} session folder(s) could not be read and were
             skipped.
+          </p>
+        ) : null}
+        {storageNote ? (
+          <p
+            className={
+              storage?.retention.over_budget ? "banner" : "section-footnote"
+            }
+            role={storage?.retention.over_budget ? "alert" : "status"}
+          >
+            {storageNote}
+          </p>
+        ) : null}
+        {recovering && (recovering.pending > 0 || recovering.scanned > 0) ? (
+          <p className="section-footnote" role="status">
+            {recovering.pending > 0
+              ? `Checking ${recovering.pending.toLocaleString()} unfinished recording(s) to see how much of each can be read. `
+              : ""}
+            {recovering.scanned > 0
+              ? `${recovering.scanned.toLocaleString()} checked this run; ${recovering.recovered_frames.toLocaleString()} frames recovered that the manifests had not recorded.`
+              : ""}
           </p>
         ) : null}
         {rows.length === 0 ? (
@@ -260,6 +330,7 @@ export default function SessionsView({
                 </div>
                 <p className="session-row-status">
                   {row.status}
+                  {row.recovery ? ` · ${row.recovery}` : ""}
                   {row.dropped > 0 ? ` · ${row.dropped} dropped frames` : ""}
                 </p>
                 <button
@@ -287,8 +358,8 @@ export default function SessionsView({
         >
           {selected.status !== "completed" ? (
             <p className="banner" role="alert">
-              This session was not finalized. Its data is incomplete and no
-              summary was calculated.
+              {recoveryNote(selected) ??
+                "This session was not finalized. Its data is incomplete and no summary was calculated."}
             </p>
           ) : null}
           {selected.recorder_dropped_frames > 0 ? (
@@ -389,6 +460,28 @@ export default function SessionsView({
           >
             {banner.detail}
           </p>
+          {analysisJobLines(analysis).length > 0 ? (
+            <p className="section-footnote" role="status">
+              {analysisJobLines(analysis)
+                .map((line) => `${line.label}: ${line.value}`)
+                .join(" · ")}
+            </p>
+          ) : null}
+          {banner.offerReanalysis && banner.problem ? (
+            <p className="section-footnote">
+              <button
+                type="button"
+                className="ghost"
+                disabled={reanalyzing}
+                onClick={() => void reanalyze(selected.session_id)}
+              >
+                {reanalyzing ? "Re-running…" : "Re-run analysis"}
+              </button>{" "}
+              Reads the saved recording again and replaces{" "}
+              {analysis?.file ?? "the analysis"}. The recording itself is never
+              modified.
+            </p>
+          ) : null}
           {document ? (
             <>
               <MetricGrid

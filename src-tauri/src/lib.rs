@@ -13,6 +13,8 @@ pub mod protocol;
 pub mod session;
 pub mod session_format;
 pub mod session_recorder;
+pub mod session_recovery;
+pub mod session_retention;
 pub mod session_store;
 pub mod session_summary;
 pub mod telemetry;
@@ -25,8 +27,11 @@ use appliance::{Appliance, DEFAULT_FH6_PORT};
 use capture::{CaptureSnapshot, RawCaptureSink};
 use ingress::StatsSnapshot;
 use live_telemetry::{ConnectionConfig, LiveSnapshot};
+use serde::Serialize;
 use session_format::SessionManifestV1;
-use session_recorder::{RecorderStatus, SessionRecorder};
+use session_recorder::{CompletionFanout, RecorderStatus, SessionCompletionHook, SessionRecorder};
+use session_recovery::{RecoveryService, RecoveryStatus};
+use session_retention::{RetentionPolicy, RetentionService, RetentionStatus, SessionProtection};
 use session_store::{RecentSessions, SessionAnalysisState};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -130,27 +135,78 @@ async fn get_session_analysis(
     let recorder = Arc::clone(recorder.inner());
     let analyzer = Arc::clone(analyzer.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let pending = analyzer.is_pending(&session_id);
-        session_store::get_session_analysis(recorder.root(), &session_id, pending)
+        let job = analyzer.job(&session_id);
+        session_store::get_session_analysis(recorder.root(), &session_id, job)
     })
     .await
     .map_err(|error| format!("Session analysis read failed: {error}"))?
 }
 
-/// Development affordance only. The product flow is automatic: a session is
-/// analyzed when it completes, and nothing in the UI asks a user to press
-/// anything. This exists so an already-recorded session can be re-analyzed
-/// after a threshold change without replaying a drive.
+/// Storage retention and interrupted-session recovery, as one reading.
+///
+/// Both are background housekeeping a user never starts, and both change what
+/// a user sees in the sessions list, so both are reported rather than hidden.
+#[derive(Debug, Clone, Serialize)]
+pub struct StorageStatus {
+    pub retention: RetentionStatus,
+    pub recovery: RecoveryStatus,
+}
+
 #[tauri::command]
-fn reanalyze_session(
+fn get_storage_status(
+    retention: State<'_, Arc<RetentionService>>,
+    recovery: State<'_, Arc<RecoveryService>>,
+) -> StorageStatus {
+    StorageStatus {
+        retention: retention.status(),
+        recovery: recovery.status(),
+    }
+}
+
+/// Recovery affordance, not a driving control.
+///
+/// The product flow stays automatic: a session is analyzed when it completes
+/// and nothing asks a user to press anything. This exists for the two states
+/// where the automatic path has already been tried and did not produce a
+/// readable result — a failed analysis and one written by a schema this build
+/// cannot read — and for re-analyzing an old recording after a threshold
+/// change without replaying a drive.
+///
+/// It is bounded by the same queue as every other job, refuses a session that
+/// is not safely readable, and cannot touch `frames.rlframes` or
+/// `manifest.json`: the only file an analysis run ever writes is
+/// `analysis.json`, and it writes it atomically, so a failed re-analysis
+/// leaves the previous analysis exactly where it was.
+#[tauri::command]
+async fn reanalyze_session(
+    recorder: State<'_, Arc<SessionRecorder>>,
     analyzer: State<'_, Arc<AnalysisRunner>>,
     session_id: String,
 ) -> Result<AnalysisRunnerStatus, String> {
     if !session_format::is_safe_session_id(&session_id) {
         return Err("Unknown session".into());
     }
-    analyzer.request(&session_id);
-    Ok(analyzer.status())
+    let recorder = Arc::clone(recorder.inner());
+    let analyzer = Arc::clone(analyzer.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let directory = recorder.root().join(&session_id);
+        let manifest = session_format::read_manifest(&directory)
+            .map_err(|error| format!("Could not read session {session_id}: {error}"))?;
+        if !manifest.has_analyzable_coverage() {
+            return Err(
+                "This session has no safely readable frames, so it cannot be analyzed.".to_string(),
+            );
+        }
+        if !analyzer.request(&session_id) {
+            return Err(analyzer
+                .status()
+                .last_error
+                .unwrap_or_else(|| "This session is already queued for analysis.".into()));
+        }
+        Ok(analyzer.status())
+    })
+    .await
+    .map_err(|error| format!("Reanalysis request failed: {error}"))?
 }
 
 #[tauri::command]
@@ -205,13 +261,50 @@ pub fn run() {
             let analyzer =
                 AnalysisRunner::new(recorder.root().to_path_buf(), AnalysisConfigV1::default())
                     .map_err(std::io::Error::other)?;
+            // Interrupted-session recovery. The synchronous half — turning a
+            // stale `recording` manifest into `interrupted` — already ran
+            // inside the recorder's constructor above, before any new session
+            // could be opened. This starts the background half that reads the
+            // frame streams, which must never hold up launch.
+            let recovery = RecoveryService::start(recorder.root().to_path_buf())
+                .map_err(std::io::Error::other)?;
+            // Bounded storage. Retention deletes whole sessions oldest-first
+            // when the budget is exceeded, and asks these two guards before
+            // every deletion, so the session being recorded and any session
+            // queued for or undergoing analysis are never candidates.
+            let protection: Vec<Arc<dyn SessionProtection>> = vec![
+                Arc::clone(&recorder) as Arc<_>,
+                Arc::clone(&analyzer) as Arc<_>,
+            ];
+            let retention = RetentionService::start(
+                recorder.root().to_path_buf(),
+                RetentionPolicy::from_environment().map_err(std::io::Error::other)?,
+                protection,
+            )
+            .map_err(std::io::Error::other)?;
+            // A finished analysis releases the session it was protecting, so
+            // the budget is worth reconsidering. This is the only thing that
+            // lets retention converge when the oldest sessions are the ones
+            // still queued.
+            analyzer
+                .attach_observer(Arc::clone(&retention) as Arc<_>)
+                .map_err(std::io::Error::other)?;
+            // One hook, two observers, in order: analysis is queued first so a
+            // just-finished session is protected before retention can consider
+            // deleting anything. Both calls are bounded `try_send`s.
+            let completion = CompletionFanout::new(vec![
+                Arc::clone(&analyzer) as Arc<dyn SessionCompletionHook>,
+                Arc::clone(&retention) as Arc<dyn SessionCompletionHook>,
+            ]);
             recorder
-                .attach_completion_hook(Arc::clone(&analyzer) as Arc<_>)
+                .attach_completion_hook(completion)
                 .map_err(std::io::Error::other)?;
             app.manage(Arc::clone(&capture));
             app.manage(Arc::clone(&appliance));
             app.manage(Arc::clone(&recorder));
             app.manage(Arc::clone(&analyzer));
+            app.manage(Arc::clone(&recovery));
+            app.manage(Arc::clone(&retention));
             let handle = app.handle().clone();
             let (stop, receiver) = mpsc::sync_channel(1);
             let worker = thread::Builder::new()
@@ -260,6 +353,7 @@ pub fn run() {
             get_session,
             get_session_analysis,
             get_analysis_status,
+            get_storage_status,
             reanalyze_session
         ])
         .build(tauri::generate_context!())
@@ -280,6 +374,12 @@ pub fn run() {
             // Drained last, so an analysis queued by that final completion
             // still runs. Recording was already durable before this point.
             handle.state::<Arc<AnalysisRunner>>().shutdown();
+            // Housekeeping is stopped after the work it observes, and neither
+            // can hold exit open: a recovery scan stops between records and a
+            // retention sweep stops between sessions. Neither owns anything a
+            // recording depends on, so stopping them last can lose nothing.
+            handle.state::<Arc<RecoveryService>>().shutdown();
+            handle.state::<Arc<RetentionService>>().shutdown();
         }
     });
 }

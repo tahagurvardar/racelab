@@ -1548,15 +1548,23 @@ pub fn analyze_stream<R: io::Read>(
         reader.header.telemetry_frame_schema_version,
         config,
     );
-    while let Some(record) = reader.next_frame()? {
+    // `next_frame_lossy`, not `next_frame`: a recording interrupted by a crash
+    // stops part-way through its final record, and refusing the whole file for
+    // that reason would throw away every complete frame before it. Damage in
+    // the *middle* of the stream still propagates as an error — the tolerance
+    // is for a file that stops, never for a file that is wrong — and either
+    // way `frame_stream_complete` reports that there was no footer.
+    while let Some(record) = reader.next_frame_lossy()? {
         accumulator.observe(&record);
     }
     Ok(accumulator.finish(reader.end.is_some()))
 }
 
-/// Analyze `<directory>/frames.rlframes`. A decode failure propagates: a
-/// corrupt stream produces no analysis at all rather than a partial one that
-/// would look complete.
+/// Analyze `<directory>/frames.rlframes`. A decode failure inside the stream
+/// propagates: a corrupt stream produces no analysis at all rather than a
+/// partial one that would look complete. A stream that merely *stops* — the
+/// ordinary shape of a crashed recording — is analyzed up to where it stops
+/// and reports an incomplete frame stream.
 pub fn analyze_session_directory(
     directory: &Path,
     config: AnalysisConfigV1,
