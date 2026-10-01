@@ -14,6 +14,22 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+/// The address the telemetry socket binds.
+///
+/// Loopback, not `0.0.0.0`, and this is a security decision rather than a
+/// stylistic one. A wildcard bind accepts datagrams from every network
+/// interface, which has two consequences an installed product should not have:
+/// Windows Defender Firewall prompts the user on first launch, and any machine
+/// on the same network can push traffic into the telemetry pipeline. Loopback
+/// traffic is exempt from the Windows firewall, so binding here means RaceLab
+/// needs no firewall exception, no administrator rights and no prompt.
+///
+/// The cost is stated plainly: RaceLab receives telemetry only from a game
+/// running on the same PC. Telemetry sent from a console or a second machine
+/// is no longer received. That matches the product RaceLab is — FH6 Data Out
+/// pointed at `127.0.0.1:20440` on the same Windows PC.
+pub const LISTEN_ADDRESS: &str = "127.0.0.1";
+
 const MAX_DATAGRAM_BYTES: usize = 65_535;
 const PREVIEW_BYTES: usize = 32;
 const RECEIVE_BUFFER_BYTES: usize = 4 * 1024 * 1024;
@@ -184,7 +200,7 @@ impl Listener {
         }
         self.join_worker(&mut worker)?;
         let socket = (|| {
-            let socket = UdpSocket::bind(("0.0.0.0", port))?;
+            let socket = UdpSocket::bind((LISTEN_ADDRESS, port))?;
             // Absorb scheduler stalls/bursts instead of relying on small OS defaults.
             if let ReceiveBuffer::Requested(bytes) = self.receive_buffer {
                 if bytes == 0 || bytes > i32::MAX as usize {
@@ -436,7 +452,7 @@ mod tests {
                 assert_eq!(stopped.receive_errors, 0);
                 assert_eq!(stopped.last_packet_size, None);
                 assert!(listener.stop().is_ok());
-                assert!(UdpSocket::bind(("0.0.0.0", port)).is_ok());
+                assert!(UdpSocket::bind((LISTEN_ADDRESS, port)).is_ok());
                 finished.send(elapsed).unwrap();
             }
         });
@@ -551,7 +567,11 @@ mod tests {
 
     #[test]
     fn bind_failure_surfaces_and_next_start_recovers() {
-        let occupied = UdpSocket::bind("0.0.0.0:0").unwrap();
+        // Occupied on the address the listener actually binds. A wildcard
+        // holder would no longer conflict: since the listener took loopback,
+        // `0.0.0.0:P` and `127.0.0.1:P` can coexist on Windows, and using one
+        // here would silently stop testing bind failure at all.
+        let occupied = UdpSocket::bind((LISTEN_ADDRESS, 0)).unwrap();
         let listener = Listener::default();
         assert!(listener
             .start(occupied.local_addr().unwrap().port())
@@ -660,7 +680,7 @@ mod tests {
             worker.join().unwrap();
         }
         listener.stop().unwrap();
-        assert!(UdpSocket::bind(("0.0.0.0", port)).is_ok());
+        assert!(UdpSocket::bind((LISTEN_ADDRESS, port)).is_ok());
     }
 
     #[test]
@@ -675,7 +695,7 @@ mod tests {
         sender.send_to(b"old", ("127.0.0.1", first_port)).unwrap();
         wait_for_packets(&listener, 1);
         listener.stop().unwrap();
-        let _old_port = UdpSocket::bind(("0.0.0.0", first_port)).unwrap();
+        let _old_port = UdpSocket::bind((LISTEN_ADDRESS, first_port)).unwrap();
         drop(reserved);
         let second = listener.start(other_port).unwrap();
         assert_eq!(second.bound_port, Some(other_port));

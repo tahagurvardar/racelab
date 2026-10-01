@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MetricGrid } from "../components/MetricCard";
+import { StorageBudget } from "../components/StorageBudget";
 import { TelemetrySection, ViewHeader } from "../components/TelemetrySection";
 import {
   bytes,
@@ -271,6 +272,14 @@ export default function SessionsView({
               }`
             : ""}
         </p>
+      </TelemetrySection>
+
+      <TelemetrySection
+        eyebrow="STORAGE"
+        title="How much driving RaceLab keeps"
+        description="Recordings are deleted oldest first once this limit is passed. This is the only setting RaceLab has; everything else is automatic."
+      >
+        <StorageBudget />
       </TelemetrySection>
 
       <TelemetrySection

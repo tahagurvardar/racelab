@@ -1,9 +1,9 @@
-warning: linker stdout: C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
+warning: linker stdout: <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
   |
   = note: `#[warn(linker_messages)]` on by default
 
 warning: `racelab` (lib) generated 1 warning
-   Compiling racelab v0.2.2 (C:\Users\PC\Desktop\racelab-v0.1\src-tauri)
+   Compiling racelab v0.2.2 (<REPO>\src-tauri)
     Finished `test` profile [unoptimized + debuginfo] target(s) in 15.34s
      Running unittests src\lib.rs (src-tauri\target\debug\deps\racelab_lib-adda0360599865f9.exe)
 

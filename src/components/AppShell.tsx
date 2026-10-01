@@ -47,12 +47,17 @@ export function AppShell({
   onSelect,
   status,
   banner,
+  setup,
   children,
 }: {
   active: ViewId;
   onSelect: (id: ViewId) => void;
   status: ReactNode;
   banner: string | null;
+  /// First-run guidance. Rendered above the active view rather than inside one,
+  /// so a user who is still configuring the game finds the instructions
+  /// wherever they happen to have clicked.
+  setup: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -62,7 +67,7 @@ export function AppShell({
           <span className="sidebar-mark" aria-hidden="true" />
           <span>
             RaceLab
-            <em>V0.10.0</em>
+            <em>V1.0.0</em>
           </span>
         </div>
         <NavGroup
@@ -86,7 +91,10 @@ export function AppShell({
             {banner}
           </p>
         ) : null}
-        <main className="view">{children}</main>
+        <main className="view">
+          {setup}
+          {children}
+        </main>
       </div>
     </div>
   );

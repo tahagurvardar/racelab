@@ -856,3 +856,83 @@ button.ghost:hover {
     gap: var(--gap-2);
   }
 }
+
+/* ------------------------------------------------- first run and settings */
+
+/* The first-run panel is the only thing in RaceLab that asks a user to do
+   something. It is given the accent edge so it reads as an instruction rather
+   than as another empty state. */
+.setup-guide {
+  padding: var(--gap-5);
+  border-left: 3px solid var(--accent);
+  margin-bottom: var(--gap-5);
+}
+.setup-guide.tone-good {
+  border-left-color: var(--good);
+}
+.setup-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gap-4);
+  margin-bottom: var(--gap-3);
+}
+.setup-heading h2 {
+  font-size: 1.05rem;
+  margin-top: var(--gap-1);
+}
+.setup-guide > p {
+  max-width: 88ch;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+.setup-steps {
+  margin: var(--gap-4) 0;
+  padding-left: 1.4em;
+  max-width: 88ch;
+  display: grid;
+  gap: var(--gap-2);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.setup-steps li::marker {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.setup-detection {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-2);
+  margin-top: var(--gap-4);
+  padding: var(--gap-3) var(--gap-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  max-width: 88ch;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.setup-detection.tone-good {
+  border-color: var(--good);
+}
+.setup-detection.tone-warn {
+  border-color: var(--warn);
+}
+.setup-detection.tone-bad {
+  border-color: var(--bad);
+}
+
+.storage-budget {
+  display: grid;
+  gap: var(--gap-3);
+}
+.storage-budget > p {
+  max-width: 88ch;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.storage-budget .controls {
+  flex-wrap: wrap;
+}

@@ -685,8 +685,29 @@ fn the_recording_manifest_is_checkpointed_while_frames_arrive_continuously() {
     assert!(observations[1].0 > observations[0].0, "{observations:?}");
     assert!(observations[1].1 > observations[0].1, "{observations:?}");
     // A checkpoint never claims more frames than the frame file actually holds.
-    let (_, on_disk) =
-        session_format::read_all_frames(&rig.directory(&id).join(FRAME_FILE_NAME)).unwrap();
+    //
+    // The stream is still being appended to here, and `read_all_frames` is a
+    // strict reader: catching the writer mid-record is an `UnexpectedEof`,
+    // which is the right answer for a finished file and a race for a live one.
+    // Retrying is what makes this deterministic — a torn tail is transient
+    // because the writer always completes the record it started — and it keeps
+    // the assertion below exactly as strict as it was.
+    let frames = rig.directory(&id).join(FRAME_FILE_NAME);
+    let mut on_disk = None;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        match session_format::read_all_frames(&frames) {
+            Ok((_, read)) => {
+                on_disk = Some(read);
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("the frame stream could not be read: {error}"),
+        }
+    }
+    let on_disk = on_disk.expect("the frame stream never settled into whole records");
     assert!(on_disk.len() as u64 >= observations[1].0);
 
     // Finalization is unchanged by checkpointing.

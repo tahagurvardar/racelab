@@ -97,24 +97,28 @@ test("telemetry polling is started once, above the view switch", () => {
   const callers = ALL.filter((file) =>
     read(file).includes("startLatestPolling("),
   );
-  // Only the two hooks poll. No view, component or panel owns a loop.
+  // Only these hooks poll. No view, component or panel owns a loop.
   assert.deepEqual(callers.sort(), [
     "hooks/use-live-telemetry.ts",
     "hooks/use-recorder-status.ts",
+    "hooks/use-setup-state.ts",
   ]);
   const app = read("App.tsx");
   // Both hooks are called unconditionally in the shell, so a view change can
   // neither start a second loop nor tear the existing one down.
   assert.ok(app.includes("useLiveTelemetry()"));
   assert.ok(app.includes("useRecorderStatus()"));
+  assert.ok(app.includes("useSetupState()"));
   assert.equal(app.match(/useLiveTelemetry\(\)/g).length, 1);
   assert.equal(app.match(/useRecorderStatus\(\)/g).length, 1);
+  assert.equal(app.match(/useSetupState\(\)/g).length, 1);
   // Views are rendered as children of the shell; none of them calls a hook
   // that polls.
   for (const view of [...PRODUCT_VIEWS, "views/DiagnosticsView.tsx"]) {
     const source = read(view);
     assert.ok(!source.includes("useLiveTelemetry"), view);
     assert.ok(!source.includes("useRecorderStatus"), view);
+    assert.ok(!source.includes("useSetupState"), view);
   }
 });
 

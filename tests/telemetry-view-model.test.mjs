@@ -768,3 +768,56 @@ test("late snapshots cannot overwrite newer live telemetry state", () => {
   const newer = snapshot({ revision: 12 });
   assert.equal(newerLive(current, newer), newer);
 });
+
+// ------------------------------------------------- recording failure (V1.0)
+
+test("a failing recorder reaches the global banner instead of only Diagnostics", () => {
+  // The disk-full case. Through V0.10 a write failure was honest in the
+  // manifest and visible in Diagnostics, but the dashboard looked normal, so a
+  // user lost a recording without ever being told.
+  const model = buildStatus(snapshot(), false, null, {
+    status: "error",
+    last_error:
+      "Session frame write failed: There is not enough space on the disk.",
+  });
+  assert.match(model.banner, /not enough space/);
+  assert.deepEqual(
+    model.items.find((item) => item.key === "recording"),
+    {
+      key: "recording",
+      label: "Recording",
+      value: "Recording failed",
+      tone: "bad",
+      glyph: "✕",
+    },
+  );
+});
+
+test("a stale recorder error does not keep alarming a recovered recording", () => {
+  const model = buildStatus(snapshot(), true, null, {
+    status: "recording",
+    last_error: "an earlier failure",
+  });
+  assert.equal(model.banner, null);
+  assert.equal(
+    model.items.find((item) => item.key === "recording").value,
+    "Recording",
+  );
+});
+
+test("a transport error still outranks a recorder error in the banner", () => {
+  const model = buildStatus(
+    snapshot({ transport_error: "bind failed" }),
+    false,
+    null,
+    { status: "error", last_error: "disk full" },
+  );
+  assert.equal(model.banner, "bind failed");
+});
+
+test("omitting recorder state leaves every V0.10 status reading unchanged", () => {
+  assert.deepEqual(
+    buildStatus(snapshot(), true, null).items,
+    buildStatus(snapshot(), true, null, null).items,
+  );
+});

@@ -364,6 +364,16 @@ impl LiveTelemetrySink {
             ConnectionState::ConnectedIdle
         };
     }
+    /// Has the detector locked a protocol right now?
+    ///
+    /// Deliberately does not call `advance` or bump the revision: this is read
+    /// by the supervisor at its publication cadence purely to record that FH6
+    /// has been seen at least once, and an observation must not be able to
+    /// change the state it observes.
+    pub fn protocol_detected(&self) -> bool {
+        let s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        s.detector.protocol().is_some()
+    }
     pub fn snapshot(&self) -> LiveSnapshot {
         self.snapshot_at(self.now_ms())
     }

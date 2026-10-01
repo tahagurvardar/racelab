@@ -1,4 +1,4 @@
-warning: linker stdout: C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
+warning: linker stdout: <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
   |
   = note: `#[warn(linker_messages)]` on by default
 

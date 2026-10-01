@@ -10,6 +10,11 @@ use std::sync::{
 };
 
 pub const DEFAULT_FH6_PORT: u16 = 20440;
+/// The address a user types into the FH6 Data Out screen.
+///
+/// Derived from the address the listener actually binds rather than written out
+/// a second time, so the first-run instructions cannot drift from the socket.
+pub const FH6_TARGET_HOST: &str = crate::ingress::LISTEN_ADDRESS;
 pub struct Appliance {
     pub listener: Arc<Listener>,
     pub live: Arc<LiveTelemetrySink>,
@@ -75,6 +80,12 @@ impl Appliance {
         let stats = self.listener.stop()?;
         self.live.stop();
         Ok(stats)
+    }
+    /// The port bound automatically at launch. Reported to the first-run view
+    /// so the number a user is told to configure comes from the same constant
+    /// the listener actually binds, never from a second copy in the UI.
+    pub fn startup_port(&self) -> u16 {
+        self.startup_port
     }
     pub fn tick(&self) {
         // Skip observation during bind/join; a stale transport snapshot must not

@@ -1,4 +1,4 @@
-sessions root: C:/Users/PC/AppData/Local/com.tahagurvardar.racelab/sessions
+sessions root: %LOCALAPPDATA%/com.tahagurvardar.racelab/sessions
 scanned 11 schema-2 session(s) over 2 vehicle(s); skipped 34 schema-1 and 0 unreadable
 399662 frames, 389543 active frames
   vehicle 3520: 5 session(s)

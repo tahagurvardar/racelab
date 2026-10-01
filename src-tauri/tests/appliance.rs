@@ -111,7 +111,10 @@ fn automatic_startup_binds_without_a_user_start_command_and_detects_real_udp() {
 }
 #[test]
 fn bind_failure_is_error_and_diagnostic_retry_recovers() {
-    let occupied = UdpSocket::bind("0.0.0.0:0").unwrap();
+    // Occupied on the address the listener binds. A wildcard holder no longer
+    // conflicts with the loopback bind, so using one would stop this testing
+    // bind failure at all.
+    let occupied = UdpSocket::bind((racelab_lib::ingress::LISTEN_ADDRESS, 0)).unwrap();
     let appliance = Appliance::new(
         Arc::new(Counter::default()),
         ConnectionConfig::default(),

@@ -1,6 +1,48 @@
 # RaceLab
 
-RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions. V0.10 bounds what the product stores, recovers what a crash would otherwise lose, and states why an analysis is or is not ready.
+RaceLab is a desktop telemetry platform for racing games. Its frozen transport treats every UDP datagram as opaque bytes. V0.5 automatically listens, validates FH6 traffic, and manages live in-memory sessions. V0.10 bounds what the product stores, recovers what a crash would otherwise lose, and states why an analysis is or is not ready. V1.0 turns that engineering build into an installable Windows application.
+
+## V1.0: packaged Windows release
+
+V1.0 adds no telemetry features. It makes the existing product installable and
+supportable by someone who has never opened a terminal.
+
+- **A real Windows installer.** `pnpm tauri build` now produces
+  `RaceLab_<version>_x64-setup.exe`, a per-user NSIS installer that needs no
+  administrator rights. The packaged executable is a GUI-subsystem binary, so
+  there is no console window, and an installed build depends on no Node, pnpm,
+  Rust or source checkout.
+- **A first-run state.** Until RaceLab has decoded FH6 telemetry once, it shows
+  the six Data Out steps with the address and port read from the running
+  listener, plus a live statement of what is actually arriving — nothing,
+  something that is not FH6, or FH6. It says so once on success and never
+  returns. The words "UDP", "datagram", "socket" and "packet" appear nowhere in
+  it, and a test enforces that.
+- **Loopback-only ingress.** The telemetry socket binds `127.0.0.1` instead of
+  `0.0.0.0`. Loopback traffic is exempt from Windows Defender Firewall, so
+  RaceLab needs no firewall exception and triggers no prompt. The cost is that
+  telemetry must come from a game on the same PC; a console or a second machine
+  is no longer received.
+- **Bounded logging.** One active and one previous log file, 1 MiB each, under
+  `%LOCALAPPDATA%\com.tahagurvardar.racelab\logs`. Lifecycle and failures only —
+  never a telemetry frame, never packet bytes. Rust panics, including on
+  background threads, are routed into it.
+- **One setting.** The storage budget, in the Sessions view.
+  `RACELAB_STORAGE_BUDGET_BYTES` still wins, so V0.10 retention behaviour is
+  unchanged.
+- **Recording failure is visible.** A recorder write error — the disk-full case
+  — now reaches the global status bar instead of only Diagnostics.
+- **A fatal startup error is visible.** A GUI build has no console, so a
+  configuration failure before the window exists used to make RaceLab vanish on
+  launch. It now shows one native message box naming the reason and the log
+  file, then exits non-zero.
+
+**Released as 1.0.0.** The bump followed three manual acceptance runs, all
+passed: packaged-build FH6 on the installed application, fatal startup error,
+and clean-profile installation on a fresh standard Windows user account. See
+[the packaged release document](docs/V1.0-RELEASE.md) for the build procedure,
+storage layout, firewall findings, those procedures, and the three residual
+gaps that a fresh profile cannot close.
 
 ## V0.10: FH6 product hardening
 
@@ -226,7 +268,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-RaceLab automatically listens on `20440`. Configure the game's telemetry destination to this computer and port. The dashboard opens on Overview and connects on its own. Raw datagram capture, the listener start/stop controls and every engineering counter live under **Diagnostics**.
+RaceLab automatically listens on `127.0.0.1:20440`. Configure the game's Data Out destination to exactly that address and port; the listener is loopback-only, so the game must run on the same PC. The dashboard opens on Overview and connects on its own. Raw datagram capture, the listener start/stop controls and every engineering counter live under **Diagnostics**.
 
 ## Synthetic traffic
 
@@ -260,7 +302,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 pnpm test:udp
 ```
 
-The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). V0.8 adds the canonical expansion: exact byte-offset, type and endianness tests for every promoted field, the FH6 wheel-order mapping index by index, the single Fahrenheit-to-Celsius conversion, the new semantic validation policies, and a persistence suite that writes schema-v1 records with a hand-frozen legacy struct to prove old recordings still decode. V0.7 added the presentation layer: unit conversions and nullable rendering, every dashboard view model, the FL/FR/RL/RR corner mapping, connection/session/stale presentation, the diagnostics boundary, and structural checks that no product view reads `sourceSpecific` and that exactly two polling loops exist in the whole frontend. Node cannot load `.tsx`, so component behaviour that is not expressible in a view model is asserted against the sources instead of a DOM renderer. Formatting covers `src`, `tests`, the fixture script and `package.json`, plus all Rust code.
+The historical paced ingress matrix is ignored by the default Rust suite; `pnpm test:udp` runs it. V0.3's new 600-packet, 60 Hz, 324-byte capture/replay integration test runs in the default suite and takes about ten seconds. Capture tests cover exact byte/metadata round trips, timestamp ordering, lifecycle boundaries, drain behavior, overflow accounting and persistence, storage failures, malformed files and deterministic replay. Existing Rust tests cover sequence gaps/duplicates, rate math, bind recovery, concurrent listener lifecycle, snapshot contention, sink panic isolation, zero-length/maximum-size packets and a 1,000-packet burst. Frontend tests cover recovery and stale telemetry/capture snapshots (requires Node with TypeScript stripping). V0.8 adds the canonical expansion: exact byte-offset, type and endianness tests for every promoted field, the FH6 wheel-order mapping index by index, the single Fahrenheit-to-Celsius conversion, the new semantic validation policies, and a persistence suite that writes schema-v1 records with a hand-frozen legacy struct to prove old recordings still decode. V0.7 added the presentation layer: unit conversions and nullable rendering, every dashboard view model, the FL/FR/RL/RR corner mapping, connection/session/stale presentation, the diagnostics boundary, and structural checks that no product view reads `sourceSpecific` and that polling loops exist only in hooks mounted above the view switch. Node cannot load `.tsx`, so component behaviour that is not expressible in a view model is asserted against the sources instead of a DOM renderer. Formatting covers `src`, `tests`, the fixture script and `package.json`, plus all Rust code.
 
 ## Limits and next evidence
 

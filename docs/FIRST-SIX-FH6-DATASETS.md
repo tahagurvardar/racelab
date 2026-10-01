@@ -4,7 +4,7 @@ The user manually verified the frozen V0.2.2 ingress: bound port **20440**, cont
 
 ## Prepare once
 
-1. From `C:\Users\PC\Desktop\racelab-v0.1`, run `pnpm tauri dev`.
+1. From `<REPO>`, run `pnpm tauri dev`.
 2. Keep FH6's telemetry destination at the already verified `127.0.0.1:20440`. In RaceLab, enter **20440** and click **Start listener**.
 3. Confirm continuous packet-count growth, the actual size/source/rate, and zero receive errors. Do not run the synthetic sender during these captures. If size, source or rate differs from the earlier observation, record the difference; do not filter or discard bytes based on assumptions.
 4. Use the same car, tune, assists, transmission setting and location for the first five recordings. Record those choices, game build/version if available, input device, date, and telemetry settings in a text note. Arrange a repeatable in-game road/test area. Keep RaceLab visible on another display if available, or switch back to it to control capture.
@@ -31,7 +31,7 @@ These are input/observation scenarios for later offline comparison. No signal or
 3. From the repository root, validate that exact file and calculate its digest (replace the example path with the displayed path):
 
    ```powershell
-   $captureFile = 'C:\Users\PC\AppData\Local\com.tahagurvardar.racelab\captures\REPLACE-WITH-ACTUAL-FILENAME.rlcap'
+   $captureFile = '%LOCALAPPDATA%\com.tahagurvardar.racelab\captures\REPLACE-WITH-ACTUAL-FILENAME.rlcap'
    cargo run --manifest-path src-tauri/Cargo.toml --example inspect_capture -- $captureFile
    Get-FileHash -Algorithm SHA256 -LiteralPath $captureFile
    ```

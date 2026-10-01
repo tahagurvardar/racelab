@@ -362,14 +362,43 @@ export interface StatusModel {
   banner: string | null;
 }
 
+/// A recording that is failing, in the words a user needs.
+///
+/// This is the disk-full case above all others. The recorder already refuses to
+/// pretend — it finalizes an honestly incomplete manifest and reports the write
+/// error — but through V0.10 that error only ever appeared in Diagnostics, so a
+/// user whose disk filled mid-session saw a normal-looking dashboard and lost
+/// the recording silently. A failure to record is a product-level failure and
+/// belongs in the global banner.
+export function recordingPresentation(
+  recording: boolean,
+  recorderStatus: string | null | undefined,
+): { value: string; tone: StatusTone } {
+  if (recorderStatus === "error") {
+    return { value: "Recording failed", tone: "bad" };
+  }
+  return recording
+    ? { value: "Recording", tone: "good" }
+    : { value: "Not recording", tone: "neutral" };
+}
+
 export function buildStatus(
   snapshot: LiveSnapshot | null,
   recording: boolean,
   transportError: string | null,
+  recorder?: { status: string; last_error: string | null } | null,
 ): StatusModel {
   const connection = connectionPresentation(snapshot);
   const session = sessionPresentation(snapshot);
   const health = snapshot?.health ?? "LOST";
+  const recordingState = recordingPresentation(recording, recorder?.status);
+  // Only a recorder that is actually in its error state contributes a banner. A
+  // `last_error` left over from an earlier failure must not keep alarming a
+  // user whose recording has since recovered.
+  const recorderBanner =
+    recorder?.status === "error"
+      ? (recorder.last_error ?? "RaceLab could not write this recording.")
+      : null;
   return {
     product: "RaceLab",
     game: gameLabel(snapshot),
@@ -395,11 +424,12 @@ export function buildStatus(
       status(
         "recording",
         "Recording",
-        recording ? "Recording" : "Not recording",
-        recording ? "good" : "neutral",
+        recordingState.value,
+        recordingState.tone,
       ),
     ],
-    banner: transportError ?? snapshot?.transport_error ?? null,
+    banner:
+      transportError ?? snapshot?.transport_error ?? recorderBanner ?? null,
   };
 }
 

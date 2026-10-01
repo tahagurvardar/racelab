@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { AppShell } from "./components/AppShell";
+import { FirstRunGuide } from "./components/FirstRunGuide";
 import { StatusBar } from "./components/StatusBar";
 import { useLiveTelemetry } from "./hooks/use-live-telemetry.ts";
 import { useRecorderStatus } from "./hooks/use-recorder-status.ts";
+import { useSetupState } from "./hooks/use-setup-state.ts";
 import { useTransportStats } from "./hooks/use-transport-stats.ts";
 import {
   buildStatus,
@@ -28,6 +30,7 @@ export default function App() {
   const { snapshot, error: liveError } = useLiveTelemetry();
   const { recorder, error: recorderError } = useRecorderStatus();
   const { stats, connectionError, apply } = useTransportStats();
+  const { setup, sawFirstRun } = useSetupState();
 
   const listenerRunning = stats?.running ?? false;
   const state = resolveLiveFrame(snapshot, listenerRunning);
@@ -35,6 +38,7 @@ export default function App() {
     snapshot,
     recorder?.recording ?? false,
     liveError ?? connectionError,
+    recorder,
   );
 
   return (
@@ -43,6 +47,13 @@ export default function App() {
       onSelect={setView}
       status={<StatusBar model={status} />}
       banner={status.banner}
+      setup={
+        <FirstRunGuide
+          setup={setup}
+          sawFirstRun={sawFirstRun}
+          snapshot={snapshot}
+        />
+      }
     >
       {view === "overview" ? <OverviewView state={state} /> : null}
       {view === "engine" ? <EngineView state={state} /> : null}

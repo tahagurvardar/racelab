@@ -8,6 +8,7 @@ pub mod capture_format;
 pub mod fh6_validation;
 pub mod ingress;
 pub mod live_telemetry;
+pub mod logging;
 pub mod packet;
 pub mod protocol;
 pub mod session;
@@ -17,6 +18,8 @@ pub mod session_recovery;
 pub mod session_retention;
 pub mod session_store;
 pub mod session_summary;
+pub mod settings;
+pub mod startup_error;
 pub mod telemetry;
 pub mod telemetry_hub;
 pub mod telemetry_v1;
@@ -33,6 +36,7 @@ use session_recorder::{CompletionFanout, RecorderStatus, SessionCompletionHook, 
 use session_recovery::{RecoveryService, RecoveryStatus};
 use session_retention::{RetentionPolicy, RetentionService, RetentionStatus, SessionProtection};
 use session_store::{RecentSessions, SessionAnalysisState};
+use settings::{SettingsSnapshot, SettingsStore};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -214,6 +218,58 @@ fn get_analysis_status(analyzer: State<'_, Arc<AnalysisRunner>>) -> AnalysisRunn
     analyzer.status()
 }
 
+/// What a first-run user has to be told, and nothing else.
+///
+/// The address and port come from the running appliance rather than from a
+/// constant repeated in the frontend, so the number the product tells a user to
+/// type into FH6 is by construction the number the listener bound.
+#[derive(Debug, Clone, Serialize)]
+pub struct SetupState {
+    /// True until RaceLab has decoded FH6 telemetry at least once on this
+    /// installation. Survives restarts; is not reset by deleting sessions.
+    pub first_run: bool,
+    /// Always loopback. RaceLab binds `127.0.0.1` and never a routable address.
+    pub listen_host: String,
+    pub listen_port: u16,
+    pub fh6_first_detected_unix_ms: Option<u64>,
+}
+
+#[tauri::command]
+fn get_setup_state(
+    appliance: State<'_, Arc<Appliance>>,
+    settings: State<'_, Arc<SettingsStore>>,
+) -> SetupState {
+    SetupState {
+        first_run: settings.is_first_run(),
+        listen_host: appliance::FH6_TARGET_HOST.to_string(),
+        listen_port: appliance.startup_port(),
+        fh6_first_detected_unix_ms: settings.fh6_first_detected_unix_ms(),
+    }
+}
+
+#[tauri::command]
+fn get_settings(settings: State<'_, Arc<SettingsStore>>) -> SettingsSnapshot {
+    settings.snapshot()
+}
+
+/// The one setting V1.0 exposes. Takes effect for the next sweep after a
+/// restart: the retention worker is given its policy once, at startup, and
+/// leaving that contract alone was worth more than applying the change live.
+#[tauri::command]
+async fn set_storage_budget(
+    settings: State<'_, Arc<SettingsStore>>,
+    budget_bytes: u64,
+) -> Result<SettingsSnapshot, String> {
+    let settings = Arc::clone(settings.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        settings.set_storage_budget_bytes(budget_bytes)?;
+        logging::info(format!("Storage budget set to {budget_bytes} bytes"));
+        Ok(settings.snapshot())
+    })
+    .await
+    .map_err(|error| format!("Settings update failed: {error}"))?
+}
+
 struct Publisher {
     stop: mpsc::SyncSender<()>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -228,116 +284,189 @@ impl Publisher {
     }
 }
 
+/// Everything that can fail before RaceLab has a window.
+///
+/// Extracted from the `setup` closure for one reason: Tauri's `build()`
+/// **panics** on a setup-hook error rather than returning it, so an error
+/// handed back from that closure never reaches a caller that could show it,
+/// and a panic in a GUI-subsystem build prints to nobody. Returning a plain
+/// `String` here lets the caller report the failure itself.
+fn configure(app: &mut tauri::App) -> Result<(), String> {
+    // Everything below stores under the resolved application data
+    // directory. It is read once, here, and every subdirectory is
+    // derived from it, so nothing in RaceLab can depend on the
+    // process's current working directory.
+    let data_directory = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("Could not resolve the application data directory: {error}"))?;
+    // First, so that anything that fails afterwards is readable. A
+    // packaged build has no console: without this, a failed launch
+    // leaves nothing at all behind.
+    logging::start(data_directory.join("logs"));
+    logging::install_panic_hook();
+    logging::info(format!(
+        "RaceLab {} starting; data directory {}",
+        env!("CARGO_PKG_VERSION"),
+        data_directory.display()
+    ));
+    let settings = Arc::new(SettingsStore::load(
+        &data_directory,
+        session_retention::DEFAULT_STORAGE_BUDGET_BYTES,
+    ));
+    if let Some(error) = settings.snapshot().last_error {
+        logging::warn(format!("Settings: {error}"));
+    }
+    let capture = Arc::new(RawCaptureSink::new(data_directory.join("captures")));
+    let mut config = ConnectionConfig::default();
+    if let Ok(value) = std::env::var("RACELAB_SESSION_GRACE_MS") {
+        config.grace_ms = value
+            .parse()
+            .map_err(|_| "RACELAB_SESSION_GRACE_MS must be an integer".to_string())?;
+    }
+    let appliance = Arc::new(Appliance::new(capture.clone(), config, DEFAULT_FH6_PORT)?);
+    // Recording is automatic: attaching the recorder is the only wiring
+    // step. Sessions still start and end solely through SessionEngine.
+    let recorder = SessionRecorder::new(data_directory.join("sessions"))?;
+    appliance
+        .live
+        .hub
+        .attach_recorder(Arc::clone(&recorder) as Arc<_>)?;
+    // Analysis is automatic and additive: the runner observes a
+    // finished recording and does its work on its own thread. Nothing
+    // in ingestion, the hub or the recorder waits for it, and a session
+    // records identically whether or not this succeeded.
+    let analyzer = AnalysisRunner::new(recorder.root().to_path_buf(), AnalysisConfigV1::default())?;
+    // Interrupted-session recovery. The synchronous half — turning a
+    // stale `recording` manifest into `interrupted` — already ran
+    // inside the recorder's constructor above, before any new session
+    // could be opened. This starts the background half that reads the
+    // frame streams, which must never hold up launch.
+    let recovery = RecoveryService::start(recorder.root().to_path_buf())?;
+    // Bounded storage. Retention deletes whole sessions oldest-first
+    // when the budget is exceeded, and asks these two guards before
+    // every deletion, so the session being recorded and any session
+    // queued for or undergoing analysis are never candidates.
+    let protection: Vec<Arc<dyn SessionProtection>> = vec![
+        Arc::clone(&recorder) as Arc<_>,
+        Arc::clone(&analyzer) as Arc<_>,
+    ];
+    // The V0.10 contract is preserved exactly: an unparseable
+    // `RACELAB_STORAGE_BUDGET_BYTES` is still a startup error rather
+    // than a silent default, and when it parses it still wins. The
+    // settings file is consulted only when the environment is silent,
+    // so nothing that worked in V0.10 behaves differently now.
+    let environment_policy = RetentionPolicy::from_environment()?;
+    let policy = if settings.storage_budget_from_environment() {
+        environment_policy
+    } else {
+        RetentionPolicy {
+            budget_bytes: settings.storage_budget_bytes(),
+        }
+    };
+    logging::info(format!(
+        "Storage budget {} bytes ({})",
+        policy.budget_bytes,
+        if policy.enabled() {
+            "retention enabled"
+        } else {
+            "retention disabled"
+        }
+    ));
+    let retention = RetentionService::start(recorder.root().to_path_buf(), policy, protection)?;
+    // A finished analysis releases the session it was protecting, so
+    // the budget is worth reconsidering. This is the only thing that
+    // lets retention converge when the oldest sessions are the ones
+    // still queued.
+    analyzer.attach_observer(Arc::clone(&retention) as Arc<_>)?;
+    // One hook, two observers, in order: analysis is queued first so a
+    // just-finished session is protected before retention can consider
+    // deleting anything. Both calls are bounded `try_send`s.
+    let completion = CompletionFanout::new(vec![
+        Arc::clone(&analyzer) as Arc<dyn SessionCompletionHook>,
+        Arc::clone(&retention) as Arc<dyn SessionCompletionHook>,
+    ]);
+    recorder.attach_completion_hook(completion)?;
+    app.manage(Arc::clone(&capture));
+    app.manage(Arc::clone(&appliance));
+    app.manage(Arc::clone(&recorder));
+    app.manage(Arc::clone(&analyzer));
+    app.manage(Arc::clone(&recovery));
+    app.manage(Arc::clone(&retention));
+    app.manage(Arc::clone(&settings));
+    let handle = app.handle().clone();
+    let setup_settings = Arc::clone(&settings);
+    let (stop, receiver) = mpsc::sync_channel(1);
+    let worker = thread::Builder::new()
+        .name("telemetry-publisher".into())
+        .spawn(move || {
+            // Bind errors are stored in live connection state, not a panic.
+            match appliance.automatic_start() {
+                Ok(stats) => logging::info(format!(
+                    "UDP listener bound to port {}",
+                    stats
+                        .bound_port
+                        .map(|port| port.to_string())
+                        .unwrap_or_else(|| "unknown".into())
+                )),
+                Err(error) => logging::error(format!("UDP listener did not start: {error}")),
+            }
+            let mut publication = std::time::Instant::now();
+            while matches!(
+                receiver.recv_timeout(Duration::from_millis(50)),
+                Err(mpsc::RecvTimeoutError::Timeout)
+            ) {
+                appliance.tick();
+                if publication.elapsed() < Duration::from_millis(250) {
+                    continue;
+                }
+                publication = std::time::Instant::now();
+                // First-run completion. Once FH6 has been decoded once,
+                // `is_first_run` is false forever and this whole branch
+                // is a single atomic-free mutex read that short-circuits
+                // before touching the telemetry sink.
+                if setup_settings.is_first_run()
+                    && appliance.live.protocol_detected()
+                    && setup_settings.mark_fh6_detected(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|elapsed| elapsed.as_millis() as u64)
+                            .unwrap_or_default(),
+                    )
+                {
+                    logging::info("FH6 telemetry detected for the first time; setup complete");
+                }
+                // Legacy engineering counters/capture remain 4 Hz. Live UI
+                // pulls one latest snapshot at a time; no frame event queue.
+                if let Err(error) = handle.emit("telemetry://stats", appliance.listener.snapshot())
+                {
+                    eprintln!("Could not publish telemetry statistics: {error}");
+                }
+                if let Err(error) = handle.emit("capture://stats", capture.snapshot()) {
+                    eprintln!("Could not publish capture statistics: {error}");
+                }
+            }
+        })
+        .map_err(|error| format!("Could not start the telemetry publisher: {error}"))?;
+    app.manage(Publisher {
+        stop,
+        worker: Mutex::new(Some(worker)),
+    });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .setup(|app| {
-            let capture = Arc::new(RawCaptureSink::new(
-                app.path().app_local_data_dir()?.join("captures"),
-            ));
-            let mut config = ConnectionConfig::default();
-            if let Ok(value) = std::env::var("RACELAB_SESSION_GRACE_MS") {
-                config.grace_ms = value.parse().map_err(|_| {
-                    std::io::Error::other("RACELAB_SESSION_GRACE_MS must be an integer")
-                })?;
+            // Tauri's `build()` panics on a setup-hook error instead of
+            // returning it, so a fatal configuration error is reported here,
+            // where it happens, rather than handed back. `report` logs the
+            // technical error, shows one native message box and exits
+            // non-zero; it never returns. Normal startup never touches it.
+            if let Err(error) = configure(app) {
+                startup_error::report(&error);
             }
-            let appliance = Arc::new(
-                Appliance::new(capture.clone(), config, DEFAULT_FH6_PORT)
-                    .map_err(std::io::Error::other)?,
-            );
-            // Recording is automatic: attaching the recorder is the only wiring
-            // step. Sessions still start and end solely through SessionEngine.
-            let recorder = SessionRecorder::new(app.path().app_local_data_dir()?.join("sessions"))
-                .map_err(std::io::Error::other)?;
-            appliance
-                .live
-                .hub
-                .attach_recorder(Arc::clone(&recorder) as Arc<_>)
-                .map_err(std::io::Error::other)?;
-            // Analysis is automatic and additive: the runner observes a
-            // finished recording and does its work on its own thread. Nothing
-            // in ingestion, the hub or the recorder waits for it, and a session
-            // records identically whether or not this succeeded.
-            let analyzer =
-                AnalysisRunner::new(recorder.root().to_path_buf(), AnalysisConfigV1::default())
-                    .map_err(std::io::Error::other)?;
-            // Interrupted-session recovery. The synchronous half — turning a
-            // stale `recording` manifest into `interrupted` — already ran
-            // inside the recorder's constructor above, before any new session
-            // could be opened. This starts the background half that reads the
-            // frame streams, which must never hold up launch.
-            let recovery = RecoveryService::start(recorder.root().to_path_buf())
-                .map_err(std::io::Error::other)?;
-            // Bounded storage. Retention deletes whole sessions oldest-first
-            // when the budget is exceeded, and asks these two guards before
-            // every deletion, so the session being recorded and any session
-            // queued for or undergoing analysis are never candidates.
-            let protection: Vec<Arc<dyn SessionProtection>> = vec![
-                Arc::clone(&recorder) as Arc<_>,
-                Arc::clone(&analyzer) as Arc<_>,
-            ];
-            let retention = RetentionService::start(
-                recorder.root().to_path_buf(),
-                RetentionPolicy::from_environment().map_err(std::io::Error::other)?,
-                protection,
-            )
-            .map_err(std::io::Error::other)?;
-            // A finished analysis releases the session it was protecting, so
-            // the budget is worth reconsidering. This is the only thing that
-            // lets retention converge when the oldest sessions are the ones
-            // still queued.
-            analyzer
-                .attach_observer(Arc::clone(&retention) as Arc<_>)
-                .map_err(std::io::Error::other)?;
-            // One hook, two observers, in order: analysis is queued first so a
-            // just-finished session is protected before retention can consider
-            // deleting anything. Both calls are bounded `try_send`s.
-            let completion = CompletionFanout::new(vec![
-                Arc::clone(&analyzer) as Arc<dyn SessionCompletionHook>,
-                Arc::clone(&retention) as Arc<dyn SessionCompletionHook>,
-            ]);
-            recorder
-                .attach_completion_hook(completion)
-                .map_err(std::io::Error::other)?;
-            app.manage(Arc::clone(&capture));
-            app.manage(Arc::clone(&appliance));
-            app.manage(Arc::clone(&recorder));
-            app.manage(Arc::clone(&analyzer));
-            app.manage(Arc::clone(&recovery));
-            app.manage(Arc::clone(&retention));
-            let handle = app.handle().clone();
-            let (stop, receiver) = mpsc::sync_channel(1);
-            let worker = thread::Builder::new()
-                .name("telemetry-publisher".into())
-                .spawn(move || {
-                    // Bind errors are stored in live connection state, not a panic.
-                    let _ = appliance.automatic_start();
-                    let mut publication = std::time::Instant::now();
-                    while matches!(
-                        receiver.recv_timeout(Duration::from_millis(50)),
-                        Err(mpsc::RecvTimeoutError::Timeout)
-                    ) {
-                        appliance.tick();
-                        if publication.elapsed() < Duration::from_millis(250) {
-                            continue;
-                        }
-                        publication = std::time::Instant::now();
-                        // Legacy engineering counters/capture remain 4 Hz. Live UI
-                        // pulls one latest snapshot at a time; no frame event queue.
-                        if let Err(error) =
-                            handle.emit("telemetry://stats", appliance.listener.snapshot())
-                        {
-                            eprintln!("Could not publish telemetry statistics: {error}");
-                        }
-                        if let Err(error) = handle.emit("capture://stats", capture.snapshot()) {
-                            eprintln!("Could not publish capture statistics: {error}");
-                        }
-                    }
-                })?;
-            app.manage(Publisher {
-                stop,
-                worker: Mutex::new(Some(worker)),
-            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -354,19 +483,31 @@ pub fn run() {
             get_session_analysis,
             get_analysis_status,
             get_storage_status,
-            reanalyze_session
+            reanalyze_session,
+            get_setup_state,
+            get_settings,
+            set_storage_budget
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building RaceLab");
+        .build(tauri::generate_context!());
+    // A packaged build has no console, so a setup failure — an unusable data
+    // directory, a sessions root that cannot be created, a malformed storage
+    // budget — would otherwise be a window that never appears and nothing at
+    // all to read. `report` logs the real error, shows one native message box
+    // and exits non-zero. It never returns.
+    let app = match app {
+        Ok(app) => app,
+        Err(error) => startup_error::report(&error.to_string()),
+    };
 
     app.run(|handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
+            logging::info("RaceLab shutting down");
             handle.state::<Publisher>().stop();
             if let Err(error) = handle.state::<Arc<Appliance>>().stop() {
-                eprintln!("Could not stop UDP listener: {error}");
+                logging::error(format!("Could not stop UDP listener: {error}"));
             }
             if let Err(error) = handle.state::<Arc<RawCaptureSink>>().stop() {
-                eprintln!("Could not finish raw capture: {error}");
+                logging::error(format!("Could not finish raw capture: {error}"));
             }
             // Appliance stop already completed any open session; this drains
             // and finalizes the writer before the process exits.
@@ -380,6 +521,7 @@ pub fn run() {
             // recording depends on, so stopping them last can lose nothing.
             handle.state::<Arc<RecoveryService>>().shutdown();
             handle.state::<Arc<RetentionService>>().shutdown();
+            logging::info("RaceLab shutdown complete");
         }
     });
 }

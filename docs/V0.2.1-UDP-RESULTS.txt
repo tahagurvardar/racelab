@@ -1,6 +1,6 @@
 $ cargo test --manifest-path src-tauri/Cargo.toml --test udp_load -- --ignored --nocapture
-   Compiling racelab v0.2.1 (C:\Users\PC\Desktop\racelab-v0.1\src-tauri)
-warning: linker stdout: C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve C:\Users\PC\Desktop\racelab-v0.1\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
+   Compiling racelab v0.2.1 (<REPO>\src-tauri)
+warning: linker stdout: <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.lib kitaplığı ve <REPO>\src-tauri\target\debug\deps\racelab_lib.dll.exp nesnesi oluşturuluyor
   |
   = note: `#[warn(linker_messages)]` on by default
 
