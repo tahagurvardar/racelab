@@ -3,6 +3,7 @@
 //! writer thread. No `Start Recording` control exists: `SessionEngine`
 //! lifecycle events alone open, continue and finalize a recording.
 use crate::{
+    recording_owner::{RecordingGame, RecordingOwner},
     session::Session,
     session_format::{
         self, FrameStreamEnd, FrameStreamHeader, FrameStreamWriter, SessionManifestV1,
@@ -98,6 +99,12 @@ pub struct RecorderStatus {
     pub last_completed_session_id: Option<String>,
     pub completed_sessions: u64,
     pub last_error: Option<String>,
+    /// Which game holds RaceLab's one recording slot right now, when an
+    /// ownership arbiter is attached (V2.0 Phase D).
+    pub recording_owner: Option<RecordingGame>,
+    /// FH6 sessions not recorded because F1 25 held the recording slot when
+    /// they started. Process lifetime.
+    pub sessions_refused_by_owner: u64,
 }
 
 impl RecorderStatus {
@@ -123,6 +130,8 @@ impl RecorderStatus {
             last_completed_session_id: None,
             completed_sessions: 0,
             last_error: None,
+            recording_owner: None,
+            sessions_refused_by_owner: 0,
         }
     }
 }
@@ -165,6 +174,9 @@ struct Shared {
     /// Set once, before telemetry flows. Read by the writer thread only after
     /// a session is already finalized on disk.
     completion_hook: OnceLock<Arc<dyn SessionCompletionHook>>,
+    /// Set once, before telemetry flows. Without one, every session is
+    /// recorded exactly as in V1.1.
+    owner: OnceLock<Arc<RecordingOwner>>,
 }
 
 impl Shared {
@@ -221,6 +233,7 @@ impl SessionRecorder {
             dropped: Arc::clone(&dropped),
             session_dropped: Arc::clone(&session_dropped),
             completion_hook: OnceLock::new(),
+            owner: OnceLock::new(),
         });
         if let Err(error) = &interrupted {
             shared.update(|status| status.last_error = Some(error.clone()));
@@ -258,8 +271,24 @@ impl SessionRecorder {
             .map_err(|_| "A session completion hook is already attached".to_string())
     }
 
+    /// Attach the recording-slot arbiter once, before telemetry starts
+    /// flowing.
+    pub fn attach_owner(&self, owner: Arc<RecordingOwner>) -> Result<(), String> {
+        self.shared
+            .owner
+            .set(owner)
+            .map_err(|_| "A recording owner is already attached".to_string())
+    }
+
     pub fn status(&self) -> RecorderStatus {
+        let owner = self
+            .shared
+            .owner
+            .get()
+            .and_then(|owner| owner.owner())
+            .map(|owner| owner.game);
         let mut status = lock(&self.shared.status);
+        status.recording_owner = owner;
         status.queued_frames = self.shared.queued.load(Ordering::Acquire);
         // Per-session, so a clean session after a lossy one reports zero.
         status.recorder_dropped_frames = self.shared.session_dropped.load(Ordering::Relaxed);
@@ -307,6 +336,19 @@ impl SessionRecorderHook for SessionRecorder {
                     Some("Session identifier is not usable as a directory name".into());
             });
             return;
+        }
+        // One recorder at a time: while F1 25 holds the slot this FH6 session
+        // is not recorded at all, and it does not start part-way through when
+        // the slot frees up. (An open FH6 admission implies FH6 holds the
+        // slot, so a refusal never strands an FH6 recording.)
+        if let Some(owner) = self.shared.owner.get() {
+            if !owner.claim(RecordingGame::Fh6, &session.id) {
+                self.shared.update(|status| {
+                    status.sessions_refused_by_owner =
+                        status.sessions_refused_by_owner.saturating_add(1);
+                });
+                return;
+            }
         }
         let dropped_at_start = self.shared.dropped.load(Ordering::Relaxed);
         // A new session starts clean: the user-facing loss warning must not
@@ -493,6 +535,9 @@ fn start_session(
             })
         }
         Err(error) => {
+            if let Some(owner) = shared.owner.get() {
+                owner.release(RecordingGame::Fh6, &session.id);
+            }
             shared.update(|status| {
                 status.status = "error".into();
                 status.recording = false;
@@ -671,6 +716,10 @@ fn finalize(open: &mut Option<OpenSession>, shared: &Arc<Shared>, completed: Opt
     }
     let id = session.id.clone();
     let completed_ok = session.manifest.status == SessionStatus::Completed;
+    // The recording is durable; the slot is free for either game again.
+    if let Some(owner) = shared.owner.get() {
+        owner.release(RecordingGame::Fh6, &id);
+    }
     // Everything this session owns is durable and final at this point: the
     // frame stream is closed and the manifest has been written atomically. Only
     // now is the completion observable, and only for a session that actually
@@ -712,6 +761,33 @@ fn finalize(open: &mut Option<OpenSession>, shared: &Arc<Shared>, completed: Opt
 /// classification it always has.
 pub fn classify_interrupted_sessions(root: &Path) -> Result<u64, String> {
     session_recovery::classify_interrupted_sessions(root)
+}
+
+/// A completion hook bound after the recorder that calls it was built.
+///
+/// The F1 25 recorder must exist before retention starts (retention asks it
+/// which session it protects), and retention is the hook it calls. This
+/// breaks the cycle: the recorder is given the relay, and the relay is
+/// pointed at retention once retention exists. Until then it does nothing.
+#[derive(Default)]
+pub struct CompletionRelay {
+    target: OnceLock<Arc<dyn SessionCompletionHook>>,
+}
+
+impl CompletionRelay {
+    pub fn bind(&self, target: Arc<dyn SessionCompletionHook>) -> Result<(), String> {
+        self.target
+            .set(target)
+            .map_err(|_| "The completion relay is already bound".to_string())
+    }
+}
+
+impl SessionCompletionHook for CompletionRelay {
+    fn session_completed(&self, session_id: &str, directory: &Path) {
+        if let Some(target) = self.target.get() {
+            target.session_completed(session_id, directory);
+        }
+    }
 }
 
 /// Fans one completion out to several observers, in order.

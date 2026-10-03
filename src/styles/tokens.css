@@ -1,4 +1,4 @@
-/* RaceLab V1.1 design tokens.
+/* RaceLab Design System v1. Approved precision engineering direction.
    This is the only file in the frontend allowed to contain a raw colour
    (tests/design-tokens.test.mjs). Components use these names, never values.
    Dark is the only theme; the names are semantic so a light theme can be
@@ -10,38 +10,38 @@
   font-size: 16px;
 
   /* ------------------------------------------------------------ surfaces */
-  --bg-app: #0a0c0f; /* window */
-  --bg-chrome: #0d1014; /* sidebar, top bar */
-  --surface-1: #12161b; /* panels */
-  --surface-2: #171c22; /* inset rows, inputs, table headers */
-  --surface-3: #1e242c; /* hover, selected */
-  --overlay: #1a1f26; /* popovers — the only elevated surface */
+  --bg-app: #0b0f13; /* window */
+  --bg-chrome: #0f1419; /* sidebar, top bar */
+  --surface-1: #141b21; /* panels */
+  --surface-2: #192229; /* inset rows, inputs, table headers */
+  --surface-3: #192229; /* hover, selected */
+  --overlay: #192229; /* popovers — the only elevated surface */
 
   /* ------------------------------------------------------------- borders */
-  --border-subtle: #1c2229; /* dividers inside a panel */
-  --border: #252c35; /* panel edges */
-  --border-strong: #343c47; /* controls, selected edges */
+  --border-subtle: #1c252c; /* dividers inside a panel */
+  --border: #263139; /* panel edges */
+  --border-strong: #34434d; /* controls, selected edges */
 
   /* ---------------------------------------------------------------- text */
   /* Contrast on --surface-1: text ≈15.7:1, text-2 ≈8.5:1, text-3 ≈5.2:1.
      text-3 carries small labels and must stay at or above 4.5:1. */
-  --text: #eceff3;
-  --text-2: #a9b2bd;
-  --text-3: #808b97;
+  --text: #f1f4f5;
+  --text-2: #b3bdc5;
+  --text-3: #89959e;
   /* A meaningful "no reading" (the em dash for an unavailable value). Quieter
      than a reading, never dominant, but still legible text: >= 4.5:1 on every
      panel and inset surface (tests/design-tokens.test.mjs). */
-  --text-unavailable: #7a8591;
+  --text-unavailable: #89959e;
   /* Disabled controls only. Deliberately below text contrast: a disabled
      control is not content. Never used for a telemetry value. */
-  --text-disabled: #4f5863;
+  --text-disabled: #56626b;
   --text-on-accent: #071019;
 
   /* --------------------------------------------------------------- brand */
   /* Interactive only: selection, focus, active tab. Never a data colour. */
-  --accent: #5aa8ff;
-  --accent-strong: #7bbaff;
-  --accent-surface: #12233a;
+  --accent: #7edce6;
+  --accent-strong: #a2e7ee;
+  --accent-surface: #192229;
   --focus: var(--accent);
 
   /* -------------------------------------------------------------- status */
@@ -49,7 +49,7 @@
   --status-ok: #4fcb86;
   --status-warn: #e5b454;
   --status-bad: #f0605d;
-  --status-neutral: #808b97;
+  --status-neutral: #89959e;
 
   --ok-surface: #0f1e17;
   --ok-border: #24553b;
@@ -68,7 +68,7 @@
      motorsport convention for telling the two pedals apart. */
   --ch-throttle: #4fcb86;
   --ch-brake: #f0605d;
-  --ch-neutral: #a9b2bd; /* steering, clutch, handbrake, RPM */
+  --ch-neutral: #b3bdc5; /* steering, clutch, handbrake, RPM */
   /* A neutral single-hue intensity ramp for magnitudes such as tyre
      temperature and slip. It has no thresholds and no good/bad meaning; the
      number is always printed beside it. */
@@ -78,22 +78,40 @@
   --ch-scale-3: #7d93a8;
   --ch-scale-4: #c9d5e0;
 
+  /* Semantic channels never alias the interaction accent. */
+  --ch-speed: #b3bdc5;
+  --ch-rpm: #e6b85c;
+  --ch-energy: #c4d865;
+  --ch-fuel: #e8a45d;
+  --delta-faster: #4fcb86;
+  --delta-slower: #f0605d;
+  --personal-best: #b48aef;
+  --overall-fastest: #e77bbd;
+  --tyre-soft: #f0605d;
+  --tyre-medium: #e8cd65;
+  --tyre-hard: #f1f4f5;
+  --tyre-intermediate: #4fcb86;
+  --tyre-wet: #78a9ea;
+  --text-tertiary: #7e8a93; /* decoration; small content uses AA text-3 */
+  --type-region: 1.125rem; /* 18 */
+  --type-screen: 1.5rem; /* 24 */
+  --type-brand: 2rem; /* 32 */
+  --type-micro: 0.625rem; /* 10 */
+  --r-popover: 6px;
+  --r-dialog: 8px;
+
   /* ---------------------------------------------------------- typography */
-  --font-sans:
-    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display:
-    "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system,
-    sans-serif;
+  --font-sans: "Geist Sans", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Geist Sans", "Segoe UI", system-ui, sans-serif;
   /* Machine strings only: IDs, hex, paths, raw adapter values, codes.
      Ordinary numbers use the sans face with tabular figures. */
-  --font-mono:
-    "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --font-mono: "Geist Mono", Consolas, ui-monospace, monospace;
 
-  --type-mega: 6rem; /* 96 — the primary live reading on a wide window */
+  --type-mega: 4.5rem; /* 72 — maximum hero; wide windows add information, not size */
   --type-hero: 4.5rem; /* 72 — the one primary live reading */
-  --type-display: 2.75rem; /* 44 — secondary hero readings */
+  --type-display: 2.5rem; /* 40 — primary instrument */
   --type-figure: 1.5rem; /* 24 — KPI figures */
-  --type-title: 1.125rem; /* 18 — workspace titles */
+  --type-title: 1.5rem; /* 24 — screen titles */
   --type-lead: 1rem; /* 16 — prominent values in dense grids */
   --type-heading: 0.875rem; /* 14 — panel headings */
   --type-body: 0.8125rem; /* 13 — default UI text */
@@ -105,9 +123,9 @@
   --leading-body: 1.5;
 
   --weight-regular: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-  --weight-bold: 650;
+  --weight-medium: 450;
+  --weight-semibold: 500;
+  --weight-bold: 500;
 
   --tracking-display: -0.03em;
   --tracking-tight: -0.015em;
@@ -127,7 +145,7 @@
   /* --------------------------------------------------------------- radius */
   --r-1: 2px; /* bars, tracks */
   --r-2: 4px; /* controls, chips, rows */
-  --r-3: 6px; /* panels */
+  --r-3: 2px; /* panels */
   --r-pill: 999px; /* status pills only */
 
   /* ------------------------------------------------------------ elevation */
@@ -138,14 +156,14 @@
   /* --------------------------------------------------------------- motion */
   --dur-1: 120ms; /* hover, press, tab content */
   --dur-2: 180ms; /* state colour changes */
-  --dur-3: 280ms; /* live / idle transitions */
+  --dur-3: 220ms; /* live / idle transitions */
   --ease: cubic-bezier(0.2, 0, 0, 1);
   /* Telemetry bars follow one poll interval at most, linearly, so no value
      is drawn between samples for longer than a frame. */
   --dur-sample: 50ms;
 
   /* ---------------------------------------------------------------- shell */
-  --sidebar-width: 208px;
+  --sidebar-width: 176px;
   --rail-width: 56px;
   --topbar-height: 48px;
   --content-max: 1680px;

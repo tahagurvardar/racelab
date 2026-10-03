@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "provenance": "Real F1 25 UDP datagrams (UDP Format 2025, packetVersion 1, game 1.26) captured locally from the user's installed game in Time Trial with RaceLab development fixture capture: four snapshots, each holding the four decoded families from one frame.",
+  "redactions": "sessionUID (bytes 7..14) replaced with ASCII RACELAB!. No other byte changed; every file still classifies identically. No original paths, endpoints or wall times retained.",
+  "files": [
+    {
+      "file": "braking/id02-lap-data.bin",
+      "packet_id": 2,
+      "size": 1285,
+      "sha256": "410beada294a97fed2358bc864e07bee0a6b1c514982a6b814b7e386a79439c6"
+    },
+    {
+      "file": "braking/id06-car-telemetry.bin",
+      "packet_id": 6,
+      "size": 1352,
+      "sha256": "779160f4e6535d1159a32e7cabdad3ee66ae1909d35a9b068b8758e34aeeade7"
+    },
+    {
+      "file": "braking/id07-car-status.bin",
+      "packet_id": 7,
+      "size": 1239,
+      "sha256": "191f69e0112367853f41ef1db9fbb9920de9c5048aa57a56d1b68ae06fd9dbe5"
+    },
+    {
+      "file": "braking/id13-motion-ex.bin",
+      "packet_id": 13,
+      "size": 273,
+      "sha256": "5b484155a6100aeeb10192375af2ce9e88290749338a56e0b74a6ed2f2f4a1c5"
+    },
+    {
+      "file": "driving/id02-lap-data.bin",
+      "packet_id": 2,
+      "size": 1285,
+      "sha256": "7d6ccafde0a72c4f083429906059d527079ee65a461bc2b4aa0eb4a2400dba11"
+    },
+    {
+      "file": "driving/id06-car-telemetry.bin",
+      "packet_id": 6,
+      "size": 1352,
+      "sha256": "1edf5554f191471e2637b257d77b8a0def3bc635fcafd881aff4b7d477bf80ef"
+    },
+    {
+      "file": "driving/id07-car-status.bin",
+      "packet_id": 7,
+      "size": 1239,
+      "sha256": "c2ccbee4b6567237dcade1af9974764970aad862640347749f6ac08d36c3cb3d"
+    },
+    {
+      "file": "driving/id13-motion-ex.bin",
+      "packet_id": 13,
+      "size": 273,
+      "sha256": "41f072a7b641207be4d1ef02b69723494ee4d16fa0ca970d978598f014c19aee"
+    },
+    {
+      "file": "high-speed/id02-lap-data.bin",
+      "packet_id": 2,
+      "size": 1285,
+      "sha256": "24a68d34ceb1536ebd8c880aa64ff5baf375edb1d4d80ba3f9bdd1991fd2fe10"
+    },
+    {
+      "file": "high-speed/id06-car-telemetry.bin",
+      "packet_id": 6,
+      "size": 1352,
+      "sha256": "9f7b079753515af6ac743a3facbbc52939b68999a9e6251de6e1d8564b422407"
+    },
+    {
+      "file": "high-speed/id07-car-status.bin",
+      "packet_id": 7,
+      "size": 1239,
+      "sha256": "544525f63bf94f06e1960531221aee2e070f011601f0c805fa0da838532bbc7d"
+    },
+    {
+      "file": "high-speed/id13-motion-ex.bin",
+      "packet_id": 13,
+      "size": 273,
+      "sha256": "6abac835e88955ba603233fec922582d23429a1ff398db1f92a1ee6882cab4f0"
+    },
+    {
+      "file": "stationary/id02-lap-data.bin",
+      "packet_id": 2,
+      "size": 1285,
+      "sha256": "187b779526ebb7c776cc40382a08689aa0920392ead580a38d50dcbccd262eba"
+    },
+    {
+      "file": "stationary/id06-car-telemetry.bin",
+      "packet_id": 6,
+      "size": 1352,
+      "sha256": "20e6dff476827573c1827b70336741b76b8e635498ffe5c41d6b749c8c6c88a8"
+    },
+    {
+      "file": "stationary/id07-car-status.bin",
+      "packet_id": 7,
+      "size": 1239,
+      "sha256": "72dabb4c5d1abf1b9b2c6d3a1fe0f831de354ae12061020923f7bc3a08e31f56"
+    },
+    {
+      "file": "stationary/id13-motion-ex.bin",
+      "packet_id": 13,
+      "size": 273,
+      "sha256": "2fd5c307143a0a7fc9b21bd7e9b79af40b3501ec043a9cea4f91f17ccb1c3c67"
+    }
+  ]
+}

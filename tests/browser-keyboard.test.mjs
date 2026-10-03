@@ -39,20 +39,21 @@ test(
     await open();
     await evaluate("document.activeElement?.blur()");
     const stops = [];
-    for (let index = 0; index < 7; index += 1) {
+    for (let index = 0; index < 8; index += 1) {
       await press(env.page, "Tab");
       stops.push((await assertVisibleFocus(`stop ${index + 1}`)).text);
     }
     assert.deepEqual(stops, [
+      'button "Home"',
       'button "Live"',
       'button "Sessions"',
-      'button "Settings"',
       'button "Diagnostics"',
+      'button "Settings"',
       'button "Status: Live"',
       'button[tab] "Overview"',
-      stops[6], // the Live tab panel, named by its content
+      stops[7], // the Live tab panel, named by its content
     ]);
-    assert.match(stops[6], /^div\[tabpanel\]/);
+    assert.match(stops[7], /^div\[tabpanel\]/);
     // Shift+Tab retraces the same path.
     await press(env.page, "shift+Tab");
     assert.equal((await focus()).text, 'button[tab] "Overview"');
@@ -260,5 +261,39 @@ test(
     );
     await press(env.page, "Tab");
     assert.equal((await focus()).text, 'button "Start Capture"');
+  },
+);
+
+test(
+  "F1 25 Live tabs: arrows, Home/End and 1-4, with visible focus",
+  { skip },
+  async () => {
+    await open("scenario=f1-live&f1=driving");
+    const selected = () =>
+      evaluate(
+        `document.querySelector("[role=tab][aria-selected=true]").textContent`,
+      );
+    // Reached by keyboard, as a user would: sidebar (5), status, tab list.
+    await evaluate("document.activeElement?.blur()");
+    for (let index = 0; index < 7; index += 1) await press(env.page, "Tab");
+    assert.equal(
+      (await assertVisibleFocus("F1 Overview tab")).text,
+      'button[tab] "Overview"',
+    );
+    await press(env.page, "ArrowRight");
+    assert.equal(await selected(), "Race");
+    assert.equal((await assertVisibleFocus("Race")).text, 'button[tab] "Race"');
+    await press(env.page, "End");
+    assert.equal(await selected(), "Dynamics");
+    await press(env.page, "Home");
+    assert.equal(await selected(), "Overview");
+    await press(env.page, "3");
+    assert.equal(await selected(), "Tyres");
+    assert.equal(
+      (await assertVisibleFocus("Tyres")).text,
+      'button[tab] "Tyres"',
+    );
+    await press(env.page, "Tab");
+    assert.match((await assertVisibleFocus("panel")).text, /^div\[tabpanel\]/);
   },
 );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSetup } from "../../hooks/use-setup-state.ts";
+import { useActiveGame } from "../../state/active-game.ts";
 import { resolveSetupStage } from "../../telemetry/setup-view-model.ts";
 import { FirstRunGuide } from "../FirstRunGuide";
 
@@ -15,8 +16,11 @@ export function FirstRunSlot() {
   // Acknowledging the confirmation is local to this run, exactly as in V1.0;
   // the backend's first-run record is untouched.
   const [dismissed, setDismissed] = useState(false);
+  // The guide is Forza Horizon 6's one-time setup. While F1 25 is the active
+  // game it would be advice for a game nobody is playing, so it steps aside.
+  const f1Active = useActiveGame((state) => state.game === "f1_25");
   const stage = resolveSetupStage({ setup, sawFirstRun, dismissed });
-  if (setup == null || stage === "hidden") return null;
+  if (setup == null || stage === "hidden" || f1Active) return null;
   return (
     <FirstRunGuide
       setup={setup}

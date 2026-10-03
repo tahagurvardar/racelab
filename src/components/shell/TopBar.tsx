@@ -6,7 +6,10 @@ import {
   type FocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { activeGameStore } from "../../state/active-game.ts";
 import {
+  f1LiveStore,
+  f1RecorderStore,
   liveStore,
   recorderStore,
   setupStore,
@@ -17,7 +20,15 @@ import { integer } from "../../telemetry/formatting.ts";
 import { shellStatus } from "../../telemetry/shell-view-model.ts";
 import { Icon } from "./Icon";
 
-const STORES = [liveStore, recorderStore, transportStore, setupStore];
+const STORES = [
+  liveStore,
+  recorderStore,
+  transportStore,
+  setupStore,
+  f1LiveStore,
+  f1RecorderStore,
+  activeGameStore,
+];
 
 function readShell() {
   return shellStatus({
@@ -25,6 +36,9 @@ function readShell() {
     recorder: recorderStore.get(),
     transport: transportStore.get(),
     setup: setupStore.get(),
+    f1Live: f1LiveStore.get(),
+    activeGame: activeGameStore.get(),
+    f1Recorder: f1RecorderStore.get(),
   });
 }
 
@@ -132,26 +146,31 @@ export function TopBar() {
         </div>
       </div>
 
-      <p className="topbar-game">{model.game}</p>
+      {model.activeGame ? (
+        <p className="topbar-game" data-game={model.activeGame}>
+          {model.game}
+        </p>
+      ) : null}
 
       <dl className="topbar-facts">
-        <div>
-          <dt>Vehicle</dt>
-          <dd>{model.vehicleId}</dd>
-        </div>
-        <div>
-          <dt>Session</dt>
-          <dd>{model.sessionDuration}</dd>
-        </div>
+        {model.facts.map((fact) => (
+          <div key={fact.key}>
+            <dt>{fact.label}</dt>
+            <dd>{fact.value}</dd>
+          </div>
+        ))}
       </dl>
 
       <p
         className={`rec-indicator tone-${recording.tone}${
           recording.active ? " is-recording" : ""
         }`}
+        data-recording-game={recording.owner ?? undefined}
       >
         <span className="rec-dot" aria-hidden="true" />
-        <span>{recording.active ? "REC" : recording.value}</span>
+        {/* REC names the game being recorded, which need not be the game on
+            screen. */}
+        <span>{recording.active ? recording.label : recording.value}</span>
         {model.droppedFrames > 0 ? (
           <span className="rec-drops">
             {integer(model.droppedFrames)} dropped

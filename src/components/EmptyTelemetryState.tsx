@@ -4,7 +4,7 @@ import type { LiveFrameState } from "../telemetry/telemetry-view-model.ts";
 /// disagree.
 const HEADLINES: Record<LiveFrameState["availability"], string> = {
   live: "Live",
-  waiting: "Waiting for Forza Horizon 6",
+  waiting: "Waiting for a supported game",
   idle: "Connected · not driving",
   grace: "Paused · session held",
   stale: "Telemetry degraded",

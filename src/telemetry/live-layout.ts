@@ -36,11 +36,16 @@ export type ReadingRole = "home" | "mirror";
 export interface Reading extends Metric {
   source: string;
   role: ReadingRole;
+  /// Set only by a game whose values can age independently (F1 25's packet
+  /// families): the value is real but no longer updating. Never set for FH6.
+  stale?: boolean;
 }
 
 export interface BarReading extends BarMetric {
   source: string;
   role: ReadingRole;
+  /// See `Reading.stale`.
+  stale?: boolean;
 }
 
 function tag(

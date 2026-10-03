@@ -35,7 +35,10 @@
 //! manifest survives its frames. A leftover marker directory — a rename that
 //! succeeded followed by a removal that did not, which on Windows means a file
 //! someone else still has open — is retried by the next sweep.
-use crate::session_format::{self, SessionStatus};
+use crate::{
+    f1_session,
+    session_format::{self, SessionStatus},
+};
 use serde::Serialize;
 use std::{
     fs,
@@ -196,14 +199,17 @@ fn survey(root: &Path) -> Vec<Candidate> {
         if !session_format::is_safe_session_id(&name) {
             continue;
         }
-        let manifest = session_format::read_manifest(&directory).ok();
+        // Either game's session, through the multi-game envelope. An FH6
+        // directory is read exactly as before; an F1 25 one from its own
+        // `session.json`.
+        let envelope = f1_session::read_envelope(&directory);
         candidates.push(Candidate {
             session_id: name,
             bytes: directory_bytes(&directory),
-            started_at_unix_ms: manifest.as_ref().and_then(|m| m.started_at_unix_ms),
-            recording: manifest
+            started_at_unix_ms: envelope.as_ref().and_then(|e| e.started_at_unix_ms),
+            recording: envelope
                 .as_ref()
-                .is_some_and(|m| m.status == SessionStatus::Recording),
+                .is_some_and(|e| e.status == SessionStatus::Recording),
             directory,
         });
     }

@@ -266,7 +266,7 @@ export function resolveLiveFrame(
         frame: null,
         availability: "waiting",
         reason:
-          "RaceLab is listening and connects on its own as soon as Forza Horizon 6 sends telemetry.",
+          "RaceLab is listening and connects on its own as soon as Forza Horizon 6 or F1 25 sends telemetry.",
       };
   }
 }

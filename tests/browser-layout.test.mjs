@@ -120,11 +120,13 @@ const CONFLICTS = `(() => {
 // ------------------------------------------------------------- blocker A
 
 test(
-  "960x640, waiting, Chassis: the document never grows a second scrollbar",
+  "960x640, no readings, Chassis: the document never grows a second scrollbar",
   { skip },
   async () => {
     await env.page.size(960, 640);
-    await env.open("/review/shell.html?scenario=waiting");
+    // FH6 connected but not driving: FH6's tabs with every reading
+    // unavailable. (V2.0's neutral waiting view has no FH6 tabs.)
+    await env.open("/review/shell.html?scenario=idle");
     await openTab("Chassis");
     const extents = await env.page.evaluate(SCROLL);
     assert.ok(
@@ -148,7 +150,7 @@ test(
   async () => {
     for (const [width, height] of RELEASE_SIZES) {
       await env.page.size(width, height);
-      for (const scenario of ["waiting", "live", "stress"]) {
+      for (const scenario of ["idle", "live", "stress"]) {
         await env.open(`/review/shell.html?scenario=${scenario}`);
         for (const tab of TABS) {
           await openTab(tab);
@@ -225,7 +227,7 @@ test(
   { skip },
   async () => {
     await env.page.size(960, 640);
-    for (const scenario of ["live", "stress", "waiting"]) {
+    for (const scenario of ["live", "stress", "idle"]) {
       await env.open(`/review/shell.html?scenario=${scenario}`);
       await openTab("Chassis");
       const problems = await env.page.evaluate(`(() => {
@@ -724,5 +726,105 @@ test(
       await checkScreen(`${width}x${height} setup-complete`, failures);
     }
     assert.deepEqual(failures, []);
+  },
+);
+
+// --------------------------------------------------------------- F1 25 Live
+
+const F1_TABS = ["Overview", "Race", "Tyres", "Dynamics"];
+
+test(
+  "F1 25 Live: every tab, size and snapshot fits with nothing overlapping",
+  { skip },
+  async () => {
+    const failures = [];
+    for (const [width, height] of RELEASE_SIZES) {
+      await env.page.size(width, height);
+      for (const query of [
+        "scenario=f1-live&f1=driving",
+        "scenario=f1-live&f1=stationary",
+        "scenario=f1-stale&f1=high-speed",
+      ]) {
+        await env.open(`/review/shell.html?${query}`);
+        const game = await env.page.evaluate(
+          `document.querySelector(".live-workspace")?.dataset.game`,
+        );
+        if (game !== "f1_25") failures.push(`${query}: Live shows ${game}`);
+        for (const tab of F1_TABS) {
+          await openTab(tab);
+          const where = `${width}x${height} ${query} ${tab}`;
+          const extents = await env.page.evaluate(SCROLL);
+          if (extents.documentHeight > extents.viewportHeight) {
+            failures.push(
+              `${where}: document height ${extents.documentHeight}`,
+            );
+          }
+          if (extents.documentWidth > extents.viewportWidth) {
+            failures.push(`${where}: document width ${extents.documentWidth}`);
+          }
+          for (const problem of await env.page.evaluate(CONFLICTS)) {
+            failures.push(`${where}: ${problem}`);
+          }
+        }
+      }
+    }
+    assert.deepEqual(failures, []);
+  },
+);
+
+test(
+  "F1 25 Tyres: four readable corners, front above rear, left beside right",
+  { skip },
+  async () => {
+    for (const [width, height] of [
+      [960, 640],
+      [1280, 680],
+      [1920, 1080],
+    ]) {
+      await env.page.size(width, height);
+      await env.open("/review/shell.html?scenario=f1-live&f1=driving");
+      await openTab("Tyres");
+      const corners = await env.page.evaluate(`(() =>
+        Object.fromEntries([...document.querySelectorAll("[data-corner]")]
+          .map((element) => {
+            const r = element.getBoundingClientRect();
+            return [element.dataset.corner, { left: r.left, top: r.top, width: r.width }];
+          })))()`);
+      const where = `${width}x${height}`;
+      assert.deepEqual(Object.keys(corners), ["FL", "FR", "RL", "RR"], where);
+      assert.ok(corners.FL.left < corners.FR.left, `${where}: FL left of FR`);
+      assert.ok(corners.RL.left < corners.RR.left, `${where}: RL left of RR`);
+      assert.ok(corners.FL.top < corners.RL.top, `${where}: front above rear`);
+      for (const [code, box] of Object.entries(corners)) {
+        assert.ok(
+          box.width >= 260,
+          `${where}: ${code} only ${box.width}px wide`,
+        );
+      }
+    }
+  },
+);
+
+test(
+  "no supported game: the neutral waiting view fits at every size",
+  { skip },
+  async () => {
+    for (const [width, height] of RELEASE_SIZES) {
+      await env.page.size(width, height);
+      await env.open("/review/shell.html?scenario=waiting");
+      const state = await env.page.evaluate(`({
+        pill: document.querySelector(".state-pill-title").textContent,
+        live: document.querySelector(".telemetry-empty-title")?.textContent,
+        tabs: document.querySelectorAll("[role=tab]").length,
+      })`);
+      assert.deepEqual(state, {
+        pill: "Waiting for a supported game",
+        live: "Waiting for a supported game",
+        tabs: 0,
+      });
+      const extents = await env.page.evaluate(SCROLL);
+      assert.ok(extents.documentWidth <= extents.viewportWidth);
+      assert.ok(extents.documentHeight <= extents.viewportHeight);
+    }
   },
 );

@@ -376,6 +376,7 @@ test("navigation starts on Live › Overview and remembers the Live tab", () => 
   assert.deepEqual(INITIAL_NAVIGATION, {
     section: "live",
     liveTab: "overview",
+    f1Tab: "overview",
   });
   let state = navigationReducer(INITIAL_NAVIGATION, {
     type: "liveTab",
@@ -384,13 +385,22 @@ test("navigation starts on Live › Overview and remembers the Live tab", () => 
   state = navigationReducer(state, { type: "section", section: "sessions" });
   assert.equal(state.liveTab, "chassis");
   state = navigationReducer(state, { type: "section", section: "live" });
-  assert.deepEqual(state, { section: "live", liveTab: "chassis" });
+  // The F1 25 tab keeps the same position (Chassis is third; so is Tyres).
+  assert.deepEqual(state, {
+    section: "live",
+    liveTab: "chassis",
+    f1Tab: "tyres",
+  });
   // Choosing a tab from anywhere opens Live.
   state = navigationReducer(
-    { section: "diagnostics", liveTab: "overview" },
+    { section: "diagnostics", liveTab: "overview", f1Tab: "overview" },
     { type: "liveTab", tab: "dynamics" },
   );
-  assert.deepEqual(state, { section: "live", liveTab: "dynamics" });
+  assert.deepEqual(state, {
+    section: "live",
+    liveTab: "dynamics",
+    f1Tab: "dynamics",
+  });
   // A no-op keeps the same object.
   assert.equal(
     navigationReducer(state, { type: "section", section: "live" }),

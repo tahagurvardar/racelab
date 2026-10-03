@@ -1,115 +1,86 @@
-import { useLive } from "../hooks/use-live-telemetry.ts";
-import { useSetup } from "../hooks/use-setup-state.ts";
-import { useRecorder } from "../hooks/use-recorder-status.ts";
-import { useTransport } from "../hooks/use-transport-stats.ts";
-import { EmptyTelemetryState } from "../components/EmptyTelemetryState";
-import { Tabs } from "../components/shell/Tabs";
-import { WorkspaceHeader } from "../components/shell/WorkspaceHeader";
-import { elapsed, UNAVAILABLE } from "../telemetry/formatting.ts";
-import { degradedCause } from "../telemetry/product-state.ts";
-import { recordingIndicator } from "../telemetry/shell-view-model.ts";
+import { useActiveGame } from "../state/active-game.ts";
 import {
-  resolveLiveFrame,
-  sessionPresentation,
-} from "../telemetry/telemetry-view-model.ts";
-import { LIVE_TABS, type LiveTabId } from "../views/navigation.ts";
-import ChassisTab from "../views/live/ChassisTab";
-import DynamicsTab from "../views/live/DynamicsTab";
-import OverviewTab from "../views/live/OverviewTab";
-import PowertrainTab from "../views/live/PowertrainTab";
+  f1LiveStore,
+  liveStore,
+  setupStore,
+  transportStore,
+} from "../state/stores.ts";
+import { useDerived } from "../state/use-store.ts";
+import { WorkspaceHeader } from "../components/shell/WorkspaceHeader";
+import { liveWaitingModel } from "../telemetry/live-waiting.ts";
+import type { F1TabId, LiveTabId } from "../views/navigation.ts";
+import F1LiveWorkspace from "./F1LiveWorkspace";
+import Fh6LiveWorkspace from "./Fh6LiveWorkspace";
 
-/// The only workspace that reads live telemetry, and therefore the only one
-/// that re-renders at the 20 Hz poll rate. Exactly one tab is mounted at a
-/// time: a hidden tab does not exist, so it costs nothing.
-export default function LiveWorkspace({
-  tab,
-  onTab,
-}: {
-  tab: LiveTabId;
-  onTab: (tab: LiveTabId) => void;
-}) {
-  const snapshot = useLive((state) => state.snapshot);
-  const listenerRunning = useTransport(
-    (state) => state.stats?.running ?? false,
+const WAITING_STORES = [liveStore, transportStore, setupStore, f1LiveStore];
+
+const GLYPHS = { good: "●", neutral: "○", bad: "✕" } as const;
+
+/// No supported game is active. One product-level message and each game's
+/// listening state, re-rendered only when that text changes — never at the
+/// telemetry rate.
+function LiveWaiting() {
+  const model = useDerived(WAITING_STORES, () =>
+    liveWaitingModel({
+      live: liveStore.get(),
+      transport: transportStore.get(),
+      setup: setupStore.get(),
+      f1Live: f1LiveStore.get(),
+    }),
   );
-  // Two coarse recorder facts for the Overview context strip (2 Hz at most).
-  const recording = useRecorder((state) => state.recorder?.recording ?? false);
-  const recorderStatus = useRecorder((state) => state.recorder?.status ?? null);
-  const state = resolveLiveFrame(snapshot, listenerRunning);
-  // Coarse facts (they change rarely): whether the first-run guide is on
-  // screen, and whether the global alert is reporting a service or port
-  // failure. Either already explains an empty dashboard.
-  const firstRun = useSetup((setup) => setup.setup?.first_run ?? false);
-  const serviceDown = useLive((live) => live.error != null);
-  const transportFailed = snapshot?.transport_error != null;
-  const coveredElsewhere =
-    (firstRun && state.availability === "waiting") ||
-    serviceDown ||
-    (transportFailed && state.availability === "stopped");
-  const current = LIVE_TABS.find((item) => item.id === tab) ?? LIVE_TABS[0];
-
-  // Valid readings can arrive while the backend reports a recent fault; they
-  // stay on screen, with the fault stated once, quietly, above them.
-  const degraded =
-    state.availability === "live" &&
-    snapshot != null &&
-    (snapshot.connection === "DEGRADED" || snapshot.health === "DEGRADED");
-
   return (
-    <div className="live-workspace" data-availability={state.availability}>
-      <WorkspaceHeader title="Live">
-        <Tabs
-          items={LIVE_TABS}
-          value={current.id}
-          onChange={onTab}
-          label="Live telemetry"
-          idPrefix="live"
-        />
-      </WorkspaceHeader>
-      {coveredElsewhere ? null : <EmptyTelemetryState state={state} />}
-      {degraded ? (
-        <p className="live-caution" role="status">
-          <span className="live-caution-glyph" aria-hidden="true">
-            ◐
-          </span>
-          <span>
-            <strong>Telemetry degraded.</strong> {degradedCause(snapshot)} The
-            readings below come from the latest valid frame.
-          </span>
-        </p>
-      ) : null}
-      {/* One stable panel element: keyboard focus on the panel survives a tab
-          change. It is a tab stop because its content starts with no
-          focusable control. Only the inner content is keyed, for the short
-          entry transition. */}
-      <div
-        className="tab-panel"
-        id="live-panel"
-        role="tabpanel"
-        aria-labelledby={`live-tab-${current.id}`}
-        tabIndex={0}
-      >
-        <div className="tab-panel-content" key={current.id}>
-          {current.id === "overview" ? (
-            <OverviewTab
-              state={state}
-              context={{
-                session: sessionPresentation(snapshot),
-                duration: snapshot?.session
-                  ? elapsed(snapshot.session.duration_ms / 1000)
-                  : UNAVAILABLE,
-                recording: {
-                  ...recordingIndicator(recording, recorderStatus),
-                  active: recording,
-                },
-              }}
-            />
-          ) : null}
-          {current.id === "powertrain" ? <PowertrainTab state={state} /> : null}
-          {current.id === "chassis" ? <ChassisTab state={state} /> : null}
-          {current.id === "dynamics" ? <DynamicsTab state={state} /> : null}
+    <div className="live-workspace" data-game="none">
+      <WorkspaceHeader title="Live" />
+      {model.covered ? null : (
+        <div className="panel telemetry-empty live-waiting" role="status">
+          <p className="telemetry-empty-title">{model.title}</p>
+          <p className="telemetry-empty-reason">{model.reason}</p>
         </div>
-      </div>
+      )}
+      <section
+        className="live-panel waiting-games"
+        aria-label="Supported games"
+      >
+        <h2 className="live-section-title">Supported games</h2>
+        <ul className="waiting-game-list">
+          {model.games.map((game) => (
+            <li key={game.key} data-game={game.key}>
+              <span className="waiting-game-name">{game.name}</span>
+              <span className="waiting-game-target">{game.target}</span>
+              <span className={`waiting-game-status tone-${game.tone}`}>
+                <span className="state-glyph" aria-hidden="true">
+                  {GLYPHS[game.tone]}
+                </span>
+                {game.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="live-footnote">
+          The settings each game needs are in Settings.
+        </p>
+      </section>
     </div>
   );
+}
+
+/// Live for whichever supported game is active (`activeGameStore`), or the
+/// neutral waiting view. Each game's workspace is isolated: nothing below
+/// mixes one game's fields or wording into the other's. Only the active
+/// game's workspace is mounted, so only its data subscription renders.
+export default function LiveWorkspace({
+  tab,
+  f1Tab,
+  onTab,
+  onF1Tab,
+}: {
+  tab: LiveTabId;
+  f1Tab: F1TabId;
+  onTab: (tab: LiveTabId) => void;
+  onF1Tab: (tab: F1TabId) => void;
+}) {
+  const game = useActiveGame((state) => state.game);
+  if (game === "f1_25") return <F1LiveWorkspace tab={f1Tab} onTab={onF1Tab} />;
+  if (game === "fh6") return <Fh6LiveWorkspace tab={tab} onTab={onTab} />;
+  return <LiveWaiting />;
 }

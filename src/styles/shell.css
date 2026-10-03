@@ -21,7 +21,7 @@
    view-level layouts query, so a layout responds to the space it actually
    has rather than to the window. */
 .workspace {
-  /* The containing block for absolutely positioned descendants — above all
+  /* The containing block for absolutely positioned descendants â€” above all
      the visually-hidden screen-reader text. Without it they are laid out
      against the document, outside this scroll container, and a long
      workspace grows the document itself: a second, outer scrollbar. */
@@ -37,8 +37,9 @@
   flex-direction: column;
   gap: var(--sp-4);
   max-width: var(--content-max);
+  width: 100%;
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-6) var(--sp-7);
+  padding: var(--sp-6) var(--sp-6) var(--sp-7);
 }
 
 .workspace-view,
@@ -134,7 +135,7 @@
   background: transparent;
   color: var(--text-2);
   font-size: var(--type-body);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-regular);
   text-align: left;
   transition:
     background-color var(--dur-1) var(--ease),
@@ -181,7 +182,6 @@
 }
 .sidebar-indicator.is-rec {
   background: var(--rec);
-  animation: rec-pulse 2s var(--ease) infinite;
 }
 
 .sidebar-spacer {
@@ -189,7 +189,9 @@
 }
 
 .sidebar-group-label {
-  margin: var(--sp-3) 0 var(--sp-1);
+  margin: var(--sp-6) 0 var(--sp-1);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
   padding: 0 var(--sp-3);
   color: var(--text-3);
   font-size: var(--type-label);
@@ -210,7 +212,7 @@
 }
 
 /* The 56 px rail: same markup, labels kept for assistive technology. */
-@media (max-width: 1199px) {
+@media (max-width: 899px) {
   .app-shell {
     grid-template-columns: var(--rail-width) minmax(0, 1fr);
   }
@@ -279,19 +281,16 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  /* The same height as the REC pill beside it. */
-  height: 28px;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
-  background: var(--surface-1);
+  min-height: 28px;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
   color: var(--text);
-  font-size: var(--type-body);
+  font-size: var(--type-small);
   font-weight: var(--weight-semibold);
   white-space: nowrap;
-  transition:
-    border-color var(--dur-2) var(--ease),
-    background-color var(--dur-1) var(--ease);
+  transition: background-color var(--dur-1) var(--ease);
 }
 .state-pill:hover,
 .state-pill[aria-expanded="true"] {
@@ -334,16 +333,6 @@
 .tone-bad > .state-dot {
   background: var(--status-bad);
 }
-/* Expressive only while telemetry is live: one slow ring, nothing else. */
-.topbar[data-state="live"] .state-dot::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border: 1px solid var(--status-ok);
-  border-radius: var(--r-pill);
-  opacity: 0;
-  animation: live-ring 2.4s var(--ease) infinite;
-}
 
 .state-popover {
   position: absolute;
@@ -352,7 +341,7 @@
   left: 0;
   width: 340px;
   padding: var(--sp-4);
-  border-radius: var(--r-3);
+  border-radius: var(--r-popover);
   background: var(--overlay);
   box-shadow: var(--shadow-overlay);
   animation: enter var(--dur-1) var(--ease);
@@ -408,7 +397,7 @@
 .topbar-facts {
   display: flex;
   gap: var(--sp-5);
-  margin-left: auto;
+  margin-left: 0;
 }
 .topbar-facts > div {
   display: flex;
@@ -434,8 +423,8 @@
   gap: var(--sp-2);
   height: 28px;
   padding: 0 var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-pill);
+  margin-left: auto;
+  border: 0;
   color: var(--text-3);
   font-size: var(--type-small);
   font-weight: var(--weight-semibold);
@@ -458,7 +447,6 @@
 .rec-indicator.is-recording .rec-dot {
   border-color: var(--rec);
   background: var(--rec);
-  animation: rec-pulse 2s var(--ease) infinite;
 }
 .rec-indicator.tone-bad {
   border-color: var(--bad-border);
@@ -479,7 +467,7 @@
     padding: 0 var(--sp-4);
   }
   .topbar-game {
-    display: none;
+    display: block;
   }
 }
 
@@ -493,18 +481,19 @@
 /* ------------------------------------------------------------------ tabs */
 
 .tabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
-  background: var(--surface-1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
 }
 
 .tab {
   position: relative;
-  height: 28px;
-  padding: 0 var(--sp-4);
+  height: 36px;
+  padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r-2);
   background: transparent;
@@ -519,14 +508,14 @@
   color: var(--text);
 }
 .tab.is-selected {
-  background: var(--surface-3);
+  background: transparent;
   color: var(--text);
 }
 .tab.is-selected::after {
   content: "";
   position: absolute;
   right: var(--sp-3);
-  bottom: 3px;
+  bottom: -1px;
   left: var(--sp-3);
   height: 2px;
   border-radius: var(--r-1);
@@ -540,22 +529,23 @@
   color: var(--text);
 }
 
-/* One word in two tones of the same weight: the product name, never a
-   logotype in capitals. Upright — the rake belongs to the mark. */
+/* One word and one colour, with the locked 400 / 450 weight split. */
 .wordmark {
   display: inline-flex;
   align-items: baseline;
   font-family: var(--font-display);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-regular);
   letter-spacing: var(--tracking-tight);
   line-height: 1;
   white-space: nowrap;
 }
 .wordmark-race {
+  font-weight: 400;
   color: var(--text);
 }
 .wordmark-lab {
-  color: var(--text-2);
+  font-weight: 450;
+  color: var(--text);
 }
 
 .about-brand {
@@ -569,28 +559,59 @@
 
 /* ---------------------------------------------------------------- motion */
 
-@keyframes rec-pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
-
-@keyframes live-ring {
-  0% {
-    opacity: 0.6;
-    transform: scale(0.6);
-  }
-  70%,
-  100% {
-    opacity: 0;
-    transform: scale(1.6);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sidebar-indicator.is-rec,
   .rec-indicator.is-recording .rec-dot,
   .topbar[data-state="live"] .state-dot::after {
     animation: none;
   }
+}
+
+.workspace {
+  background: var(--bg-chrome);
+}
+.sidebar {
+  background: var(--bg-app);
+}
+.sidebar-group-label {
+  letter-spacing: var(--tracking-label);
+  font-size: var(--type-micro);
+}
+.topbar-facts {
+  gap: var(--sp-4);
+}
+.topbar-facts dd {
+  font-size: var(--type-body);
+}
+.topbar-facts dt {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.topbar-game {
+  padding-right: var(--sp-4);
+  border-right: 1px solid var(--border);
+}
+@media (max-width: 1100px) {
+  .topbar-facts > div:nth-child(n + 2) {
+    display: none;
+  }
+  .topbar {
+    gap: var(--sp-3);
+  }
+  .rec-indicator {
+    padding: 0;
+  }
+}
+@media (max-width: 700px) {
+  .topbar-facts {
+    display: none;
+  }
+  .workspace-inner {
+    padding: var(--sp-4);
+  }
+}
+
+.state-pill-title {
+  font-size: var(--type-label);
+  letter-spacing: var(--tracking-label);
 }

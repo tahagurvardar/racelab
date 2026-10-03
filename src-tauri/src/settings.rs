@@ -11,6 +11,11 @@
 //!   here because it is the same one small file. It is what makes first-run
 //!   guidance disappear permanently once RaceLab has actually seen FH6, rather
 //!   than reappearing every launch that starts before the game.
+//! - **`f1_first_detected_unix_ms`** (V2.0 Phase D) — the same record for
+//!   F1 25. Setup is complete once *either* supported game has been seen:
+//!   a user needs only one of them. The field is additive and optional, so
+//!   a V1.1 file reads unchanged, and a V1.1 user who has seen FH6 is not
+//!   asked to set anything up again.
 //!
 //! Three properties matter:
 //!
@@ -52,6 +57,9 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 /// build stays readable, and unknown fields are ignored rather than rejected.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsV1 {
+    /// Additive overlay preferences; older files keep the overlay off.
+    #[serde(default, deserialize_with = "crate::overlay::read_preferences")]
+    pub overlay: crate::overlay::OverlayPreferences,
     #[serde(default)]
     pub schema_version: u32,
     /// `None` means "use the built-in default".
@@ -60,12 +68,17 @@ pub struct SettingsV1 {
     /// When RaceLab first decoded FH6 telemetry on this installation.
     #[serde(default)]
     pub fh6_first_detected_unix_ms: Option<u64>,
+    /// When RaceLab first accepted F1 25 telemetry on this installation.
+    /// Absent from every file written before V2.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub f1_first_detected_unix_ms: Option<u64>,
 }
 
 /// What the frontend reads. Separate from [`SettingsV1`] so the persisted shape
 /// and the presented shape can move independently.
 #[derive(Debug, Clone, Serialize)]
 pub struct SettingsSnapshot {
+    pub overlay: crate::overlay::OverlayPreferences,
     /// The budget actually in force, after the environment override.
     pub storage_budget_bytes: u64,
     /// True when an environment variable is deciding the budget, in which case
@@ -75,6 +88,7 @@ pub struct SettingsSnapshot {
     pub max_storage_budget_bytes: u64,
     pub default_storage_budget_bytes: u64,
     pub fh6_first_detected_unix_ms: Option<u64>,
+    pub f1_first_detected_unix_ms: Option<u64>,
     /// Set when the settings file could not be read or written. The product
     /// still works; this says that a change may not survive a restart.
     pub last_error: Option<String>,
@@ -85,6 +99,7 @@ pub struct SettingsStore {
     path: PathBuf,
     state: Mutex<SettingsV1>,
     last_error: Mutex<Option<String>>,
+    write_lock: Mutex<()>,
     /// Captured once at construction. Reading the environment repeatedly would
     /// let the answer change under a running application.
     environment_budget: Option<u64>,
@@ -124,6 +139,7 @@ impl SettingsStore {
             path,
             state: Mutex::new(state),
             last_error: Mutex::new(last_error),
+            write_lock: Mutex::new(()),
             environment_budget,
             default_budget,
         }
@@ -131,6 +147,23 @@ impl SettingsStore {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn overlay(&self) -> crate::overlay::OverlayPreferences {
+        lock(&self.state).overlay.clone()
+    }
+
+    pub fn set_overlay(
+        &self,
+        preferences: crate::overlay::OverlayPreferences,
+    ) -> Result<(), String> {
+        preferences.validate()?;
+        lock(&self.state).overlay = preferences;
+        self.persist();
+        match lock(&self.last_error).clone() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 
     /// The budget in force: environment first, then the stored value, then the
@@ -166,12 +199,31 @@ impl SettingsStore {
         lock(&self.state).fh6_first_detected_unix_ms
     }
 
-    /// True until RaceLab has decoded FH6 telemetry at least once on this
-    /// installation. This is what first-run guidance keys off, and it is
-    /// deliberately *not* "no sessions recorded": a user who deletes their
-    /// sessions has still configured Data Out.
+    /// Records that F1 25 has been seen, once. Same contract as
+    /// `mark_fh6_detected`.
+    pub fn mark_f1_detected(&self, unix_ms: u64) -> bool {
+        {
+            let mut state = lock(&self.state);
+            if state.f1_first_detected_unix_ms.is_some() {
+                return false;
+            }
+            state.f1_first_detected_unix_ms = Some(unix_ms);
+        }
+        self.persist();
+        true
+    }
+
+    pub fn f1_first_detected_unix_ms(&self) -> Option<u64> {
+        lock(&self.state).f1_first_detected_unix_ms
+    }
+
+    /// True until RaceLab has received telemetry from *any* supported game at
+    /// least once on this installation. This is what first-run guidance keys
+    /// off, and it is deliberately *not* "no sessions recorded": a user who
+    /// deletes their sessions has still configured their game.
     pub fn is_first_run(&self) -> bool {
-        self.fh6_first_detected_unix_ms().is_none()
+        let state = lock(&self.state);
+        state.fh6_first_detected_unix_ms.is_none() && state.f1_first_detected_unix_ms.is_none()
     }
 
     /// Change the budget. `0` disables deletion; anything else must be within
@@ -201,12 +253,14 @@ impl SettingsStore {
 
     pub fn snapshot(&self) -> SettingsSnapshot {
         SettingsSnapshot {
+            overlay: self.overlay(),
             storage_budget_bytes: self.storage_budget_bytes(),
             storage_budget_from_environment: self.storage_budget_from_environment(),
             min_storage_budget_bytes: MIN_STORAGE_BUDGET_BYTES,
             max_storage_budget_bytes: MAX_STORAGE_BUDGET_BYTES,
             default_storage_budget_bytes: self.default_budget,
             fh6_first_detected_unix_ms: self.fh6_first_detected_unix_ms(),
+            f1_first_detected_unix_ms: self.f1_first_detected_unix_ms(),
             last_error: lock(&self.last_error).clone(),
             path: self.path.to_string_lossy().into_owned(),
         }
@@ -216,6 +270,9 @@ impl SettingsStore {
     /// a failure here means the change is in force for this run and will be
     /// lost on the next one — which is what `last_error` says.
     fn persist(&self) {
+        // Overlay movement and first detection can save concurrently. Serialize
+        // the complete atomic write so neither can race on settings.json.tmp.
+        let _write = lock(&self.write_lock);
         let mut settings = lock(&self.state).clone();
         settings.schema_version = SETTINGS_SCHEMA_VERSION;
         let outcome = self.write(&settings);
@@ -290,6 +347,52 @@ mod tests {
         // Zero is a documented value, not an out-of-range one.
         assert!(settings.set_storage_budget_bytes(0).is_ok());
         assert_eq!(settings.storage_budget_bytes(), 0);
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn a_v1_1_settings_file_reads_unchanged_and_is_not_first_run() {
+        let directory =
+            std::env::temp_dir().join(format!("racelab-settings-v11-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        // Exactly what V1.1 writes.
+        let v11 = b"{\n  \"schema_version\": 1,\n  \"storage_budget_bytes\": 10737418240,\n  \"fh6_first_detected_unix_ms\": 1700000000000\n}";
+        fs::write(directory.join(SETTINGS_FILE_NAME), v11).unwrap();
+        let settings = store(&directory);
+        assert_eq!(settings.snapshot().last_error, None);
+        assert!(!settings.is_first_run());
+        assert_eq!(settings.f1_first_detected_unix_ms(), None);
+        assert_eq!(settings.storage_budget_bytes(), 10 * 1024 * 1024 * 1024);
+        // Seeing F1 25 later records it without disturbing the FH6 record.
+        assert!(settings.mark_f1_detected(1_800_000_000_000));
+        let reloaded = store(&directory);
+        assert_eq!(
+            reloaded.fh6_first_detected_unix_ms(),
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(
+            reloaded.f1_first_detected_unix_ms(),
+            Some(1_800_000_000_000)
+        );
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn f1_alone_completes_first_run() {
+        let directory =
+            std::env::temp_dir().join(format!("racelab-settings-f1-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        let settings = store(&directory);
+        assert!(settings.is_first_run());
+        assert!(settings.mark_f1_detected(1_800_000_000_000));
+        assert!(!settings.mark_f1_detected(1_800_000_000_001));
+        assert!(!settings.is_first_run());
+        assert!(!store(&directory).is_first_run());
+        // A file written now still has no field V1.1 cannot read.
+        let written = fs::read_to_string(directory.join(SETTINGS_FILE_NAME)).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(parsed["schema_version"], 1);
         let _ = fs::remove_dir_all(&directory);
     }
 

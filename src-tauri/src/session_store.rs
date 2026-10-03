@@ -1,10 +1,16 @@
 //! Manifest-only session catalogue. Listing and details never open, decode or
-//! stream `frames.rlframes`; the frame stream stays a backend-internal format.
+//! stream `frames.rlframes` or `samples.rlf1`; both stay backend-internal.
+//!
+//! V2.0 Phase D: one listing for every game. An FH6 directory is read exactly
+//! as V1.1 reads it and listed in `sessions`; an F1 25 directory is read from
+//! its own `session.json` and listed in `f1_sessions`. The newest `limit`
+//! sessions are chosen across both games before they are split.
 use crate::{
     analysis::{
         self, AnalysisReadError, SessionAnalysisV1, ANALYSIS_FILE_NAME, ANALYSIS_SCHEMA_VERSION,
     },
     analysis_job::{JobRecord, JobState},
+    f1_session::{self, F1SessionDetail, F1SessionListing},
     session_format::{self, SessionManifestV1},
 };
 use serde::Serialize;
@@ -21,7 +27,10 @@ pub const MAX_SCANNED_DIRECTORIES: usize = 2000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RecentSessions {
+    /// Forza Horizon 6 sessions, V1 manifests exactly as V1.1 listed them.
     pub sessions: Vec<SessionManifestV1>,
+    /// F1 25 sessions (V2.0 Phase D).
+    pub f1_sessions: Vec<F1SessionListing>,
     /// Sessions skipped because their manifest is missing or unreadable. One
     /// corrupt session never removes the others from the list.
     pub unreadable: u64,
@@ -56,26 +65,62 @@ pub fn list_recent_sessions(root: &Path, limit: Option<usize>) -> RecentSessions
     let limit = limit
         .unwrap_or(DEFAULT_RECENT_LIMIT)
         .clamp(1, MAX_RECENT_LIMIT);
-    let mut sessions = Vec::new();
+    enum Listed {
+        Fh6(Box<SessionManifestV1>),
+        F1(Box<F1SessionListing>),
+    }
+    impl Listed {
+        fn key(&self) -> (Option<u64>, &str) {
+            match self {
+                Listed::Fh6(m) => (m.started_at_unix_ms, &m.session_id),
+                Listed::F1(f) => (
+                    f.session.racelab_session.started_at_unix_ms,
+                    &f.session.racelab_session.session_id,
+                ),
+            }
+        }
+    }
+    let mut listed = Vec::new();
     let mut unreadable = 0;
     for directory in manifest_directories(root) {
         match session_format::read_manifest(&directory) {
-            Ok(manifest) => sessions.push(manifest),
-            Err(_) => unreadable += 1,
+            Ok(manifest) => listed.push(Listed::Fh6(Box::new(manifest))),
+            Err(_) => match f1_session::read_session(&directory) {
+                Ok(file) => listed.push(Listed::F1(Box::new(f1_session::listing(file)))),
+                Err(_) => unreadable += 1,
+            },
         }
     }
-    sessions.sort_by(|a, b| {
-        b.started_at_unix_ms
-            .cmp(&a.started_at_unix_ms)
-            .then_with(|| b.session_id.cmp(&a.session_id))
+    listed.sort_by(|a, b| {
+        let (a_start, a_id) = a.key();
+        let (b_start, b_id) = b.key();
+        b_start.cmp(&a_start).then_with(|| b_id.cmp(a_id))
     });
-    sessions.truncate(limit);
+    listed.truncate(limit);
+    let mut sessions = Vec::new();
+    let mut f1_sessions = Vec::new();
+    for entry in listed {
+        match entry {
+            Listed::Fh6(manifest) => sessions.push(*manifest),
+            Listed::F1(listing) => f1_sessions.push(*listing),
+        }
+    }
     RecentSessions {
         sessions,
+        f1_sessions,
         unreadable,
         directory: root.to_string_lossy().into_owned(),
         limit,
     }
+}
+
+/// One F1 25 session's factual detail. Never samples.
+pub fn get_f1_session(root: &Path, session_id: &str) -> Result<F1SessionDetail, String> {
+    if !session_format::is_safe_session_id(session_id) {
+        return Err("Unknown session".into());
+    }
+    f1_session::read_detail(&root.join(session_id))
+        .map_err(|error| format!("Could not read session {session_id}: {error}"))
 }
 
 pub fn get_session(root: &Path, session_id: &str) -> Result<SessionManifestV1, String> {

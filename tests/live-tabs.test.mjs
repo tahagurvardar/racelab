@@ -211,12 +211,12 @@ test("Overview carries the old Inputs and Race fields, each exactly once", async
       `${source} must appear once on Overview (no duplicated Inputs content)`,
     );
   }
-  // Gear is secondary: not the hero, never the largest reading.
+  // Gear joins speed and RPM in Core Drive, below speed in type hierarchy.
   const gear = panel().querySelector('[data-source="gear"]');
   assert.ok(!gear.classList.contains("readout-hero"));
   assert.ok(
-    gear.closest(".drive-secondary"),
-    "gear sits with the secondary readings",
+    gear.closest(".drive-main"),
+    "gear sits beside speed and RPM in Core Drive",
   );
   assert.ok(panel().querySelector('[data-source="speed_mps"].readout-hero'));
 });
@@ -284,8 +284,11 @@ test("corners render FL, FR, RL, RR, and each shows its own wheel", async () => 
 
 test("with no live frame every reading is unavailable, never zero", async () => {
   resetStores();
+  // FH6 is the active game but sends no driving frame. (With nothing
+  // connected at all, V2.0 shows the neutral waiting view, which has no
+  // FH6 tabs: tests/f1-live.test.mjs covers it.)
   await update(liveStore, {
-    snapshot: snapshot({ frame: null, connection: "LISTENING" }),
+    snapshot: snapshot({ frame: null, connection: "CONNECTED_IDLE" }),
     error: null,
   });
   await mount(h(ShellHarness));
@@ -518,8 +521,11 @@ test("each Dynamics row is identified with its unit, the screen stays calm", asy
 
 test('unavailable RPM endpoints announce "unavailable" like every reading', async () => {
   resetStores();
+  // FH6 is the active game but sends no driving frame. (With nothing
+  // connected at all, V2.0 shows the neutral waiting view, which has no
+  // FH6 tabs: tests/f1-live.test.mjs covers it.)
   await update(liveStore, {
-    snapshot: snapshot({ frame: null, connection: "LISTENING" }),
+    snapshot: snapshot({ frame: null, connection: "CONNECTED_IDLE" }),
     error: null,
   });
   await mount(h(ShellHarness));

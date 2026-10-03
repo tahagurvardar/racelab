@@ -1,19 +1,25 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { useF1Recorder } from "../../hooks/use-f1-recorder-status.ts";
 import { useRecorder } from "../../hooks/use-recorder-status.ts";
 import { useSessions } from "../../hooks/use-sessions.ts";
 import type { SessionsController } from "../../session-controller.ts";
 import {
   listNotices,
   recorderRow,
-  sessionDays,
   storageUsage,
 } from "../../session-workspace.ts";
-import { recorderStore } from "../../state/stores.ts";
+import {
+  GAME_FILTERS,
+  f1RecordingRow,
+  multiGameDays,
+} from "../../f1-sessions.ts";
+import { f1RecorderStore, recorderStore } from "../../state/stores.ts";
 import { useDerived } from "../../state/use-store.ts";
 import { integer } from "../../telemetry/formatting.ts";
-import { Badge } from "./parts";
+import { SessionRow } from "./SessionRow";
 
 const RECORDER = [recorderStore];
+const F1_RECORDER = [f1RecorderStore];
 
 /// Scrolls `container` by exactly as much as `element` is cut off by it.
 export function reveal(container: HTMLElement, element: HTMLElement): void {
@@ -32,10 +38,11 @@ export function reveal(container: HTMLElement, element: HTMLElement): void {
 
 /// The pinned "now" row. The only part of the list that follows the recorder
 /// while it records (duration ticks at the recorder's 2 Hz), so it subscribes
-/// on its own and the list around it stays still.
+/// on its own and the list around it stays still. Only one game records at a
+/// time; the F1 25 row appears only while F1 25 is the one recording.
 export function RecordingRow() {
   const row = useDerived(RECORDER, () => recorderRow(recorderStore.get()));
-  if (row == null) return null;
+  if (row == null) return <F1RecordingRow />;
   return (
     <div className={`recording-row tone-${row.tone}`}>
       <span className="recording-row-dot" aria-hidden="true" />
@@ -64,9 +71,30 @@ export function RecordingRow() {
   );
 }
 
+function F1RecordingRow() {
+  const row = useDerived(F1_RECORDER, () =>
+    f1RecordingRow(f1RecorderStore.get().status),
+  );
+  if (row == null) return null;
+  return (
+    <div className={`recording-row tone-${row.tone}`} data-game="f1_25">
+      <span className="recording-row-dot" aria-hidden="true" />
+      <span className="recording-row-title" role="status">
+        {row.title}
+      </span>
+      {row.duration ? (
+        <span className="recording-row-figure">{row.duration}</span>
+      ) : null}
+      {row.detail ? (
+        <span className="recording-row-meta">{row.detail}</span>
+      ) : null}
+    </div>
+  );
+}
+
 /// Re-reads the listing when a recording completes — the only event that can
 /// add a session. Renders nothing; isolated so the recorder's 2 Hz status
-/// never re-renders the list itself.
+/// never re-renders the list itself. Either game's recorder counts.
 export function ListRefresher({
   controller,
 }: {
@@ -75,17 +103,30 @@ export function ListRefresher({
   const completed = useRecorder(
     (state) => state.recorder?.completed_sessions ?? null,
   );
-  const seen = useRef<number | null>(null);
+  // Any finalized F1 25 recording, completed or interrupted, adds a session.
+  const f1Finalized = useF1Recorder(
+    (state) => state.status?.last_completed_session_id ?? null,
+  );
+  useRefreshOnChange(completed, controller);
+  useRefreshOnChange(f1Finalized, controller);
+  return null;
+}
+
+/// Refreshes the listing when `value` changes after its first reading. The
+/// first reading is not a completion: the workspace already read the
+/// listing when it opened.
+function useRefreshOnChange(
+  value: number | string | null,
+  controller: SessionsController,
+) {
+  const seen = useRef<number | string | null | undefined>(undefined);
   useEffect(() => {
     const previous = seen.current;
-    seen.current = completed;
-    // The first reading is not a completion; the workspace already read the
-    // listing when it opened.
-    if (previous != null && completed != null && completed !== previous) {
+    seen.current = value;
+    if (previous !== undefined && value != null && value !== previous) {
       void controller.refreshList();
     }
-  }, [completed, controller]);
-  return null;
+  }, [value, controller]);
 }
 
 /// Session history: storage use, the recording row, then sessions by day.
@@ -105,15 +146,29 @@ export function SessionList({
     controller,
     (state) => state.selected?.id ?? null,
   );
+  const filter = useSessions(controller, (state) => state.filter);
   const recordingId = useRecorder((state) =>
     state.recorder?.recording ? state.recorder.session_id : null,
   );
+  const f1RecordingId = useF1Recorder((state) =>
+    state.status?.recording ? state.status.session_id : null,
+  );
   const sessions = list.recent?.sessions;
-  // Rebuilt only when the listing or the recording session changes — never
-  // on a recorder tick and never while a session's analysis loads.
+  const f1Sessions = list.recent?.f1_sessions;
+  const total = (sessions?.length ?? 0) + (f1Sessions?.length ?? 0);
+  // Rebuilt only when the listing, the filter or a recording session
+  // changes — never on a recorder tick and never while a session loads.
   const days = useMemo(
-    () => sessionDays(sessions ?? [], Date.now(), recordingId),
-    [sessions, recordingId],
+    () =>
+      multiGameDays(
+        sessions ?? [],
+        f1Sessions ?? [],
+        Date.now(),
+        recordingId,
+        f1RecordingId,
+        filter,
+      ),
+    [sessions, f1Sessions, recordingId, f1RecordingId, filter],
   );
   const notices = useMemo(
     () => listNotices(list.recent, list.storage),
@@ -172,10 +227,8 @@ export function SessionList({
             // screen reader; the flex gap spaces them on screen.
             <span className="pane-count">
               {" "}
-              {integer(sessions.length)}
-              {list.recent && sessions.length >= list.recent.limit
-                ? " newest"
-                : ""}
+              {integer(total)}
+              {list.recent && total >= list.recent.limit ? " newest" : ""}
             </span>
           ) : null}
         </h2>
@@ -208,6 +261,34 @@ export function SessionList({
 
       <RecordingRow />
 
+      {(f1Sessions?.length ?? 0) > 0 ? (
+        // Presentation only, and only once there is more than one game to
+        // tell apart.
+        <div
+          className="filter-chips session-game-filter"
+          role="group"
+          aria-label="Show sessions of one game"
+        >
+          {GAME_FILTERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="chip"
+              aria-pressed={filter === item.id}
+              onClick={() => controller.setFilter(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="session-column-head" aria-hidden="true">
+        <span>Time</span>
+        <span>Vehicle or session</span>
+        <span>Duration</span>
+      </div>
+
       {notices.length > 0 ? (
         <ul className="list-notices">
           {notices.map((notice) => (
@@ -229,7 +310,11 @@ export function SessionList({
           Reading recorded sessions…
         </p>
       ) : ids.length === 0 ? (
-        <p className="pane-empty">No sessions recorded yet.</p>
+        <p className="pane-empty">
+          {total > 0
+            ? "No sessions of this game are listed."
+            : "No sessions recorded yet."}
+        </p>
       ) : (
         <div
           className="session-listbox"
@@ -254,34 +339,19 @@ export function SessionList({
               {day.rows.map((row) => {
                 const selected = row.id === selectedId;
                 return (
-                  <div
+                  <SessionRow
                     key={row.id}
+                    row={row}
+                    game={row.gameName}
+                    gameId={row.game}
+                    selected={selected}
+                    tabStop={row.id === tabStop}
+                    onSelect={() => choose(row.id, false)}
                     ref={(node) => {
                       if (node) options.current.set(row.id, node);
                       else options.current.delete(row.id);
                     }}
-                    role="option"
-                    id={`session-option-${row.id}`}
-                    aria-selected={selected}
-                    aria-label={row.label}
-                    tabIndex={row.id === tabStop ? 0 : -1}
-                    className={`session-option${selected ? " is-selected" : ""}`}
-                    data-session={row.id}
-                    onClick={() => choose(row.id, false)}
-                  >
-                    <span className="session-option-time">{row.time}</span>
-                    <span className="session-option-duration">
-                      {row.duration}
-                    </span>
-                    <span className="session-option-meta">
-                      <span className="session-option-vehicle">
-                        {row.vehicle}
-                      </span>
-                      {row.badges.map((badge) => (
-                        <Badge key={badge.key} badge={badge} />
-                      ))}
-                    </span>
-                  </div>
+                  />
                 );
               })}
             </div>

@@ -309,9 +309,13 @@ test("every continuous animation stops under reduced motion", () => {
     }
   }
   assert.ok(
-    animated.size >= 4,
-    "expected the REC, live and progress animations",
+    animated.size >= 1,
+    "expected the indeterminate analysis progress animation",
   );
+  // The approved calm shell has solid REC and connection indicators.
+  assert.ok(!animated.has(".sidebar-indicator.is-rec"));
+  assert.ok(!animated.has(".rec-indicator.is-recording .rec-dot"));
+  assert.ok(!animated.has('.topbar[data-state="live"] .state-dot::after'));
   for (const selector of animated) {
     const covered =
       stopped.has(selector) ||

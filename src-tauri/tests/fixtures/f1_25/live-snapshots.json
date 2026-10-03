@@ -1,0 +1,1334 @@
+{
+  "braking": {
+    "car_status": {
+      "age_ms": 0,
+      "frame_identifier": 1848,
+      "overall_frame_identifier": 1848,
+      "packet_id": 7,
+      "received_unix_ms": 0,
+      "session_time": 92.57929229736328,
+      "value": {
+        "player": {
+          "actual_tyre_compound": {
+            "label": "C3",
+            "raw": 18
+          },
+          "anti_lock_brakes": {
+            "label": "on",
+            "raw": 1
+          },
+          "drs_activation_distance_m": 0,
+          "drs_allowed": {
+            "label": "not allowed",
+            "raw": 0
+          },
+          "engine_power_ice_w": 161057.6875,
+          "engine_power_mguk_w": 0.0,
+          "ers_deploy_mode": {
+            "label": "hotlap",
+            "raw": 2
+          },
+          "ers_deployed_this_lap": 0.0,
+          "ers_harvested_this_lap_mguh": 0.0,
+          "ers_harvested_this_lap_mguk": 0.0,
+          "ers_store_energy_j": 4000000.0,
+          "front_brake_bias_percent": 58,
+          "fuel_capacity": 110.0,
+          "fuel_in_tank": 10.0,
+          "fuel_mix": {
+            "label": "standard",
+            "raw": 1
+          },
+          "fuel_remaining_laps": 5.4098358154296875,
+          "idle_rpm": 4000,
+          "max_gears": 9,
+          "max_rpm": 13099,
+          "network_paused": 0,
+          "pit_limiter_status": {
+            "label": "off",
+            "raw": 0
+          },
+          "traction_control": {
+            "label": "full",
+            "raw": 2
+          },
+          "tyres_age_laps": 0,
+          "vehicle_fia_flags": {
+            "label": "none",
+            "raw": 0
+          },
+          "visual_tyre_compound": {
+            "label": "soft",
+            "raw": 16
+          }
+        }
+      }
+    },
+    "car_telemetry": {
+      "age_ms": 0,
+      "frame_identifier": 1848,
+      "overall_frame_identifier": 1848,
+      "packet_id": 6,
+      "received_unix_ms": 0,
+      "session_time": 92.57929229736328,
+      "value": {
+        "mfd_panel_index": {
+          "label": "closed",
+          "raw": 255
+        },
+        "mfd_panel_index_secondary_player": {
+          "label": "closed",
+          "raw": 255
+        },
+        "player": {
+          "brake": 1.0,
+          "brakes_temperature_c": {
+            "front_left": 1006,
+            "front_right": 1005,
+            "rear_left": 991,
+            "rear_right": 989
+          },
+          "clutch": 0,
+          "drs": {
+            "label": "off",
+            "raw": 0
+          },
+          "engine_rpm": 5187,
+          "engine_temperature_c": 110,
+          "gear": {
+            "label": "2",
+            "raw": 2
+          },
+          "rev_lights_bit_value": 0,
+          "rev_lights_percent": 0,
+          "speed_kmh": 59,
+          "steer": 0.7595475316047668,
+          "surface_type": {
+            "front_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "front_right": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_right": {
+              "label": "tarmac",
+              "raw": 0
+            }
+          },
+          "throttle": 0.0,
+          "tyres_inner_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          },
+          "tyres_pressure_psi": {
+            "front_left": 24.666475296020508,
+            "front_right": 24.666475296020508,
+            "rear_left": 21.710573196411133,
+            "rear_right": 21.710573196411133
+          },
+          "tyres_surface_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          }
+        },
+        "suggested_gear": {
+          "label": "none",
+          "raw": 0
+        }
+      }
+    },
+    "lap_data": {
+      "age_ms": 0,
+      "frame_identifier": 1848,
+      "overall_frame_identifier": 1848,
+      "packet_id": 2,
+      "received_unix_ms": 0,
+      "session_time": 92.57929229736328,
+      "value": {
+        "player": {
+          "car_position": 1,
+          "corner_cutting_warnings": 0,
+          "current_lap_invalid": {
+            "label": "invalid",
+            "raw": 1
+          },
+          "current_lap_num": 1,
+          "current_lap_time_ms": 24316,
+          "delta_to_car_in_front": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "delta_to_race_leader": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "driver_status": {
+            "label": "flying lap",
+            "raw": 1
+          },
+          "grid_position": 0,
+          "lap_distance_m": 1514.466552734375,
+          "last_lap_time_ms": 0,
+          "num_pit_stops": 0,
+          "num_unserved_drive_through_pens": 0,
+          "num_unserved_stop_go_pens": 0,
+          "penalties_s": 0,
+          "pit_lane_time_in_lane_ms": 0,
+          "pit_lane_timer_active": {
+            "label": "inactive",
+            "raw": 0
+          },
+          "pit_status": {
+            "label": "none",
+            "raw": 0
+          },
+          "pit_stop_should_serve_pen": 0,
+          "pit_stop_timer_ms": 0,
+          "result_status": {
+            "label": "active",
+            "raw": 2
+          },
+          "safety_car_delta_s": -0.0,
+          "sector": {
+            "label": "sector 1",
+            "raw": 0
+          },
+          "sector1_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "sector2_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "speed_trap_fastest_lap": 1,
+          "speed_trap_fastest_speed_kmh": 327.4476013183594,
+          "total_distance_m": 1514.466552734375,
+          "total_warnings": 0
+        },
+        "time_trial_pb_car_idx": 1,
+        "time_trial_rival_car_idx": 7
+      }
+    },
+    "motion_ex": {
+      "age_ms": 0,
+      "frame_identifier": 1848,
+      "overall_frame_identifier": 1848,
+      "packet_id": 13,
+      "received_unix_ms": 0,
+      "session_time": 92.57929229736328,
+      "value": {
+        "player": {
+          "angular_acceleration_rad_s2": {
+            "x": -1.654204249382019,
+            "y": -1.2942909002304077,
+            "z": -1.1992982625961304
+          },
+          "angular_velocity_rad_s": {
+            "x": 0.021725591272115707,
+            "y": -0.8339149951934814,
+            "z": -0.008779816329479218
+          },
+          "chassis_pitch_rad": 0.006608843803405762,
+          "chassis_yaw_rad": -0.03239715099334717,
+          "front_aero_height": 0.02756967395544052,
+          "front_roll_angle": 0.0019096333999186754,
+          "front_wheels_angle_rad": 0.2551984488964081,
+          "height_of_cog_above_ground": 0.3024969696998596,
+          "local_velocity_mps": {
+            "x": -0.5336140990257263,
+            "y": 0.09418804943561554,
+            "z": 16.512065887451172
+          },
+          "rear_aero_height": 0.044554028660058975,
+          "rear_roll_angle": 0.005406076088547707,
+          "suspension_acceleration": {
+            "front_left": -1692.50048828125,
+            "front_right": -272.27099609375,
+            "rear_left": 80.1712646484375,
+            "rear_right": 1245.657958984375
+          },
+          "suspension_position": {
+            "front_left": 54.203697204589844,
+            "front_right": 51.14130783081055,
+            "rear_left": 35.54111099243164,
+            "rear_right": 27.19830322265625
+          },
+          "suspension_velocity": {
+            "front_left": -33.980010986328125,
+            "front_right": 10.5113525390625,
+            "rear_left": -7.545947551727295,
+            "rear_right": 10.84182357788086
+          },
+          "wheel_camber_gain_rad": {
+            "front_left": 0.05061499774456024,
+            "front_right": 0.05061499774456024,
+            "rear_left": 0.03316400200128555,
+            "rear_right": 0.03316400200128555
+          },
+          "wheel_camber_rad": {
+            "front_left": -0.0836174488067627,
+            "front_right": -0.00603640079498291,
+            "rear_left": -0.036579012870788574,
+            "rear_right": -0.033025503158569336
+          },
+          "wheel_lat_force": {
+            "front_left": -6610.64404296875,
+            "front_right": -2385.617431640625,
+            "rear_left": -5668.5849609375,
+            "rear_right": -537.5639038085938
+          },
+          "wheel_long_force": {
+            "front_left": -1896.183837890625,
+            "front_right": -1293.66015625,
+            "rear_left": -3081.5908203125,
+            "rear_right": 13.740774154663086
+          },
+          "wheel_slip_angle": {
+            "front_left": 0.13107092678546906,
+            "front_right": 0.09997881948947906,
+            "rear_left": 0.05329832062125206,
+            "rear_right": 0.05015668272972107
+          },
+          "wheel_slip_ratio": {
+            "front_left": -0.027692405506968498,
+            "front_right": -0.047698333859443665,
+            "rear_left": -0.02859676070511341,
+            "rear_right": 0.001199534977786243
+          },
+          "wheel_speed": {
+            "front_left": 16.560218811035156,
+            "front_right": 14.504897117614746,
+            "rear_left": 16.960493087768555,
+            "rear_right": 16.215600967407227
+          },
+          "wheel_vert_force": {
+            "front_left": 3648.37548828125,
+            "front_right": 1404.83203125,
+            "rear_left": 3473.0390625,
+            "rear_right": 311.93121337890625
+          }
+        }
+      }
+    },
+    "out_of_order_dropped": 0,
+    "player_available": true,
+    "player_car_index": 0,
+    "player_resets": 0,
+    "session_resets": 0,
+    "session_uid": "2396549747549880658"
+  },
+  "driving": {
+    "car_status": {
+      "age_ms": 0,
+      "frame_identifier": 1655,
+      "overall_frame_identifier": 1655,
+      "packet_id": 7,
+      "received_unix_ms": 0,
+      "session_time": 82.97032165527344,
+      "value": {
+        "player": {
+          "actual_tyre_compound": {
+            "label": "C3",
+            "raw": 18
+          },
+          "anti_lock_brakes": {
+            "label": "on",
+            "raw": 1
+          },
+          "drs_activation_distance_m": 98,
+          "drs_allowed": {
+            "label": "not allowed",
+            "raw": 0
+          },
+          "engine_power_ice_w": 549682.9375,
+          "engine_power_mguk_w": 56170.078125,
+          "ers_deploy_mode": {
+            "label": "hotlap",
+            "raw": 2
+          },
+          "ers_deployed_this_lap": 0.0,
+          "ers_harvested_this_lap_mguh": 0.0,
+          "ers_harvested_this_lap_mguk": 0.0,
+          "ers_store_energy_j": 4000000.0,
+          "front_brake_bias_percent": 58,
+          "fuel_capacity": 110.0,
+          "fuel_in_tank": 10.0,
+          "fuel_mix": {
+            "label": "standard",
+            "raw": 1
+          },
+          "fuel_remaining_laps": 5.4098358154296875,
+          "idle_rpm": 4000,
+          "max_gears": 9,
+          "max_rpm": 13099,
+          "network_paused": 0,
+          "pit_limiter_status": {
+            "label": "off",
+            "raw": 0
+          },
+          "traction_control": {
+            "label": "full",
+            "raw": 2
+          },
+          "tyres_age_laps": 0,
+          "vehicle_fia_flags": {
+            "label": "none",
+            "raw": 0
+          },
+          "visual_tyre_compound": {
+            "label": "soft",
+            "raw": 16
+          }
+        }
+      }
+    },
+    "car_telemetry": {
+      "age_ms": 0,
+      "frame_identifier": 1655,
+      "overall_frame_identifier": 1655,
+      "packet_id": 6,
+      "received_unix_ms": 0,
+      "session_time": 82.97032165527344,
+      "value": {
+        "mfd_panel_index": {
+          "label": "closed",
+          "raw": 255
+        },
+        "mfd_panel_index_secondary_player": {
+          "label": "closed",
+          "raw": 255
+        },
+        "player": {
+          "brake": 0.0,
+          "brakes_temperature_c": {
+            "front_left": 765,
+            "front_right": 772,
+            "rear_left": 728,
+            "rear_right": 738
+          },
+          "clutch": 0,
+          "drs": {
+            "label": "off",
+            "raw": 0
+          },
+          "engine_rpm": 11024,
+          "engine_temperature_c": 110,
+          "gear": {
+            "label": "4",
+            "raw": 4
+          },
+          "rev_lights_bit_value": 0,
+          "rev_lights_percent": 51,
+          "speed_kmh": 170,
+          "steer": 0.08408457040786743,
+          "surface_type": {
+            "front_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "front_right": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_right": {
+              "label": "tarmac",
+              "raw": 0
+            }
+          },
+          "throttle": 1.0,
+          "tyres_inner_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          },
+          "tyres_pressure_psi": {
+            "front_left": 24.666475296020508,
+            "front_right": 24.666475296020508,
+            "rear_left": 21.710573196411133,
+            "rear_right": 21.710573196411133
+          },
+          "tyres_surface_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          }
+        },
+        "suggested_gear": {
+          "label": "none",
+          "raw": 0
+        }
+      }
+    },
+    "lap_data": {
+      "age_ms": 0,
+      "frame_identifier": 1655,
+      "overall_frame_identifier": 1655,
+      "packet_id": 2,
+      "received_unix_ms": 0,
+      "session_time": 82.97032165527344,
+      "value": {
+        "player": {
+          "car_position": 1,
+          "corner_cutting_warnings": 0,
+          "current_lap_invalid": {
+            "label": "invalid",
+            "raw": 1
+          },
+          "current_lap_num": 1,
+          "current_lap_time_ms": 14699,
+          "delta_to_car_in_front": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "delta_to_race_leader": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "driver_status": {
+            "label": "flying lap",
+            "raw": 1
+          },
+          "grid_position": 0,
+          "lap_distance_m": 907.6470947265625,
+          "last_lap_time_ms": 0,
+          "num_pit_stops": 0,
+          "num_unserved_drive_through_pens": 0,
+          "num_unserved_stop_go_pens": 0,
+          "penalties_s": 0,
+          "pit_lane_time_in_lane_ms": 0,
+          "pit_lane_timer_active": {
+            "label": "inactive",
+            "raw": 0
+          },
+          "pit_status": {
+            "label": "none",
+            "raw": 0
+          },
+          "pit_stop_should_serve_pen": 0,
+          "pit_stop_timer_ms": 0,
+          "result_status": {
+            "label": "active",
+            "raw": 2
+          },
+          "safety_car_delta_s": -0.0,
+          "sector": {
+            "label": "sector 1",
+            "raw": 0
+          },
+          "sector1_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "sector2_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "speed_trap_fastest_lap": 1,
+          "speed_trap_fastest_speed_kmh": 327.4476013183594,
+          "total_distance_m": 907.6470947265625,
+          "total_warnings": 0
+        },
+        "time_trial_pb_car_idx": 1,
+        "time_trial_rival_car_idx": 7
+      }
+    },
+    "motion_ex": {
+      "age_ms": 0,
+      "frame_identifier": 1655,
+      "overall_frame_identifier": 1655,
+      "packet_id": 13,
+      "received_unix_ms": 0,
+      "session_time": 82.97032165527344,
+      "value": {
+        "player": {
+          "angular_acceleration_rad_s2": {
+            "x": -0.20600025355815887,
+            "y": 0.305693119764328,
+            "z": -0.715386688709259
+          },
+          "angular_velocity_rad_s": {
+            "x": 0.006314271595329046,
+            "y": -0.31867581605911255,
+            "z": -0.017577577382326126
+          },
+          "chassis_pitch_rad": 0.0018597841262817383,
+          "chassis_yaw_rad": 0.007164597511291504,
+          "front_aero_height": 0.023460716009140015,
+          "front_roll_angle": 0.0020277074072510004,
+          "front_wheels_angle_rad": 0.028659053146839142,
+          "height_of_cog_above_ground": 0.2910757064819336,
+          "local_velocity_mps": {
+            "x": 0.34056124091148376,
+            "y": 0.10613250732421875,
+            "z": 47.238075256347656
+          },
+          "rear_aero_height": 0.028240278363227844,
+          "rear_roll_angle": 0.0026145372539758682,
+          "suspension_acceleration": {
+            "front_left": -607.5604858398438,
+            "front_right": 233.070556640625,
+            "rear_left": -382.322021484375,
+            "rear_right": -748.564208984375
+          },
+          "suspension_position": {
+            "front_left": 56.31366729736328,
+            "front_right": 53.04052734375,
+            "rear_left": 44.169960021972656,
+            "rear_right": 40.13412094116211
+          },
+          "suspension_velocity": {
+            "front_left": -8.292495727539062,
+            "front_right": -4.083886623382568,
+            "rear_left": 6.739720344543457,
+            "rear_right": -17.98733901977539
+          },
+          "wheel_camber_gain_rad": {
+            "front_left": 0.05061499774456024,
+            "front_right": 0.05061499774456024,
+            "rear_left": 0.03316400200128555,
+            "rear_right": 0.03316400200128555
+          },
+          "wheel_camber_rad": {
+            "front_left": -0.05551648139953613,
+            "front_right": -0.046254873275756836,
+            "rear_left": -0.04007995128631592,
+            "rear_right": -0.03856217861175537
+          },
+          "wheel_lat_force": {
+            "front_left": -3032.465087890625,
+            "front_right": -1670.8873291015625,
+            "rear_left": -4274.9013671875,
+            "rear_right": -1538.674072265625
+          },
+          "wheel_long_force": {
+            "front_left": -163.21356201171875,
+            "front_right": -154.31948852539062,
+            "rear_left": 5656.80078125,
+            "rear_right": 5374.078125
+          },
+          "wheel_slip_angle": {
+            "front_left": 0.020570166409015656,
+            "front_right": 0.020769856870174408,
+            "rear_left": 0.022972293198108673,
+            "rear_right": 0.013768580742180347
+          },
+          "wheel_slip_ratio": {
+            "front_left": -0.0007842823979444802,
+            "front_right": -0.0014180929865688086,
+            "rear_left": 0.03255363553762436,
+            "rear_right": 0.04833056777715683
+          },
+          "wheel_speed": {
+            "front_left": 47.44929885864258,
+            "front_right": 46.90553283691406,
+            "rear_left": 49.031803131103516,
+            "rear_right": 49.29248809814453
+          },
+          "wheel_vert_force": {
+            "front_left": 3738.24853515625,
+            "front_right": 1531.946044921875,
+            "rear_left": 5498.875,
+            "rear_right": 3675.5634765625
+          }
+        }
+      }
+    },
+    "out_of_order_dropped": 0,
+    "player_available": true,
+    "player_car_index": 0,
+    "player_resets": 0,
+    "session_resets": 0,
+    "session_uid": "2396549747549880658"
+  },
+  "high-speed": {
+    "car_status": {
+      "age_ms": 0,
+      "frame_identifier": 3382,
+      "overall_frame_identifier": 3382,
+      "packet_id": 7,
+      "received_unix_ms": 0,
+      "session_time": 169.14202880859375,
+      "value": {
+        "player": {
+          "actual_tyre_compound": {
+            "label": "C3",
+            "raw": 18
+          },
+          "anti_lock_brakes": {
+            "label": "on",
+            "raw": 1
+          },
+          "drs_activation_distance_m": 0,
+          "drs_allowed": {
+            "label": "not allowed",
+            "raw": 0
+          },
+          "engine_power_ice_w": 520522.78125,
+          "engine_power_mguk_w": 0.0,
+          "ers_deploy_mode": {
+            "label": "hotlap",
+            "raw": 2
+          },
+          "ers_deployed_this_lap": 0.0,
+          "ers_harvested_this_lap_mguh": 0.0,
+          "ers_harvested_this_lap_mguk": 0.0,
+          "ers_store_energy_j": 4000000.0,
+          "front_brake_bias_percent": 58,
+          "fuel_capacity": 110.0,
+          "fuel_in_tank": 10.0,
+          "fuel_mix": {
+            "label": "standard",
+            "raw": 1
+          },
+          "fuel_remaining_laps": 5.4098358154296875,
+          "idle_rpm": 4000,
+          "max_gears": 9,
+          "max_rpm": 13099,
+          "network_paused": 0,
+          "pit_limiter_status": {
+            "label": "off",
+            "raw": 0
+          },
+          "traction_control": {
+            "label": "full",
+            "raw": 2
+          },
+          "tyres_age_laps": 1,
+          "vehicle_fia_flags": {
+            "label": "none",
+            "raw": 0
+          },
+          "visual_tyre_compound": {
+            "label": "soft",
+            "raw": 16
+          }
+        }
+      }
+    },
+    "car_telemetry": {
+      "age_ms": 0,
+      "frame_identifier": 3382,
+      "overall_frame_identifier": 3382,
+      "packet_id": 6,
+      "received_unix_ms": 0,
+      "session_time": 169.14202880859375,
+      "value": {
+        "mfd_panel_index": {
+          "label": "closed",
+          "raw": 255
+        },
+        "mfd_panel_index_secondary_player": {
+          "label": "closed",
+          "raw": 255
+        },
+        "player": {
+          "brake": 0.8184152245521545,
+          "brakes_temperature_c": {
+            "front_left": 572,
+            "front_right": 569,
+            "rear_left": 537,
+            "rear_right": 535
+          },
+          "clutch": 0,
+          "drs": {
+            "label": "off",
+            "raw": 0
+          },
+          "engine_rpm": 10086,
+          "engine_temperature_c": 110,
+          "gear": {
+            "label": "8",
+            "raw": 8
+          },
+          "rev_lights_bit_value": 0,
+          "rev_lights_percent": 13,
+          "speed_kmh": 292,
+          "steer": -0.0,
+          "surface_type": {
+            "front_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "front_right": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_right": {
+              "label": "tarmac",
+              "raw": 0
+            }
+          },
+          "throttle": 0.0,
+          "tyres_inner_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          },
+          "tyres_pressure_psi": {
+            "front_left": 24.666475296020508,
+            "front_right": 24.666475296020508,
+            "rear_left": 21.710573196411133,
+            "rear_right": 21.710573196411133
+          },
+          "tyres_surface_temperature_c": {
+            "front_left": 97,
+            "front_right": 97,
+            "rear_left": 97,
+            "rear_right": 97
+          }
+        },
+        "suggested_gear": {
+          "label": "none",
+          "raw": 0
+        }
+      }
+    },
+    "lap_data": {
+      "age_ms": 0,
+      "frame_identifier": 3382,
+      "overall_frame_identifier": 3382,
+      "packet_id": 2,
+      "received_unix_ms": 0,
+      "session_time": 169.14202880859375,
+      "value": {
+        "player": {
+          "car_position": 1,
+          "corner_cutting_warnings": 0,
+          "current_lap_invalid": {
+            "label": "valid",
+            "raw": 0
+          },
+          "current_lap_num": 2,
+          "current_lap_time_ms": 6816,
+          "delta_to_car_in_front": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "delta_to_race_leader": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "driver_status": {
+            "label": "flying lap",
+            "raw": 1
+          },
+          "grid_position": 0,
+          "lap_distance_m": 601.0986328125,
+          "last_lap_time_ms": 94052,
+          "num_pit_stops": 0,
+          "num_unserved_drive_through_pens": 0,
+          "num_unserved_stop_go_pens": 0,
+          "penalties_s": 0,
+          "pit_lane_time_in_lane_ms": 0,
+          "pit_lane_timer_active": {
+            "label": "inactive",
+            "raw": 0
+          },
+          "pit_status": {
+            "label": "none",
+            "raw": 0
+          },
+          "pit_stop_should_serve_pen": 0,
+          "pit_stop_timer_ms": 0,
+          "result_status": {
+            "label": "active",
+            "raw": 2
+          },
+          "safety_car_delta_s": -0.0,
+          "sector": {
+            "label": "sector 1",
+            "raw": 0
+          },
+          "sector1_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "sector2_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "speed_trap_fastest_lap": 2,
+          "speed_trap_fastest_speed_kmh": 329.74847412109375,
+          "total_distance_m": 6009.9814453125,
+          "total_warnings": 0
+        },
+        "time_trial_pb_car_idx": 1,
+        "time_trial_rival_car_idx": 7
+      }
+    },
+    "motion_ex": {
+      "age_ms": 0,
+      "frame_identifier": 3382,
+      "overall_frame_identifier": 3382,
+      "packet_id": 13,
+      "received_unix_ms": 0,
+      "session_time": 169.14202880859375,
+      "value": {
+        "player": {
+          "angular_acceleration_rad_s2": {
+            "x": -0.8083509206771851,
+            "y": -0.09924469143152237,
+            "z": 0.05454763397574425
+          },
+          "angular_velocity_rad_s": {
+            "x": 0.02433030679821968,
+            "y": -0.0015930921072140336,
+            "z": -0.09634402394294739
+          },
+          "chassis_pitch_rad": 0.0029996633529663086,
+          "chassis_yaw_rad": 0.0007212162017822266,
+          "front_aero_height": 0.003334576962515712,
+          "front_roll_angle": 0.0008284348878078163,
+          "front_wheels_angle_rad": -0.0,
+          "height_of_cog_above_ground": 0.27324771881103516,
+          "local_velocity_mps": {
+            "x": 0.05754442885518074,
+            "y": 0.2484757900238037,
+            "z": 81.369873046875
+          },
+          "rear_aero_height": 0.011043483391404152,
+          "rear_roll_angle": -0.000774554384406656,
+          "suspension_acceleration": {
+            "front_left": 605.6829833984375,
+            "front_right": 40.823246002197266,
+            "rear_left": -643.421630859375,
+            "rear_right": -799.0970458984375
+          },
+          "suspension_position": {
+            "front_left": 62.25563049316406,
+            "front_right": 60.91755676269531,
+            "rear_left": 50.68013000488281,
+            "rear_right": 51.87575149536133
+          },
+          "suspension_velocity": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": 0.0,
+            "rear_right": 0.0
+          },
+          "wheel_camber_gain_rad": {
+            "front_left": 0.05061499774456024,
+            "front_right": 0.05061499774456024,
+            "rear_left": 0.03316400200128555,
+            "rear_right": 0.03316400200128555
+          },
+          "wheel_camber_rad": {
+            "front_left": -0.051432251930236816,
+            "front_right": -0.051308631896972656,
+            "rear_left": -0.04284858703613281,
+            "rear_right": -0.04340982437133789
+          },
+          "wheel_lat_force": {
+            "front_left": -405.94683837890625,
+            "front_right": 221.78953552246094,
+            "rear_left": -1784.90087890625,
+            "rear_right": 1556.9564208984375
+          },
+          "wheel_long_force": {
+            "front_left": -5892.0625,
+            "front_right": -5868.51904296875,
+            "rear_left": -5048.17822265625,
+            "rear_right": -5153.17138671875
+          },
+          "wheel_slip_angle": {
+            "front_left": -0.002299283863976598,
+            "front_right": 0.0032442882657051086,
+            "rear_left": 0.006050710566341877,
+            "rear_right": -0.004759485833346844
+          },
+          "wheel_slip_ratio": {
+            "front_left": -0.01948077417910099,
+            "front_right": -0.0210576169192791,
+            "rear_left": -0.022459037601947784,
+            "rear_right": -0.021510396152734756
+          },
+          "wheel_speed": {
+            "front_left": 79.77537536621094,
+            "front_right": 79.63971710205078,
+            "rear_left": 79.5367431640625,
+            "rear_right": 79.61201477050781
+          },
+          "wheel_vert_force": {
+            "front_left": 7931.15771484375,
+            "front_right": 7133.50732421875,
+            "rear_left": 7035.7099609375,
+            "rear_right": 7721.50537109375
+          }
+        }
+      }
+    },
+    "out_of_order_dropped": 0,
+    "player_available": true,
+    "player_car_index": 0,
+    "player_resets": 0,
+    "session_resets": 0,
+    "session_uid": "2396549747549880658"
+  },
+  "stationary": {
+    "car_status": {
+      "age_ms": 0,
+      "frame_identifier": 641,
+      "overall_frame_identifier": 641,
+      "packet_id": 7,
+      "received_unix_ms": 0,
+      "session_time": 32.16905212402344,
+      "value": {
+        "player": {
+          "actual_tyre_compound": {
+            "label": "C3",
+            "raw": 18
+          },
+          "anti_lock_brakes": {
+            "label": "on",
+            "raw": 1
+          },
+          "drs_activation_distance_m": 0,
+          "drs_allowed": {
+            "label": "not allowed",
+            "raw": 0
+          },
+          "engine_power_ice_w": 81207.28125,
+          "engine_power_mguk_w": 0.0,
+          "ers_deploy_mode": {
+            "label": "none",
+            "raw": 0
+          },
+          "ers_deployed_this_lap": 0.0,
+          "ers_harvested_this_lap_mguh": 0.0,
+          "ers_harvested_this_lap_mguk": 0.0,
+          "ers_store_energy_j": 4000000.0,
+          "front_brake_bias_percent": 58,
+          "fuel_capacity": 110.0,
+          "fuel_in_tank": 10.0,
+          "fuel_mix": {
+            "label": "lean",
+            "raw": 0
+          },
+          "fuel_remaining_laps": 5.4098358154296875,
+          "idle_rpm": 4000,
+          "max_gears": 9,
+          "max_rpm": 13099,
+          "network_paused": 0,
+          "pit_limiter_status": {
+            "label": "off",
+            "raw": 0
+          },
+          "traction_control": {
+            "label": "full",
+            "raw": 2
+          },
+          "tyres_age_laps": 0,
+          "vehicle_fia_flags": {
+            "label": "none",
+            "raw": 0
+          },
+          "visual_tyre_compound": {
+            "label": "soft",
+            "raw": 16
+          }
+        }
+      }
+    },
+    "car_telemetry": {
+      "age_ms": 0,
+      "frame_identifier": 641,
+      "overall_frame_identifier": 641,
+      "packet_id": 6,
+      "received_unix_ms": 0,
+      "session_time": 32.16905212402344,
+      "value": {
+        "mfd_panel_index": {
+          "label": "closed",
+          "raw": 255
+        },
+        "mfd_panel_index_secondary_player": {
+          "label": "closed",
+          "raw": 255
+        },
+        "player": {
+          "brake": 0.0,
+          "brakes_temperature_c": {
+            "front_left": 25,
+            "front_right": 25,
+            "rear_left": 25,
+            "rear_right": 25
+          },
+          "clutch": 0,
+          "drs": {
+            "label": "off",
+            "raw": 0
+          },
+          "engine_rpm": 3920,
+          "engine_temperature_c": 110,
+          "gear": {
+            "label": "N",
+            "raw": 0
+          },
+          "rev_lights_bit_value": 0,
+          "rev_lights_percent": 0,
+          "speed_kmh": 0,
+          "steer": -0.0,
+          "surface_type": {
+            "front_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "front_right": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_left": {
+              "label": "tarmac",
+              "raw": 0
+            },
+            "rear_right": {
+              "label": "tarmac",
+              "raw": 0
+            }
+          },
+          "throttle": 0.0,
+          "tyres_inner_temperature_c": {
+            "front_left": 70,
+            "front_right": 70,
+            "rear_left": 70,
+            "rear_right": 70
+          },
+          "tyres_pressure_psi": {
+            "front_left": 24.200000762939453,
+            "front_right": 24.200000762939453,
+            "rear_left": 21.299999237060547,
+            "rear_right": 21.299999237060547
+          },
+          "tyres_surface_temperature_c": {
+            "front_left": 70,
+            "front_right": 70,
+            "rear_left": 70,
+            "rear_right": 70
+          }
+        },
+        "suggested_gear": {
+          "label": "none",
+          "raw": 0
+        }
+      }
+    },
+    "lap_data": {
+      "age_ms": 0,
+      "frame_identifier": 641,
+      "overall_frame_identifier": 641,
+      "packet_id": 2,
+      "received_unix_ms": 0,
+      "session_time": 32.16905212402344,
+      "value": {
+        "player": {
+          "car_position": 1,
+          "corner_cutting_warnings": 0,
+          "current_lap_invalid": {
+            "label": "valid",
+            "raw": 0
+          },
+          "current_lap_num": 1,
+          "current_lap_time_ms": 0,
+          "delta_to_car_in_front": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "delta_to_race_leader": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "driver_status": {
+            "label": "in garage",
+            "raw": 0
+          },
+          "grid_position": 0,
+          "lap_distance_m": -5272.478515625,
+          "last_lap_time_ms": 0,
+          "num_pit_stops": 0,
+          "num_unserved_drive_through_pens": 0,
+          "num_unserved_stop_go_pens": 0,
+          "penalties_s": 0,
+          "pit_lane_time_in_lane_ms": 0,
+          "pit_lane_timer_active": {
+            "label": "inactive",
+            "raw": 0
+          },
+          "pit_status": {
+            "label": "pitting",
+            "raw": 1
+          },
+          "pit_stop_should_serve_pen": 0,
+          "pit_stop_timer_ms": 0,
+          "result_status": {
+            "label": "active",
+            "raw": 2
+          },
+          "safety_car_delta_s": -0.0,
+          "sector": {
+            "label": "sector 1",
+            "raw": 0
+          },
+          "sector1_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "sector2_time": {
+            "minutes_part": 0,
+            "ms_part": 0,
+            "total_ms": 0
+          },
+          "speed_trap_fastest_lap": 255,
+          "speed_trap_fastest_speed_kmh": 0.0,
+          "total_distance_m": -5272.478515625,
+          "total_warnings": 0
+        },
+        "time_trial_pb_car_idx": 1,
+        "time_trial_rival_car_idx": 7
+      }
+    },
+    "motion_ex": {
+      "age_ms": 0,
+      "frame_identifier": 641,
+      "overall_frame_identifier": 641,
+      "packet_id": 13,
+      "received_unix_ms": 0,
+      "session_time": 32.16905212402344,
+      "value": {
+        "player": {
+          "angular_acceleration_rad_s2": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "angular_velocity_rad_s": {
+            "x": -0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "chassis_pitch_rad": 0.014898061752319336,
+          "chassis_yaw_rad": 0.0,
+          "front_aero_height": 0.05999999865889549,
+          "front_roll_angle": 0.0,
+          "front_wheels_angle_rad": -0.0,
+          "height_of_cog_above_ground": 0.4008312225341797,
+          "local_velocity_mps": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "rear_aero_height": 0.10000000149011612,
+          "rear_roll_angle": 0.0,
+          "suspension_acceleration": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": 0.0,
+            "rear_right": 0.0
+          },
+          "suspension_position": {
+            "front_left": 6.653478145599365,
+            "front_right": 6.653478145599365,
+            "rear_left": -46.97743606567383,
+            "rear_right": -46.97743606567383
+          },
+          "suspension_velocity": {
+            "front_left": 794.092041015625,
+            "front_right": 794.092041015625,
+            "rear_left": 942.2615356445312,
+            "rear_right": 942.2615356445312
+          },
+          "wheel_camber_gain_rad": {
+            "front_left": 0.05061499774456024,
+            "front_right": 0.05061499774456024,
+            "rear_left": 0.03316400200128555,
+            "rear_right": 0.03316400200128555
+          },
+          "wheel_camber_rad": {
+            "front_left": -0.048253774642944336,
+            "front_right": -0.048253774642944336,
+            "rear_left": -0.00438380241394043,
+            "rear_right": -0.00438380241394043
+          },
+          "wheel_lat_force": {
+            "front_left": -0.0,
+            "front_right": 0.0,
+            "rear_left": -0.0,
+            "rear_right": 0.0
+          },
+          "wheel_long_force": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": -0.0,
+            "rear_right": -0.0
+          },
+          "wheel_slip_angle": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": 0.0,
+            "rear_right": 0.0
+          },
+          "wheel_slip_ratio": {
+            "front_left": 4.203895392974451e-45,
+            "front_right": 4.203895392974451e-45,
+            "rear_left": 4.203895392974451e-45,
+            "rear_right": 4.203895392974451e-45
+          },
+          "wheel_speed": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": 0.0,
+            "rear_right": 0.0
+          },
+          "wheel_vert_force": {
+            "front_left": 0.0,
+            "front_right": 0.0,
+            "rear_left": 0.0,
+            "rear_right": 0.0
+          }
+        }
+      }
+    },
+    "out_of_order_dropped": 0,
+    "player_available": true,
+    "player_car_index": 0,
+    "player_resets": 0,
+    "session_resets": 0,
+    "session_uid": "2396549747549880658"
+  }
+}

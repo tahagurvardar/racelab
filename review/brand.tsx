@@ -8,6 +8,7 @@ import { createRoot } from "react-dom/client";
 import { AppMark, VersionLabel, Wordmark } from "../src/components/brand/Brand";
 import { Icon } from "../src/components/shell/Icon";
 import "../src/styles/tokens.css";
+import "../src/styles/fonts.css";
 import "../src/styles/base.css";
 import "../src/styles/shell.css";
 import "./brand.css";

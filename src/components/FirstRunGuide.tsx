@@ -60,13 +60,15 @@ export function FirstRunGuide({
         </div>
       </div>
       <p className="setup-lead">
-        RaceLab is waiting for telemetry from Forza Horizon 6. The game sends
-        nothing until Data Out is on — a one-time change in its settings.
+        RaceLab supports Forza Horizon 6 and F1 25. You only need the game you
+        play. For Forza Horizon 6, turn on Data Out using the steps below. For
+        F1 25, follow its telemetry settings in Settings.
       </p>
       <SetupSteps setup={setup} />
       <DetectionLine setup={setup} />
       <p className="setup-footnote">
-        You can reopen these steps at any time from Settings.
+        You can reopen either game&rsquo;s steps at any time from Settings.
+        RaceLab detects your game and records its sessions automatically.
       </p>
     </section>
   );

@@ -13,6 +13,7 @@ import type {
   StorageStatus,
 } from "../session-state.ts";
 import { useStore } from "../state/use-store.ts";
+import type { F1SessionDetail } from "../f1-sessions.ts";
 
 /// The same metadata-scale commands V1.0 called. None of them returns frames.
 export const invokeSessionsBackend: SessionsBackend = {
@@ -23,6 +24,8 @@ export const invokeSessionsBackend: SessionsBackend = {
   analysis: (sessionId) =>
     invoke<SessionAnalysisState>("get_session_analysis", { sessionId }),
   reanalyze: (sessionId) => invoke("reanalyze_session", { sessionId }),
+  f1Session: (sessionId) =>
+    invoke<F1SessionDetail>("get_f1_session", { sessionId }),
 };
 
 /// One controller per mounted Sessions workspace. Created inside the effect

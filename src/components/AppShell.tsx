@@ -95,7 +95,18 @@ export function AppShell({
             {/* Keyed by section so a section change replays the short
                 entry transition; nothing below owns a subscription that a
                 remount could duplicate. */}
-            <div className="workspace-view" key={navigation.section}>
+            <div
+              className="workspace-view"
+              key={navigation.section}
+              data-density={
+                navigation.section === "home" ||
+                navigation.section === "settings"
+                  ? "comfort"
+                  : navigation.section === "live"
+                    ? "operational"
+                    : "engineering"
+              }
+            >
               {children}
             </div>
           </div>

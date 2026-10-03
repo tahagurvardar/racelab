@@ -1,6 +1,6 @@
 // The application shell, mounted for behaviour tests. Import after dom.mjs.
 //
-// `ShellHarness` is App without its four owner hooks: the same AppShell, the
+// `ShellHarness` is App without its polling owner hooks: the same AppShell, the
 // same navigation reducer and the same workspaces, with stores driven by the
 // test instead of by polling loops. That makes every update explicit and
 // wrapped in act(), so a test states exactly which update caused a render.
@@ -11,10 +11,17 @@ import SessionsWorkspace from "../../src/workspaces/SessionsWorkspace.tsx";
 import DiagnosticsWorkspace from "../../src/workspaces/DiagnosticsWorkspace.tsx";
 import LiveWorkspace from "../../src/workspaces/LiveWorkspace.tsx";
 import SettingsWorkspace from "../../src/workspaces/SettingsWorkspace.tsx";
+import HomeWorkspace from "../../src/workspaces/HomeWorkspace.tsx";
 import {
+  INITIAL_F1,
+  INITIAL_F1_LIVE,
+  INITIAL_F1_RECORDER,
   INITIAL_LIVE,
   INITIAL_RECORDER,
   INITIAL_SETUP,
+  f1LiveStore,
+  f1RecorderStore,
+  f1Store,
   liveStore,
   recorderStore,
   setupStore,
@@ -22,10 +29,15 @@ import {
 } from "../../src/state/stores.ts";
 import { initialTelemetryState } from "../../src/telemetry-state.ts";
 import {
+  activeGameStore,
+  INITIAL_ACTIVE_GAME,
+} from "../../src/state/active-game.ts";
+import {
   INITIAL_NAVIGATION,
   navigationReducer,
 } from "../../src/views/navigation.ts";
 import { responses } from "./dom.mjs";
+import { DEFAULT_OVERLAY } from "../../src/overlay/model.ts";
 
 export { act, h };
 
@@ -176,6 +188,12 @@ const MANIFEST = {
 
 /// Metadata-scale responses for the commands the workspaces call on mount.
 export function installBackend() {
+  responses.set("get_overlay_state", () => ({
+    preferences: DEFAULT_OVERLAY,
+    editing: false,
+    visible: false,
+    error: null,
+  }));
   responses.set("list_recent_sessions", () => ({
     sessions: [MANIFEST],
     unreadable: 0,
@@ -263,9 +281,13 @@ export function installBackend() {
 }
 
 export function resetStores() {
+  f1RecorderStore.set(INITIAL_F1_RECORDER);
+  f1LiveStore.set(INITIAL_F1_LIVE);
+  f1Store.set(INITIAL_F1);
   liveStore.set(INITIAL_LIVE);
   recorderStore.set(INITIAL_RECORDER);
   setupStore.set(INITIAL_SETUP);
+  activeGameStore.set(INITIAL_ACTIVE_GAME);
   transportStore.set({
     ...initialTelemetryState,
     stats: { revision: 1, running: true, bound_port: 20440 },
@@ -287,7 +309,9 @@ export function ShellHarness() {
     section === "live"
       ? h(LiveWorkspace, {
           tab: navigation.liveTab,
+          f1Tab: navigation.f1Tab,
           onTab: (tab) => navigate({ type: "liveTab", tab }),
+          onF1Tab: (tab) => navigate({ type: "f1Tab", tab }),
         })
       : section === "sessions"
         ? h(SessionsWorkspace, {
@@ -296,7 +320,11 @@ export function ShellHarness() {
           })
         : section === "settings"
           ? h(SettingsWorkspace)
-          : h(DiagnosticsWorkspace),
+          : section === "home"
+            ? h(HomeWorkspace, {
+                onNavigate: (section) => navigate({ type: "section", section }),
+              })
+            : h(DiagnosticsWorkspace),
   );
 }
 

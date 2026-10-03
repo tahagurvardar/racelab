@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import type { SessionAnalysis } from "../../analysis-state.ts";
 import { densityNote, sessionTimeline } from "../../session-timeline.ts";
 import { elapsed, integer } from "../../telemetry/formatting.ts";
+import { SharedTimeline } from "../../components/SharedTimeline";
 
 /// When the analysis's own episodes happened, on one session-time axis.
 ///
@@ -29,62 +30,97 @@ export const SessionTimeline = memo(function SessionTimeline({
         </span>
       </header>
 
-      <div className="timeline-grid">
-        {model.lanes.map((lane) => (
-          <div
-            key={lane.key}
-            className={`timeline-lane tone-${lane.tone}`}
-            data-lane={lane.key}
-          >
-            <span className="timeline-lane-label">
-              {lane.label}
-              {/* The total the analysis counted. Where it stored fewer, the
-                  footnote below names the lane and both numbers. */}
-              <span className="timeline-lane-count">
-                {lane.unavailable ? "—" : integer(lane.total)}
-              </span>
-            </span>
-            <span className="timeline-track">
-              {lane.unavailable ? (
-                <span className="timeline-track-note">{lane.unavailable}</span>
-              ) : (
-                <svg
-                  className="timeline-svg"
-                  viewBox={`0 0 ${model.bins} 1`}
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                  focusable="false"
+      <SharedTimeline
+        durationMs={model.durationMs}
+        inspector={(time) => (
+          <>
+            <span>Evidence bin at cursor</span>
+            {model.lanes.map((lane) => {
+              const bin = (time / model.durationMs) * model.bins;
+              const mark = lane.marks.find(
+                (mark) => mark.from <= bin && mark.to > bin,
+              );
+              return (
+                <span
+                  key={lane.key}
+                  className={`timeline-inspector-lane tone-${lane.tone}`}
                 >
-                  {lane.marks.map((mark) => (
-                    <rect
-                      key={mark.key}
-                      className={`timeline-mark level-${mark.level}`}
-                      x={mark.from}
-                      y={0}
-                      width={mark.to - mark.from}
-                      height={1}
-                    >
-                      <title>{mark.title}</title>
-                    </rect>
-                  ))}
-                </svg>
-              )}
-            </span>
-          </div>
-        ))}
-        <div className="timeline-axis" aria-hidden="true">
-          {model.ticks.map((tick) => (
-            <span
-              key={tick.key}
-              className="timeline-tick"
-              data-edge={tick.fraction > 0.95 ? "end" : undefined}
-              style={{ left: `${(tick.fraction * 100).toFixed(3)}%` }}
+                  <strong>{lane.label}</strong>{" "}
+                  {lane.unavailable
+                    ? "Unavailable"
+                    : mark
+                      ? mark.title
+                      : "No stored interval"}
+                </span>
+              );
+            })}
+          </>
+        )}
+      >
+        <div className="timeline-grid">
+          {model.lanes.map((lane) => (
+            <div
+              key={lane.key}
+              className={`timeline-lane tone-${lane.tone}`}
+              data-lane={lane.key}
             >
-              {tick.label}
-            </span>
+              <span className="timeline-lane-label">
+                {lane.label}
+                {/* The total the analysis counted. Where it stored fewer, the
+                  footnote below names the lane and both numbers. */}
+                <span className="timeline-lane-count">
+                  {lane.unavailable ? "—" : integer(lane.total)}
+                </span>
+              </span>
+              <span className="timeline-track">
+                {lane.unavailable ? (
+                  <span className="timeline-track-note">
+                    {lane.unavailable}
+                  </span>
+                ) : (
+                  <svg
+                    className="timeline-svg"
+                    viewBox={`0 0 ${model.bins} 1`}
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    {lane.marks.map((mark) => (
+                      <rect
+                        key={mark.key}
+                        className={`timeline-mark level-${mark.level}`}
+                        x={mark.from}
+                        y={0}
+                        width={mark.to - mark.from}
+                        height={1}
+                      >
+                        <title>{mark.title}</title>
+                      </rect>
+                    ))}
+                  </svg>
+                )}
+              </span>
+            </div>
           ))}
+          <div className="timeline-axis" aria-hidden="true">
+            {model.ticks.map((tick) => (
+              <span
+                key={tick.key}
+                className="timeline-tick"
+                data-edge={tick.fraction > 0.95 ? "end" : undefined}
+                style={{ left: `${(tick.fraction * 100).toFixed(3)}%` }}
+              >
+                {tick.label}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      </SharedTimeline>
+
+      <p className="panel-footnote">
+        Analyzed intervals share session time. Continuous telemetry traces and
+        reference laps are not exposed by this recording API.
+      </p>
 
       <p className="panel-footnote">
         {densityNote(model)}
