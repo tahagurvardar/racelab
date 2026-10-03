@@ -187,6 +187,22 @@ mod tests {
             let p = apply_hwnd(hwnd, false, true).unwrap();
             assert!(p.click_through && p.no_activate);
             assert_eq!(GetForegroundWindow(), foreground);
+            // Exercise the controller's periodic repair if Windows changes
+            // the effective z-order after creation (for example on DPI change).
+            assert_ne!(
+                SetWindowPos(
+                    hwnd,
+                    HWND_NOTOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                ),
+                0
+            );
+            assert!(!probe_hwnd(hwnd).topmost);
+            assert!(apply_hwnd(hwnd, false, true).unwrap().topmost);
             let p = apply_hwnd(hwnd, true, true).unwrap();
             assert!(!p.click_through && !p.no_activate);
             let p = apply_hwnd(hwnd, false, true).unwrap();
