@@ -18,6 +18,7 @@
 /// presentation choice made here and nowhere else.
 import {
   UNAVAILABLE,
+  integer,
   number,
   offsetClock,
   percent,
@@ -27,6 +28,7 @@ import type { Wheels } from "./telemetry/frame.ts";
 import {
   canonicalCornerRows,
   cornerLabelOf,
+  cornerOf,
   type CanonicalCornerSet,
 } from "./telemetry/telemetry-view-model.ts";
 
@@ -365,7 +367,8 @@ export function analysisBanner(
         state: state.state,
         showAnalysis: true,
         headline: "Analysis available",
-        detail: `Analysis schema v${state.analysis_schema_version ?? "?"}.`,
+        detail:
+          "Derived from the saved recording after the session completed. These are RaceLab measurements and definitions, not judgements.",
         problem: false,
         offerReanalysis,
       };
@@ -389,7 +392,7 @@ export function analysisBanner(
         showAnalysis: false,
         headline: "Analysis in progress",
         detail:
-          "This session is being analyzed now. Reopen it in a moment to see the result.",
+          "This session is being analyzed now. The result appears here as soon as it is ready.",
         problem: false,
         offerReanalysis: false,
       };
@@ -399,7 +402,7 @@ export function analysisBanner(
         showAnalysis: false,
         headline: "Not analyzed",
         detail:
-          "No analysis exists for this session. Sessions are analyzed when they complete; recordings made before V0.9 are not analyzed retroactively. This is not the same as an analysis that found no events.",
+          "No analysis exists for this session. Sessions are analyzed when they complete; recordings made by earlier RaceLab versions are not analyzed retroactively. This is not the same as an analysis that found no events.",
         problem: false,
         offerReanalysis,
       };
@@ -408,9 +411,9 @@ export function analysisBanner(
         state: state.state,
         showAnalysis: false,
         headline: "Unsupported analysis version",
-        detail: `This analysis was written in schema v${
-          state.analysis_schema_version ?? "?"
-        }; this build reads v${state.supported_analysis_schema_version}. The recording itself is unaffected, and the analysis can be produced again from it.`,
+        // Version numbers stay in the session's Data tab.
+        detail:
+          "This analysis was made by a different version of RaceLab and cannot be read by this one. The recording itself is unaffected, and the analysis can be produced again from it.",
         problem: true,
         offerReanalysis,
       };
@@ -466,11 +469,16 @@ export interface EventRow {
   hasCorner: boolean;
   /// "1:24.520 – 1:26.100", from session-relative monotonic milliseconds.
   time: string;
+  start: string;
+  end: string;
   duration: string;
   /// "143 → 87 km/h", or `UNAVAILABLE` when speed was not recorded.
   speed: string;
   /// The figure that defines this kind of event.
   detail: string;
+  /// Every other persisted measurement of the event, labelled, for an
+  /// expanded row. Absent values read as unavailable, never as 0.
+  facts: { key: string; label: string; value: string }[];
 }
 
 function speedRange(event: DrivingEvent): string {
@@ -511,10 +519,37 @@ export function eventRow(event: DrivingEvent, index: number): EventRow {
     corner: cornerLabelOf(event.corner),
     hasCorner: event.corner != null,
     time: `${offsetClock(event.start_ms)} – ${offsetClock(event.end_ms)}`,
+    start: offsetClock(event.start_ms),
+    end: offsetClock(event.end_ms),
     duration: `${number(event.duration_ms / 1000, 2)} s`,
     speed: speedRange(event),
     detail: eventDetail(event),
+    facts: [
+      { key: "entry", label: "Entry speed", value: kmh(event.entry_speed_mps) },
+      { key: "exit", label: "Exit speed", value: kmh(event.exit_speed_mps) },
+      { key: "min", label: "Min speed", value: kmh(event.min_speed_mps) },
+      { key: "max", label: "Max speed", value: kmh(event.max_speed_mps) },
+      {
+        key: "change",
+        label: "Speed change",
+        value:
+          event.speed_change_mps == null
+            ? UNAVAILABLE
+            : `${speedKmh(event.speed_change_mps, 1)} km/h`,
+      },
+      { key: "rpm", label: "Max RPM", value: number(event.max_rpm, 0) },
+      {
+        key: "combined",
+        label: "Peak combined slip",
+        value: number(event.peak_combined_slip, 2),
+      },
+    ],
   };
+}
+
+function kmh(mps: number | null): string {
+  const text = speedKmh(mps);
+  return text === UNAVAILABLE ? text : `${text} km/h`;
 }
 
 /// Events of the given kinds, in time order. The backend already sorts them;
@@ -558,19 +593,39 @@ export function channelNote(
         ? quality.suspension_available
         : quality.orientation_available;
   if (available) return null;
-  return `Unavailable: this recording (telemetry frame schema v${quality.telemetry_frame_schema_version}) carries no ${
+  // The recording's format version is in the session's Data tab.
+  return `Not recorded: this recording does not contain ${
     channel === "orientation" ? "orientation" : `${channel} telemetry`
-  }. Nothing is reconstructed from adapter data.`;
+  }, so nothing here can be shown. Nothing is reconstructed from other data.`;
 }
 
 export interface SlipEpisodeRow {
   key: string;
+  index: number;
   /// "High slip episode 3". Never wheelspin, wheel lock or a slide.
   title: string;
   time: string;
+  start: string;
+  end: string;
+  /// Canonical corner codes of the affected corners, in FL, FR, RL, RR order.
+  cornerCodes: string;
+  peakSlipRatio: string;
+  peakCombined: string;
+  speeds: { key: string; label: string; value: string }[];
+  /// All four corners, always FL, FR, RL, RR, with each measured peak. A
+  /// corner that did not cross a threshold reads as unavailable.
+  cornerTable: {
+    corner: string;
+    label: string;
+    affected: boolean;
+    maxAbsSlipRatio: string;
+    signedPeakSlipRatio: string;
+    maxCombinedSlip: string;
+  }[];
   duration: string;
   /// How much of the episode was actually above threshold.
   engaged: string;
+  engagedTime: string;
   /// "Rear left, Rear right" — every affected corner, named.
   corners: string;
   /// "slip ratio, combined slip".
@@ -605,12 +660,45 @@ export function slipEpisodeRow(episode: SlipEpisode): SlipEpisodeRow {
     });
   const entry = speedKmh(episode.entry_speed_mps);
   const exit = speedKmh(episode.exit_speed_mps);
+  const absolute = canonicalCornerRows(episode.max_abs_slip_ratio);
+  const signedPeaks = canonicalCornerRows(episode.signed_peak_slip_ratio);
+  const combined = canonicalCornerRows(episode.max_combined_slip);
+  const affected = new Set(episode.corners.map((corner) => cornerOf(corner)));
   return {
     key: `slip-${episode.index}-${episode.start_ms}`,
+    index: episode.index,
     title: `High slip episode ${episode.index}`,
     time: `${offsetClock(episode.start_ms)} – ${offsetClock(episode.end_ms)}`,
+    start: offsetClock(episode.start_ms),
+    end: offsetClock(episode.end_ms),
+    cornerCodes:
+      absolute
+        .filter((row) => affected.has(row.corner))
+        .map((row) => row.corner)
+        .join(" ") || UNAVAILABLE,
+    peakSlipRatio: number(episode.peak_abs_slip_ratio, 2),
+    peakCombined: number(episode.peak_combined_slip, 2),
+    speeds: [
+      {
+        key: "entry",
+        label: "Entry speed",
+        value: kmh(episode.entry_speed_mps),
+      },
+      { key: "min", label: "Min speed", value: kmh(episode.min_speed_mps) },
+      { key: "max", label: "Max speed", value: kmh(episode.max_speed_mps) },
+      { key: "exit", label: "Exit speed", value: kmh(episode.exit_speed_mps) },
+    ],
+    cornerTable: absolute.map((row, index) => ({
+      corner: row.corner,
+      label: row.label,
+      affected: affected.has(row.corner),
+      maxAbsSlipRatio: number(row.values, 2),
+      signedPeakSlipRatio: number(signedPeaks[index].values, 2),
+      maxCombinedSlip: number(combined[index].values, 2),
+    })),
     duration: `${number(episode.duration_ms / 1000, 2)} s`,
     engaged: `${number(episode.engaged_seconds, 2)} s above threshold`,
+    engagedTime: `${number(episode.engaged_seconds, 2)} s`,
     corners:
       episode.corners.length === 0
         ? UNAVAILABLE
@@ -645,9 +733,24 @@ export function slipEpisodeRows(
 
 export interface TurnRow {
   key: string;
+  index: number;
   /// "Turn segment 4". Deliberately not "Turn 4" and never left or right.
   title: string;
   time: string;
+  start: string;
+  end: string;
+  maxSpeed: string;
+  meanYawRate: string;
+  peakYawRate: string;
+  throttleTime: string;
+  /// All four corners, always FL, FR, RL, RR.
+  cornerTable: {
+    corner: string;
+    label: string;
+    maxAbsSlipRatio: string;
+    maxCombinedSlip: string;
+    maxCompression: string;
+  }[];
   duration: string;
   entrySpeed: string;
   minSpeed: string;
@@ -677,10 +780,29 @@ function peakCorner(values: CornerValues, digits: number): string {
 }
 
 export function turnRow(segment: TurnSegment): TurnRow {
+  const combined = canonicalCornerRows(segment.max_combined_slip);
+  const compression = canonicalCornerRows(segment.max_suspension_compression);
   return {
     key: `turn-${segment.index}-${segment.start_ms}`,
+    index: segment.index,
     title: `Turn segment ${segment.index}`,
     time: `${offsetClock(segment.start_ms)} – ${offsetClock(segment.end_ms)}`,
+    start: offsetClock(segment.start_ms),
+    end: offsetClock(segment.end_ms),
+    maxSpeed: speedKmh(segment.max_speed_mps),
+    // rad/s as stored; the sign is measured and is not called left or right.
+    meanYawRate: `${number(segment.mean_yaw_rate_rad_s, 2)} rad/s`,
+    peakYawRate: `${number(segment.peak_yaw_rate_rad_s, 2)} rad/s`,
+    throttleTime: `${number(segment.throttle_seconds, 2)} s`,
+    cornerTable: canonicalCornerRows(segment.max_abs_slip_ratio).map(
+      (row, index) => ({
+        corner: row.corner,
+        label: row.label,
+        maxAbsSlipRatio: number(row.values, 2),
+        maxCombinedSlip: number(combined[index].values, 2),
+        maxCompression: number(compression[index].values, 2),
+      }),
+    ),
     duration: `${number(segment.duration_ms / 1000, 2)} s`,
     entrySpeed: speedKmh(segment.entry_speed_mps),
     minSpeed: speedKmh(segment.min_speed_mps),
@@ -730,13 +852,9 @@ export function qualityLines(analysis: SessionAnalysis | null): QualityLine[] {
   const channel = (key: string, label: string, present: boolean) =>
     line(key, label, present ? "Available" : "Unavailable", present);
   return [
-    line("frames", "Frames analyzed", quality.frames_read.toLocaleString()),
-    line("active", "Active frames", quality.active_frames.toLocaleString()),
-    line(
-      "inactive",
-      "Inactive frames",
-      quality.inactive_frames.toLocaleString(),
-    ),
+    line("frames", "Frames analyzed", integer(quality.frames_read)),
+    line("active", "Active frames", integer(quality.active_frames)),
+    line("inactive", "Inactive frames", integer(quality.inactive_frames)),
     line(
       "analyzed",
       "Analyzed time",
@@ -748,7 +866,7 @@ export function qualityLines(analysis: SessionAnalysis | null): QualityLine[] {
     line(
       "gaps",
       "Excluded gaps",
-      `${coverage.excluded_gap_count.toLocaleString()} · ${number(
+      `${integer(coverage.excluded_gap_count)} · ${number(
         coverage.excluded_gap_seconds,
         1,
       )} s`,
@@ -756,12 +874,12 @@ export function qualityLines(analysis: SessionAnalysis | null): QualityLine[] {
     line(
       "duplicates",
       "Duplicate timestamps",
-      quality.zero_interval_frames.toLocaleString(),
+      integer(quality.zero_interval_frames),
     ),
     line(
       "discontinuities",
       "Speed discontinuities",
-      quality.speed_discontinuities.toLocaleString(),
+      integer(quality.speed_discontinuities),
       quality.speed_discontinuities === 0,
     ),
     line(
@@ -783,16 +901,16 @@ export function qualityLines(analysis: SessionAnalysis | null): QualityLine[] {
     line(
       "truncated",
       "Events omitted by the cap",
-      quality.events_truncated.toLocaleString(),
+      integer(quality.events_truncated),
       quality.events_truncated === 0,
     ),
     line(
       "slip-detectors",
       "Raw slip detections",
-      `${(
+      `${integer(
         quality.slip_ratio_detector_events +
-        quality.combined_slip_detector_events
-      ).toLocaleString()} → ${analysis.driving_summary.slip_episode_count.toLocaleString()} episodes`,
+          quality.combined_slip_detector_events,
+      )} → ${integer(analysis.driving_summary.slip_episode_count)} episodes`,
     ),
     line(
       "slip-coverage",

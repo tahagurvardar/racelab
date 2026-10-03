@@ -1,0 +1,6 @@
+{
+  "//": "DEV-ONLY: type-checks the review harness against the application types.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "types": ["vite/client"] },
+  "include": ["../src", "."]
+}

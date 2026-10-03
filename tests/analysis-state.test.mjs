@@ -330,7 +330,7 @@ test("a failed analysis on an unreadable recording is not offered a re-run", () 
   assert.equal(banner.offerReanalysis, false);
 });
 
-test("an unsupported analysis schema names both versions", () => {
+test("an unsupported analysis says so plainly; versions stay in the Data tab", () => {
   const banner = analysisBanner(
     state({
       state: "unsupported_schema",
@@ -341,8 +341,10 @@ test("an unsupported analysis schema names both versions", () => {
   );
   assert.equal(banner.showAnalysis, false);
   assert.equal(banner.problem, true);
-  assert.match(banner.detail, /v9/);
-  assert.match(banner.detail, /v1/);
+  // Product copy, not version numbers: those are in the session's Data tab.
+  assert.match(banner.detail, /different version of RaceLab/);
+  assert.ok(!/v9|v1|schema/i.test(banner.detail), banner.detail);
+  assert.match(banner.detail, /recording itself is unaffected/);
   // It can be regenerated, and the offer is made.
   assert.equal(banner.offerReanalysis, true);
 });
@@ -582,8 +584,11 @@ test("a V1 analysis reports wheel and suspension channels as unavailable", () =>
   });
   // The event groups that need those channels say why they are empty.
   const wheelNote = channelNote(document, "wheel");
-  assert.match(wheelNote, /schema v1/);
-  assert.match(wheelNote, /Nothing is reconstructed from adapter data/);
+  // Names the missing channel and that nothing is reconstructed, without
+  // schema jargon (the frame format version is in the Data tab).
+  assert.match(wheelNote, /does not contain wheel telemetry/);
+  assert.match(wheelNote, /Nothing is reconstructed/);
+  assert.ok(!/schema/i.test(wheelNote), wheelNote);
   assert.equal(channelNote(document, "suspension") != null, true);
   // Speed and control analysis still works.
   assert.equal(drivingEventRows(document).length, 1);
@@ -755,7 +760,10 @@ test("a V1 analysis has no slip episodes and says why", () => {
     },
   });
   assert.deepEqual(slipEpisodeRows(document), []);
-  assert.match(channelNote(document, "wheel"), /schema v1/);
+  assert.match(
+    channelNote(document, "wheel"),
+    /does not contain wheel telemetry/,
+  );
 });
 
 // ----------------------------------------------------- coalescing diagnostics

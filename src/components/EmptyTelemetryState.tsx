@@ -1,12 +1,14 @@
 import type { LiveFrameState } from "../telemetry/telemetry-view-model.ts";
 
+/// The same words the top bar uses for each state, so the two never
+/// disagree.
 const HEADLINES: Record<LiveFrameState["availability"], string> = {
-  live: "Live telemetry",
-  waiting: "Waiting for game",
+  live: "Live",
+  waiting: "Waiting for Forza Horizon 6",
   idle: "Connected · not driving",
-  grace: "Telemetry paused · session held",
+  grace: "Paused · session held",
   stale: "Telemetry degraded",
-  stopped: "Listener stopped",
+  stopped: "Not listening",
 };
 
 /// Shown above a view whenever no live frame exists. It states, in words, why
@@ -21,20 +23,6 @@ export function EmptyTelemetryState({ state }: { state: LiveFrameState }) {
     >
       <p className="telemetry-empty-title">{HEADLINES[state.availability]}</p>
       <p className="telemetry-empty-reason">{state.reason}</p>
-    </div>
-  );
-}
-
-/// A permanent explanation that a whole channel has no canonical
-/// representation. Unlike `EmptyTelemetryState`, this is not about the current
-/// connection: the data does not exist in RaceLab's canonical model at all.
-export function UnavailableChannel({ reason }: { reason: string }) {
-  return (
-    <div className="panel channel-unavailable" role="note">
-      <p className="channel-unavailable-title">
-        No canonical data for this view
-      </p>
-      <p>{reason}</p>
     </div>
   );
 }

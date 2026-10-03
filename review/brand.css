@@ -1,0 +1,121 @@
+/* DEV-ONLY: layout for the brand reference sheet. Tokens only. */
+body {
+  overflow: auto;
+}
+.sheet {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-6);
+  display: grid;
+  gap: var(--sp-6);
+}
+.sheet h1 {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+}
+.sheet-note {
+  color: var(--text-2);
+}
+.block {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.block h2 {
+  font-size: var(--type-heading);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-5);
+}
+.preview-sidebar,
+.preview-rail {
+  width: 208px;
+  height: 220px;
+  padding: var(--sp-4) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg-chrome);
+}
+.preview-version {
+  margin-top: var(--sp-5);
+  padding: 0 var(--sp-3);
+}
+.preview-rail {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: var(--sp-4);
+  width: 56px;
+  padding: var(--sp-4) 0;
+}
+.preview-rail-item {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 36px;
+  border-radius: var(--r-2);
+  color: var(--text-2);
+}
+.preview-rail-item.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+/* A Windows title bar, dark and light, at the size the icon is drawn. */
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 240px;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--text);
+  font-size: var(--type-small);
+}
+.titlebar.is-light {
+  background: var(--text);
+  color: var(--bg-app);
+}
+.sizes {
+  display: flex;
+  align-items: end;
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  border-radius: var(--r-2);
+}
+.sizes.on-app {
+  background: var(--bg-app);
+}
+.sizes.on-panel {
+  background: var(--surface-2);
+}
+.sizes.on-light {
+  background: var(--text);
+  color: var(--bg-app);
+}
+.sizes.on-light .app-mark {
+  color: var(--bg-app);
+}
+.sizes figure {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+.sizes figcaption {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.wordmarks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-6);
+}

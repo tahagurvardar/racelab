@@ -33,23 +33,62 @@ function walk(relative = "") {
 }
 
 const ALL = walk();
+// Stage C: the seven V1.0 live views became four Live tabs, rendered from
+// `telemetry/live-layout.ts` through the components in `components/live/`.
+// Every boundary rule below applies to all of them.
+const LIVE_TABS = [
+  "views/live/OverviewTab.tsx",
+  "views/live/PowertrainTab.tsx",
+  "views/live/ChassisTab.tsx",
+  "views/live/DynamicsTab.tsx",
+];
+const LIVE_COMPONENTS = [
+  "components/live/Readout.tsx",
+  "components/live/ControlBar.tsx",
+  "components/live/RpmBar.tsx",
+  "components/live/NotAvailable.tsx",
+];
+// Stage D: Sessions is a workspace, its parts, a data controller and a hook.
+const SESSIONS = [
+  "workspaces/SessionsWorkspace.tsx",
+  "views/sessions/SessionList.tsx",
+  "views/sessions/SessionDetail.tsx",
+  "views/sessions/SessionTimeline.tsx",
+  "views/sessions/SummaryTab.tsx",
+  "views/sessions/EventsTab.tsx",
+  "views/sessions/TurnsTab.tsx",
+  "views/sessions/SlipTab.tsx",
+  "views/sessions/DataTab.tsx",
+  "views/sessions/parts.tsx",
+];
+const SESSIONS_DATA = [
+  "hooks/use-sessions.ts",
+  "session-controller.ts",
+  "session-workspace.ts",
+  "session-timeline.ts",
+];
 const PRODUCT_VIEWS = [
-  "views/OverviewView.tsx",
-  "views/EngineView.tsx",
-  "views/DynamicsView.tsx",
-  "views/TiresView.tsx",
-  "views/SuspensionView.tsx",
-  "views/InputsView.tsx",
-  "views/RaceView.tsx",
-  "views/SessionsView.tsx",
+  ...LIVE_TABS,
+  ...LIVE_COMPONENTS,
+  "workspaces/LiveWorkspace.tsx",
+  ...SESSIONS,
 ];
 
-test("all nine dashboard views and the shell exist", () => {
+test("every Live tab, the shell and the four workspaces exist", () => {
   for (const view of [...PRODUCT_VIEWS, "views/DiagnosticsView.tsx"]) {
     assert.ok(ALL.includes(view), `missing ${view}`);
   }
-  assert.ok(ALL.includes("components/AppShell.tsx"));
-  assert.ok(ALL.includes("components/StatusBar.tsx"));
+  for (const file of [
+    "components/AppShell.tsx",
+    "components/shell/Sidebar.tsx",
+    "components/shell/TopBar.tsx",
+    "components/shell/AlertSlot.tsx",
+    "workspaces/LiveWorkspace.tsx",
+    "workspaces/SettingsWorkspace.tsx",
+    "workspaces/DiagnosticsWorkspace.tsx",
+  ]) {
+    assert.ok(ALL.includes(file), `missing ${file}`);
+  }
   // The dashboard is not one file: App.tsx only wires the shell together.
   assert.ok(read("App.tsx").split("\n").length < 80);
 });
@@ -85,7 +124,11 @@ test("only the diagnostics view model reads sourceSpecific", () => {
 });
 
 test("the raw gear code never reaches a product view", () => {
-  for (const view of [...PRODUCT_VIEWS, "telemetry/telemetry-view-model.ts"]) {
+  for (const view of [
+    ...PRODUCT_VIEWS,
+    "telemetry/telemetry-view-model.ts",
+    "telemetry/live-layout.ts",
+  ]) {
     assert.ok(!/fh6\??\.gear/.test(code(view)), view);
   }
   // It is present in exactly one place, labelled as a code.
@@ -124,16 +167,138 @@ test("telemetry polling is started once, above the view switch", () => {
 
 test("switching views cannot duplicate a polling loop", () => {
   const app = read("App.tsx");
-  // The view switch is a plain conditional render below the hook calls.
+  // The workspace switch is a plain conditional render below the owner hooks.
   const hookLine = app.indexOf("useLiveTelemetry()");
-  const switchLine = app.indexOf('view === "overview"');
+  const switchLine = app.indexOf('navigation.section === "live"');
   assert.ok(hookLine > -1 && switchLine > hookLine);
   // No hook is called inside a conditional branch.
   assert.ok(!/\?\s*use[A-Z]/.test(app));
-  // The Sessions view receives recorder status as a prop instead of polling.
-  const sessions = read("views/SessionsView.tsx");
-  assert.ok(!sessions.includes("startLatestPolling"));
-  assert.ok(sessions.includes("recorder,"));
+  // Sessions reads recorder status from the shared store instead of polling.
+  for (const file of [...SESSIONS, ...SESSIONS_DATA]) {
+    assert.ok(!read(file).includes("startLatestPolling"), file);
+  }
+  assert.ok(read("views/sessions/SessionList.tsx").includes("useRecorder("));
+});
+
+// D2(b), approved for Stage D: the one bounded refresh outside the three
+// owner hooks. It reads only the selected session's analysis, every
+// ANALYSIS_REFRESH_MS, only while it is queued or analyzing (behaviour in
+// tests/session-controller.test.mjs). Any other timer in the frontend is a
+// new loop and must be reviewed, not added quietly.
+test("the analysis refresh is the only timer outside the telemetry poller", () => {
+  const timers = ALL.filter((file) =>
+    /\bset(Timeout|Interval)\(/.test(code(file)),
+  ).sort();
+  assert.deepEqual(timers, ["latest-poller.ts", "session-controller.ts"]);
+  assert.ok(!ALL.some((file) => /\bsetInterval\(/.test(code(file))));
+  const controller = code("session-controller.ts");
+  assert.match(controller, /ANALYSIS_REFRESH_MS = 2000/);
+  // It re-reads one command — the selected session's analysis — and nothing
+  // else is ever scheduled.
+  const scheduled = [
+    ...controller.matchAll(/timers\.set\(([\s\S]*?)\}, refreshMs\)/g),
+  ];
+  assert.equal(scheduled.length, 1);
+  assert.match(scheduled[0][1], /requestAnalysis\(of\)/);
+  assert.ok(!/readManifest|refreshList/.test(scheduled[0][1]));
+  // The workspace disposes its controller on unmount.
+  assert.match(
+    read("hooks/use-sessions.ts"),
+    /return \(\) => created\.dispose\(\);/,
+  );
+});
+
+test("Sessions never asks for frames and holds no editable setting", () => {
+  for (const file of [...SESSIONS, ...SESSIONS_DATA]) {
+    const source = code(file);
+    assert.ok(
+      !/read_frames|get_frames|\bframe_stream\b|\.rlframes/i.test(source),
+      file,
+    );
+    // The storage limit belongs to Settings: Sessions shows usage only.
+    assert.ok(
+      !/StorageBudget|set_storage_budget|get_settings/.test(source),
+      file,
+    );
+  }
+  assert.match(read("workspaces/SettingsWorkspace.tsx"), /<StorageBudget \/>/);
+});
+
+// V1.1: live telemetry is held in a store, not in App state, so a 20 Hz
+// snapshot re-renders only the components that read it. These lists are the
+// complete set; adding a live reader is a deliberate, reviewed decision.
+test("only the views that show live telemetry re-render with it", () => {
+  const liveReaders = ALL.filter((file) => /\buseLive\(/.test(code(file)));
+  assert.deepEqual(liveReaders.sort(), [
+    "views/DiagnosticsView.tsx", // its open tab's counters, only while open
+    "workspaces/LiveWorkspace.tsx",
+  ]);
+  // The frame components derive small view models and re-render only when
+  // what they display changes.
+  const derivedReaders = ALL.filter(
+    (file) =>
+      /useDerived\(/.test(code(file)) && code(file).includes("liveStore"),
+  );
+  assert.deepEqual(derivedReaders.sort(), [
+    // The setup detection sentence (first-run and Settings): re-renders when
+    // the sentence changes, never at the live rate.
+    "components/SetupInstructions.tsx",
+    "components/shell/AlertSlot.tsx",
+    "components/shell/Sidebar.tsx",
+    "components/shell/TopBar.tsx",
+  ]);
+  // Settings and the first-run slot read no live telemetry themselves.
+  for (const file of [
+    "workspaces/SettingsWorkspace.tsx",
+    "components/shell/FirstRunSlot.tsx",
+    "components/FirstRunGuide.tsx",
+    "components/StorageBudget.tsx",
+    "workspaces/DiagnosticsWorkspace.tsx",
+  ]) {
+    assert.ok(
+      !/\buseLive\(|liveStore/.test(code(file)),
+      `${file} must not read live telemetry`,
+    );
+  }
+  // App and the frame read no store at all: they re-render on navigation only.
+  for (const file of ["App.tsx", "components/AppShell.tsx"]) {
+    const source = code(file);
+    assert.ok(
+      !/\buse(Live|Recorder|Transport|Setup|Store|Derived)\(/.test(source),
+      `${file} must not read a store`,
+    );
+  }
+  // Sessions reads no live telemetry or transport state, and selects only
+  // coarse recorder facts outside its pinned recording row.
+  for (const file of [...SESSIONS, ...SESSIONS_DATA]) {
+    assert.ok(
+      !/useLive\(|useTransport\(|liveStore|transportStore|use-live-telemetry/.test(
+        code(file),
+      ),
+      `${file} must not read live telemetry`,
+    );
+  }
+  assert.ok(
+    code("views/sessions/SessionList.tsx").includes(
+      "state.recorder?.completed_sessions",
+    ),
+  );
+});
+
+test("each store is written only by its owner", () => {
+  const writers = (store) =>
+    ALL.filter((file) =>
+      new RegExp(`\\b${store}\\.(set|update)\\(`).test(code(file)),
+    ).sort();
+  assert.deepEqual(writers("liveStore"), ["hooks/use-live-telemetry.ts"]);
+  assert.deepEqual(writers("recorderStore"), ["hooks/use-recorder-status.ts"]);
+  assert.deepEqual(writers("setupStore"), ["hooks/use-setup-state.ts"]);
+  // The listener controls apply the snapshot their command returns, as V1.0's
+  // `apply` did, through the one exported action next to the store.
+  assert.deepEqual(writers("transportStore"), [
+    "hooks/use-transport-stats.ts",
+    "state/stores.ts",
+  ]);
 });
 
 test("every subscription cleans up on unmount", () => {
@@ -171,20 +336,14 @@ test("the UI reads at most 20 Hz and keeps no frame history", () => {
 });
 
 test("navigation separates the product sections from diagnostics", async () => {
-  const { PRODUCT_VIEWS: product, DIAGNOSTIC_VIEWS: engineering } =
-    await import("../src/views/navigation.ts");
+  const {
+    PRODUCT_SECTIONS: product,
+    ENGINEERING_SECTIONS: engineering,
+    LIVE_TABS: tabs,
+  } = await import("../src/views/navigation.ts");
   assert.deepEqual(
     product.map((item) => item.id),
-    [
-      "overview",
-      "engine",
-      "dynamics",
-      "tires",
-      "suspension",
-      "inputs",
-      "race",
-      "sessions",
-    ],
+    ["live", "sessions", "settings"],
   );
   assert.deepEqual(
     engineering.map((item) => item.id),
@@ -192,6 +351,10 @@ test("navigation separates the product sections from diagnostics", async () => {
   );
   // Diagnostics is never part of the product group.
   assert.ok(!product.some((item) => item.id === "diagnostics"));
+  assert.deepEqual(
+    tabs.map((tab) => tab.label),
+    ["Overview", "Powertrain", "Chassis", "Dynamics"],
+  );
 });
 
 test("no routing or charting dependency was introduced", async () => {
@@ -240,7 +403,7 @@ test("the wheel corner mapping exists in exactly one frontend module", () => {
     "telemetry/telemetry-view-model.ts", // maps corner -> field, once
   ]);
   // And no component or view indexes wheels positionally.
-  for (const view of [...PRODUCT_VIEWS, "components/WheelTelemetry.tsx"]) {
+  for (const view of [...PRODUCT_VIEWS, "telemetry/live-layout.ts"]) {
     const source = code(view);
     assert.ok(!/wheels\s*\[/.test(source), `${view} must not index wheels`);
     assert.ok(

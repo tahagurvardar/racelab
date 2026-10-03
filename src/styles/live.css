@@ -1,0 +1,771 @@
+/* Live telemetry (Stage C). Tokens only.
+   Hierarchy comes from type size and position, not from a box per number:
+   panels exist only where a real group exists (driving state, inputs, a
+   wheel, a table). Every numeric value uses tabular figures and, where it
+   ticks at the live rate, a fixed slot, so digits never shift the layout. */
+
+/* ------------------------------------------------------------ primitives */
+
+.live-panel {
+  min-width: 0;
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+
+.live-section-title {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.live-footnote {
+  max-width: 96ch;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+
+/* A degraded but still valid stream: stated once, quietly, above the tab. */
+/* The same shape as every other inline warning (views.css .notice). */
+.live-caution {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--warn-border);
+  border-left-width: 3px;
+  border-radius: var(--r-2);
+  background: var(--warn-surface);
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.live-caution strong {
+  color: var(--warn-text);
+  font-weight: var(--weight-semibold);
+}
+.live-caution-glyph {
+  color: var(--status-warn);
+  font-size: var(--type-small);
+}
+
+/* --------------------------------------------------------------- readout */
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.readout-label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.readout-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sp-1);
+  white-space: nowrap;
+}
+/* An explicit min-width (the fixed slots below) replaces a flex item's
+   "never smaller than its content" minimum, so without this a wide value
+   such as -1500.0 is squeezed under its unit. Neither part ever shrinks. */
+.readout-line > * {
+  flex-shrink: 0;
+}
+.readout-value {
+  color: var(--text);
+  font-size: var(--type-lead);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-3) var(--ease);
+}
+.readout-unit {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+}
+.readout.is-unavailable .readout-value {
+  color: var(--text-unavailable);
+}
+
+.readout-hero .readout-value {
+  font-family: var(--font-display);
+  font-size: clamp(var(--type-display), 8cqi, var(--type-mega));
+  line-height: 0.95;
+  letter-spacing: var(--tracking-display);
+}
+.readout-hero .readout-unit {
+  margin-left: var(--sp-1);
+  font-size: var(--type-title);
+}
+.readout-display .readout-value {
+  font-family: var(--font-display);
+  font-size: clamp(var(--type-figure), 4.2cqi, var(--type-display));
+  letter-spacing: var(--tracking-tight);
+}
+.readout-display .readout-unit {
+  font-size: var(--type-heading);
+}
+/* No reading is not a big reading: an unavailable hero or display value keeps
+   its place but not its size, so an idle dashboard stays calm. */
+.readout-hero.is-unavailable .readout-value,
+.readout-display.is-unavailable .readout-value {
+  font-size: var(--type-figure);
+}
+.readout-figure .readout-value {
+  font-size: var(--type-figure);
+  letter-spacing: var(--tracking-tight);
+}
+.readout-compact .readout-value {
+  font-size: var(--type-heading);
+}
+.readout-detail .readout-value {
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-weight: var(--weight-regular);
+}
+
+/* Fixed slots for values that tick at the live rate. */
+.drive-speed .readout-value {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+}
+.drive-rpm .readout-value,
+.engine-speed .readout-value {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+}
+.engine-output .readout-display .readout-value {
+  display: inline-block;
+  min-width: 5ch;
+  text-align: right;
+}
+
+/* ----------------------------------------------------------- input bars */
+
+.control-bar {
+  display: grid;
+  grid-template-areas:
+    "label value"
+    "track track";
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: var(--sp-2);
+  min-width: 0;
+}
+.control-bar-label {
+  grid-area: label;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.control-bar-value {
+  grid-area: value;
+  min-width: 5ch;
+  color: var(--text);
+  font-size: var(--type-lead);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.control-bar-track {
+  position: relative;
+  grid-area: track;
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+}
+.control-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ch-neutral);
+  transition: width var(--dur-sample) linear;
+}
+.control-bar[data-channel="throttle"] .control-bar-fill {
+  background: var(--ch-throttle);
+}
+.control-bar[data-channel="brake"] .control-bar-fill {
+  background: var(--ch-brake);
+}
+/* A signed channel grows from the centre in either direction. */
+.control-bar-track.is-signed::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--border-strong);
+}
+.control-bar-track.is-signed .control-bar-fill {
+  left: 50%;
+}
+.control-bar-track.is-signed .control-bar-fill.is-negative {
+  right: 50%;
+  left: auto;
+}
+.control-bar.is-unavailable .control-bar-value {
+  color: var(--text-unavailable);
+}
+.control-bar.is-unavailable .control-bar-track {
+  border-style: dashed;
+  background: transparent;
+}
+.control-bar-compact .control-bar-track {
+  height: 6px;
+}
+.control-bar-compact .control-bar-value {
+  font-size: var(--type-body);
+}
+
+/* --------------------------------------------------------------- RPM bar */
+
+.rpm-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.rpm-bar-track {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+}
+.rpm-bar.is-unavailable .rpm-bar-track {
+  border-style: dashed;
+  background: transparent;
+}
+.rpm-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ch-neutral);
+  transition: width var(--dur-sample) linear;
+}
+.rpm-bar-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.rpm-bar-end-value {
+  color: var(--text-2);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.rpm-bar-end[data-available="false"] .rpm-bar-end-value {
+  color: var(--text-unavailable);
+}
+
+/* ---------------------------------------------------------- not available */
+
+.not-available {
+  display: grid;
+  gap: var(--sp-2);
+}
+.not-available dl {
+  display: grid;
+  gap: var(--sp-2);
+}
+.not-available-group {
+  display: grid;
+  grid-template-columns: minmax(12rem, max-content) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-5);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+.not-available-group dt {
+  color: var(--text-2);
+  font-weight: var(--weight-semibold);
+}
+.not-available-group dd {
+  margin: 0;
+  max-width: 88ch;
+  color: var(--text-3);
+}
+
+/* -------------------------------------------------------------- Overview */
+
+.live-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+.overview-context,
+.overview-notes {
+  grid-column: 1 / -1;
+}
+
+.overview-drive {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-5);
+}
+.drive-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--sp-5) var(--sp-7);
+}
+.drive-rpm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding-bottom: var(--sp-1);
+}
+.drive-secondary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.overview-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.inputs-primary {
+  display: grid;
+  gap: var(--sp-4);
+}
+.inputs-auxiliary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-top: auto;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* One strip, not a row of boxes: groups separated by hairlines. */
+.overview-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-4) 0;
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-3);
+  background: var(--bg-chrome);
+}
+.context-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-6);
+  padding: 0 var(--sp-6);
+}
+.context-group:first-child {
+  padding-left: 0;
+}
+.context-group + .context-group {
+  border-left: 1px solid var(--border-subtle);
+}
+.context-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.context-label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.context-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--type-heading);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.context-duration {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.context-state.tone-neutral .context-value {
+  color: var(--text-2);
+}
+.context-state.tone-warn .context-value {
+  color: var(--warn-text);
+}
+.context-state.tone-bad .context-value {
+  color: var(--bad-text);
+}
+.context-state.is-recording .context-value::before {
+  content: "";
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--rec);
+}
+
+.overview-notes {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+/* ------------------------------------------------------------ Powertrain */
+
+.live-powertrain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.powertrain-engine {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: end;
+  gap: var(--sp-5) var(--sp-7);
+}
+.engine-speed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.engine-output {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-5) var(--sp-6);
+  padding-left: var(--sp-6);
+  border-left: 1px solid var(--border-subtle);
+}
+.engine-output-item {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.engine-note {
+  grid-column: 1 / -1;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+}
+/* A quiet context strip, drawn exactly like the Overview one. */
+.powertrain-vehicle {
+  display: grid;
+  gap: var(--sp-4);
+  border-color: var(--border-subtle);
+  background: var(--bg-chrome);
+}
+.vehicle-codes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+
+/* --------------------------------------------------------------- Chassis */
+
+.live-chassis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.axle-label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-align: center;
+  text-transform: uppercase;
+}
+.chassis-grid {
+  display: grid;
+  grid-template-areas:
+    "fl car fr"
+    "rl car rr";
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+.corner-fl {
+  grid-area: fl;
+}
+.corner-fr {
+  grid-area: fr;
+}
+.corner-rl {
+  grid-area: rl;
+}
+.corner-rr {
+  grid-area: rr;
+}
+.chassis-outline {
+  grid-area: car;
+  align-self: center;
+  justify-self: center;
+  width: 48px;
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+/* Every corner has the same internal layout: tyre left, suspension right. */
+.corner {
+  display: grid;
+  grid-template-areas:
+    "head head"
+    "tire susp";
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3) var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+}
+.corner-head {
+  display: flex;
+  grid-area: head;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.corner-code {
+  font-size: var(--type-lead);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-label);
+}
+.corner-name {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.corner-tire {
+  display: flex;
+  grid-area: tire;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.corner-slip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  align-items: end;
+  gap: var(--sp-3);
+}
+/* Narrow corners: a long channel name wraps; values stay on one baseline. */
+.corner-slip .readout-label {
+  white-space: normal;
+}
+/* rad/s with its rpm equivalent quietly beside it, on one baseline. */
+.corner-rotation {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+.corner-temperature .readout-value {
+  display: inline-block;
+  min-width: 4ch;
+}
+.corner-suspension {
+  display: flex;
+  grid-area: susp;
+  gap: var(--sp-3);
+  padding-left: var(--sp-5);
+  border-left: 1px solid var(--border-subtle);
+}
+.corner-travel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 8ch;
+}
+/* Normalized travel on its own 0..1 scale: a neutral fill, no thresholds. */
+.travel-bar {
+  position: relative;
+  width: 8px;
+  min-height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+}
+.travel-bar.is-unavailable {
+  border-style: dashed;
+  background: transparent;
+}
+.travel-bar-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--ch-scale-3);
+  transition: height var(--dur-sample) linear;
+}
+
+.chassis-notes {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* -------------------------------------------------------------- Dynamics */
+
+/* Panels sized to their tables, so a value stays close to its row label;
+   side by side when there is room, stacked when there is not. */
+.live-dynamics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+.dynamics-motion {
+  flex: 1 1 36rem;
+  max-width: 52rem;
+}
+.dynamics-attitude {
+  flex: 1 1 20rem;
+  max-width: 30rem;
+}
+.dynamics-motion,
+.dynamics-attitude {
+  display: grid;
+  gap: var(--sp-4);
+}
+.dynamics-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+.dynamics-speed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+.dynamics-speed .readout-detail .readout-value {
+  font-size: var(--type-heading);
+}
+.dynamics-speed .readout-value {
+  display: inline-block;
+  min-width: 6ch;
+  text-align: right;
+}
+
+.axis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.axis-table th,
+.axis-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: right;
+  white-space: nowrap;
+}
+.axis-table thead th {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.axis-table thead th:first-child,
+.axis-table tbody th {
+  padding-left: 0;
+  text-align: left;
+}
+.axis-table tbody th {
+  color: var(--text-2);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+.axis-table td {
+  min-width: 9ch;
+  color: var(--text);
+  font-size: var(--type-lead);
+  font-weight: var(--weight-semibold);
+  transition: color var(--dur-3) var(--ease);
+}
+.axis-table td.is-unavailable {
+  color: var(--text-unavailable);
+}
+/* The unit column: its header reads like every other header; its cells are
+   quiet, and never uppercased (m/s² is not M/S²). */
+.axis-table th.axis-unit {
+  text-align: left;
+}
+.axis-table td.axis-unit {
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-weight: var(--weight-regular);
+  text-align: left;
+}
+.axis-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.attitude-table th:first-child,
+.attitude-table td:first-child {
+  text-align: right;
+}
+
+/* ------------------------------------------------------------ narrowing */
+
+@container workspace (max-width: 1000px) {
+  .chassis-grid {
+    grid-template-areas:
+      "fl fr"
+      "rl rr";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chassis-outline {
+    display: none;
+  }
+}
+
+@container workspace (max-width: 860px) {
+  .live-overview,
+  .powertrain-engine {
+    grid-template-columns: 1fr;
+  }
+  .engine-output {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@container workspace (max-width: 680px) {
+  .drive-main {
+    grid-template-columns: 1fr;
+  }
+  .vehicle-codes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chassis-grid {
+    grid-template-areas: "fl" "fr" "rl" "rr";
+    grid-template-columns: 1fr;
+  }
+  .context-group {
+    padding: 0;
+  }
+  .context-group + .context-group {
+    border-left: 0;
+  }
+}

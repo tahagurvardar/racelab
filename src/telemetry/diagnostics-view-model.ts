@@ -6,6 +6,13 @@
 /// presented as the numbers the adapter decoded, with no unit asserted and no
 /// meaning inferred for an opaque code.
 import type { TelemetryFrame } from "./frame.ts";
+import {
+  GEAR_UNVALIDATED,
+  NEVER_OBSERVED as NEVER_OBSERVED_FIELD,
+  NO_CANONICAL_FIELD,
+  NOT_DECODED,
+  gameName,
+} from "./telemetry-view-model.ts";
 import type { LiveSnapshot } from "./live-snapshot.ts";
 import type { StatsSnapshot } from "../telemetry-state.ts";
 import {
@@ -14,8 +21,10 @@ import {
   code,
   hertz,
   integer,
+  namedCode,
   number,
   text,
+  type NamedCode,
 } from "./formatting.ts";
 
 export interface DiagnosticEntry {
@@ -24,6 +33,27 @@ export interface DiagnosticEntry {
   value: string;
   /// Only set where the value is an unvalidated adapter reading.
   caveat?: string;
+  /// Set for a backend state or identifier code: `value` is its readable
+  /// name, and this is the verbatim code, or null when the name already shows
+  /// it (see `namedCode`).
+  code?: string | null;
+}
+
+function named(key: string, label: string, raw: NamedCode): DiagnosticEntry {
+  return { key, label, value: raw.name, code: raw.code };
+}
+
+/// The recorder's own state codes, spelled out. Nothing is renamed.
+const RECORDER_STATES = {
+  idle: "Idle",
+  recording: "Recording",
+  error: "Error",
+} as const;
+
+export function recorderState(
+  status: string | null | undefined,
+): DiagnosticEntry {
+  return named("status", "Status", namedCode(status, RECORDER_STATES));
 }
 
 const UNVERIFIED_UNIT = "Raw adapter value; unit unverified.";
@@ -234,12 +264,23 @@ export function fh6Race(frame: TelemetryFrame | null): DiagnosticEntry[] {
   ];
 }
 
+/// The protocol identifier the backend classified, with the game it names
+/// when it names one (the same mapping the top bar uses).
+function protocolEntry(protocol: string | null | undefined): DiagnosticEntry {
+  const game = gameName(protocol);
+  return named(
+    "protocol",
+    "Protocol",
+    namedCode(protocol, protocol && game ? { [protocol]: game } : {}),
+  );
+}
+
 /// Transport and protocol engineering counters.
 export function protocolDiagnostics(
   snapshot: LiveSnapshot | null,
 ): DiagnosticEntry[] {
   return [
-    entry("protocol", "Protocol", text(snapshot?.protocol)),
+    protocolEntry(snapshot?.protocol),
     entry(
       "confidence",
       "Protocol confidence",
@@ -282,7 +323,7 @@ export function hubDiagnostics(
       "Recent-frame ring",
       hub == null
         ? UNAVAILABLE
-        : `${hub.recent_frames.toLocaleString()} / ${hub.ring_capacity.toLocaleString()}`,
+        : `${integer(hub.recent_frames)} / ${integer(hub.ring_capacity)}`,
     ),
     entry("evictions", "Ring evictions", integer(hub?.ring_evictions)),
     entry("subscribers", "Subscribers", integer(hub?.subscribers)),
@@ -314,5 +355,39 @@ export function transportDiagnostics(
       integer(stats?.receive_buffer_bytes),
       "Winsock readback, not proof of queue capacity.",
     ),
+  ];
+}
+
+/// Fields RaceLab does not present as live readings, each with the same
+/// reason the product gives where the value would appear. Nothing here is
+/// decoded or reinterpreted; it is the list of what is deliberately absent.
+export function deferredFields(): DiagnosticEntry[] {
+  // The product's sentence, minus what this table already says: the value
+  // column reads "Not shown", and the pointer to Diagnostics is redundant here.
+  const here = (reason: string) =>
+    reason
+      .replace(/^Not shown\. /, "")
+      .replace(/ The raw value is in Diagnostics\.$/, "");
+  return [
+    entry("gear", "Gear", "Not shown", here(GEAR_UNVALIDATED)),
+    entry("boost", "Boost", "Not shown", here(NO_CANONICAL_FIELD)),
+    entry("fuel", "Fuel", "Not shown", here(NO_CANONICAL_FIELD)),
+    entry(
+      "current-lap",
+      "Current lap time",
+      "Not shown",
+      here(NEVER_OBSERVED_FIELD),
+    ),
+    entry("last-lap", "Last lap time", "Not shown", here(NEVER_OBSERVED_FIELD)),
+    entry("best-lap", "Best lap time", "Not shown", here(NEVER_OBSERVED_FIELD)),
+    entry(
+      "distance",
+      "Distance travelled",
+      "Not shown",
+      here(NEVER_OBSERVED_FIELD),
+    ),
+    entry("rumble", "Rumble strip", "Not shown", here(NEVER_OBSERVED_FIELD)),
+    entry("puddle", "Puddle depth", "Not shown", here(NEVER_OBSERVED_FIELD)),
+    entry("surface-rumble", "Surface rumble", "Not shown", here(NOT_DECODED)),
   ];
 }

@@ -204,7 +204,7 @@ test("the overview renders canonical speed, RPM and driver inputs", () => {
   );
   assert.deepEqual(
     model.identity.map((item) => item.value),
-    ["2599", "fh6"],
+    ["2599", "Forza Horizon 6"], // the product name, not the protocol code
   );
 });
 

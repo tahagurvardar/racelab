@@ -1,0 +1,161 @@
+/* RaceLab V1.1 design tokens.
+   This is the only file in the frontend allowed to contain a raw colour
+   (tests/design-tokens.test.mjs). Components use these names, never values.
+   Dark is the only theme; the names are semantic so a light theme can be
+   added later by redefining them, not by editing components. */
+
+:root {
+  color-scheme: dark;
+  /* The rem base every --type-* size is expressed against. */
+  font-size: 16px;
+
+  /* ------------------------------------------------------------ surfaces */
+  --bg-app: #0a0c0f; /* window */
+  --bg-chrome: #0d1014; /* sidebar, top bar */
+  --surface-1: #12161b; /* panels */
+  --surface-2: #171c22; /* inset rows, inputs, table headers */
+  --surface-3: #1e242c; /* hover, selected */
+  --overlay: #1a1f26; /* popovers — the only elevated surface */
+
+  /* ------------------------------------------------------------- borders */
+  --border-subtle: #1c2229; /* dividers inside a panel */
+  --border: #252c35; /* panel edges */
+  --border-strong: #343c47; /* controls, selected edges */
+
+  /* ---------------------------------------------------------------- text */
+  /* Contrast on --surface-1: text ≈15.7:1, text-2 ≈8.5:1, text-3 ≈5.2:1.
+     text-3 carries small labels and must stay at or above 4.5:1. */
+  --text: #eceff3;
+  --text-2: #a9b2bd;
+  --text-3: #808b97;
+  /* A meaningful "no reading" (the em dash for an unavailable value). Quieter
+     than a reading, never dominant, but still legible text: >= 4.5:1 on every
+     panel and inset surface (tests/design-tokens.test.mjs). */
+  --text-unavailable: #7a8591;
+  /* Disabled controls only. Deliberately below text contrast: a disabled
+     control is not content. Never used for a telemetry value. */
+  --text-disabled: #4f5863;
+  --text-on-accent: #071019;
+
+  /* --------------------------------------------------------------- brand */
+  /* Interactive only: selection, focus, active tab. Never a data colour. */
+  --accent: #5aa8ff;
+  --accent-strong: #7bbaff;
+  --accent-surface: #12233a;
+  --focus: var(--accent);
+
+  /* -------------------------------------------------------------- status */
+  /* Amber is reserved for real caution states, red for failure and loss. */
+  --status-ok: #4fcb86;
+  --status-warn: #e5b454;
+  --status-bad: #f0605d;
+  --status-neutral: #808b97;
+
+  --ok-surface: #0f1e17;
+  --ok-border: #24553b;
+  --warn-surface: #1f1a0e;
+  --warn-border: #5c4a1f;
+  --warn-text: #f2d08f;
+  --bad-surface: #1f1314;
+  --bad-border: #5a2a2a;
+  --bad-text: #ffb3ae;
+
+  /* The recording dot. The only persistent red in the window. */
+  --rec: #ff4d4d;
+
+  /* ------------------------------------------------ telemetry channels */
+  /* Channel identity, not judgement: throttle green, brake red is the
+     motorsport convention for telling the two pedals apart. */
+  --ch-throttle: #4fcb86;
+  --ch-brake: #f0605d;
+  --ch-neutral: #a9b2bd; /* steering, clutch, handbrake, RPM */
+  /* A neutral single-hue intensity ramp for magnitudes such as tyre
+     temperature and slip. It has no thresholds and no good/bad meaning; the
+     number is always printed beside it. */
+  --ch-scale-0: #1f2833;
+  --ch-scale-1: #34465a;
+  --ch-scale-2: #50677f;
+  --ch-scale-3: #7d93a8;
+  --ch-scale-4: #c9d5e0;
+
+  /* ---------------------------------------------------------- typography */
+  --font-sans:
+    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display:
+    "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+  /* Machine strings only: IDs, hex, paths, raw adapter values, codes.
+     Ordinary numbers use the sans face with tabular figures. */
+  --font-mono:
+    "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+
+  --type-mega: 6rem; /* 96 — the primary live reading on a wide window */
+  --type-hero: 4.5rem; /* 72 — the one primary live reading */
+  --type-display: 2.75rem; /* 44 — secondary hero readings */
+  --type-figure: 1.5rem; /* 24 — KPI figures */
+  --type-title: 1.125rem; /* 18 — workspace titles */
+  --type-lead: 1rem; /* 16 — prominent values in dense grids */
+  --type-heading: 0.875rem; /* 14 — panel headings */
+  --type-body: 0.8125rem; /* 13 — default UI text */
+  --type-small: 0.75rem; /* 12 — captions, table cells */
+  --type-label: 0.6875rem; /* 11 — uppercase field labels */
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-body: 1.5;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 650;
+
+  --tracking-display: -0.03em;
+  --tracking-tight: -0.015em;
+  --tracking-label: 0.06em;
+  --tracking-caps: 0.12em;
+
+  /* -------------------------------------------------------------- spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+
+  /* --------------------------------------------------------------- radius */
+  --r-1: 2px; /* bars, tracks */
+  --r-2: 4px; /* controls, chips, rows */
+  --r-3: 6px; /* panels */
+  --r-pill: 999px; /* status pills only */
+
+  /* ------------------------------------------------------------ elevation */
+  /* Panels are not elevated: hierarchy comes from surface tone and a 1px
+     border. Only overlays cast a shadow. */
+  --shadow-overlay: 0 12px 32px -8px #000000b3, 0 0 0 1px var(--border-strong);
+
+  /* --------------------------------------------------------------- motion */
+  --dur-1: 120ms; /* hover, press, tab content */
+  --dur-2: 180ms; /* state colour changes */
+  --dur-3: 280ms; /* live / idle transitions */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* Telemetry bars follow one poll interval at most, linearly, so no value
+     is drawn between samples for longer than a frame. */
+  --dur-sample: 50ms;
+
+  /* ---------------------------------------------------------------- shell */
+  --sidebar-width: 208px;
+  --rail-width: 56px;
+  --topbar-height: 48px;
+  --content-max: 1680px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+    --dur-sample: 0ms;
+  }
+}

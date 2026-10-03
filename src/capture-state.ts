@@ -24,6 +24,20 @@ export interface CaptureSnapshot {
   last_error: string | null;
 }
 
+/// The capture writer's state codes, spelled out for the capture panel. Its
+/// "recording" is the raw datagram writer, not session recording, so it reads
+/// "Capturing"; "complete" means the file and summary are saved. The verbatim
+/// code is shown beside any name that differs from it (`namedCode`).
+export const CAPTURE_STATES: Readonly<
+  Record<CaptureSnapshot["status"], string>
+> = {
+  idle: "Idle",
+  recording: "Capturing",
+  stopping: "Stopping",
+  complete: "Saved",
+  error: "Error",
+};
+
 export function newerCapture(
   current: CaptureSnapshot | null,
   incoming: CaptureSnapshot,

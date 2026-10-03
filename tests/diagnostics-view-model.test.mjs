@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { UNAVAILABLE } from "../src/telemetry/formatting.ts";
+import { UNAVAILABLE, grouped } from "../src/telemetry/formatting.ts";
 import {
   fh6GearCode,
   fh6Powertrain,
@@ -9,6 +9,7 @@ import {
   fh6Vehicle,
   hubDiagnostics,
   protocolDiagnostics,
+  recorderState,
   transportDiagnostics,
 } from "../src/telemetry/diagnostics-view-model.ts";
 
@@ -178,13 +179,18 @@ test("protocol, hub and transport counters reach diagnostics", () => {
   const protocol = Object.fromEntries(
     protocolDiagnostics(snapshot).map((item) => [item.key, item.value]),
   );
-  assert.equal(protocol.protocol, "fh6");
+  // The game it names, with the verbatim identifier kept beside it.
+  const protocolEntry = protocolDiagnostics(snapshot).find(
+    (item) => item.key === "protocol",
+  );
+  assert.equal(protocolEntry.value, "Forza Horizon 6");
+  assert.equal(protocolEntry.code, "fh6");
   assert.equal(protocol.confidence, "100%");
   assert.equal(protocol["input-hz"], "69.4 Hz");
   assert.equal(protocol["packet-age"], "14 ms");
   // Counted quantities group for the reader's locale; the test must not
   // assume a separator.
-  assert.equal(protocol.active, (1200).toLocaleString());
+  assert.equal(protocol.active, grouped(1200));
   assert.equal(protocol.inactive, "300");
   assert.equal(protocol.invalid, "0");
   assert.equal(protocol.unknown, "2");
@@ -194,7 +200,7 @@ test("protocol, hub and transport counters reach diagnostics", () => {
   );
   assert.equal(hub.recent, "512 / 512");
   assert.equal(hub.drops, "0");
-  assert.equal(hub.grace, `${(10000).toLocaleString()} ms`);
+  assert.equal(hub.grace, `${grouped(10000)} ms`);
 
   const transport = Object.fromEntries(
     transportDiagnostics({
@@ -224,4 +230,24 @@ test("every diagnostic reads unavailable when there is no snapshot", () => {
   ]) {
     assert.equal(entry.value, UNAVAILABLE, entry.key);
   }
+});
+
+test("recorder and protocol states read as names; nothing is renamed", () => {
+  assert.deepEqual(recorderState("recording"), {
+    key: "status",
+    label: "Status",
+    value: "Recording",
+    code: null,
+  });
+  assert.equal(recorderState("idle").value, "Idle");
+  assert.equal(recorderState("error").value, "Error");
+  // A state this build does not know is shown verbatim.
+  assert.equal(recorderState("paused").value, "paused");
+  assert.equal(recorderState(null).value, UNAVAILABLE);
+  // An unknown protocol identifier is not given a game name.
+  const unknown = protocolDiagnostics({ protocol: "f1" }).find(
+    (item) => item.key === "protocol",
+  );
+  assert.equal(unknown.value, "f1");
+  assert.equal(unknown.code, null);
 });

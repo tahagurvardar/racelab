@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { grouped as group } from "../src/telemetry/formatting.ts";
 import {
   bytes,
   recoveryLabel,
@@ -161,11 +162,25 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
   const { readFile } = await import("node:fs/promises");
   // V0.7 moved the panel into the dashboard shell as a view, and moved the
   // recorder-status poll up into a shared hook so opening Sessions cannot start
-  // a second polling loop. The command surface is otherwise unchanged.
-  const panel = await readFile(
-    new URL("../src/views/SessionsView.tsx", import.meta.url),
-    "utf8",
-  );
+  // a second polling loop. V1.1 (Stage D) split the view into a workspace, its
+  // parts, a data controller and a hook; every one of them is read here, so
+  // the command surface is checked across the whole of Sessions.
+  const { readdirSync } = await import("node:fs");
+  const sessionFiles = [
+    "workspaces/SessionsWorkspace.tsx",
+    "hooks/use-sessions.ts",
+    "session-controller.ts",
+    ...readdirSync(new URL("../src/views/sessions/", import.meta.url)).map(
+      (name) => `views/sessions/${name}`,
+    ),
+  ];
+  const panel = (
+    await Promise.all(
+      sessionFiles.map((file) =>
+        readFile(new URL(`../src/${file}`, import.meta.url), "utf8"),
+      ),
+    )
+  ).join("\n");
   const hook = await readFile(
     new URL("../src/hooks/use-recorder-status.ts", import.meta.url),
     "utf8",
@@ -209,7 +224,7 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
     "re-analysis must have exactly one call site",
   );
   assert.ok(
-    /banner\.offerReanalysis && banner\.problem/.test(panel),
+    /(\w+)\.offerReanalysis && \1\.problem/.test(panel),
     "the re-run action must be gated on a problem state",
   );
   // And it never becomes a recording control by another name.
@@ -223,11 +238,22 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
     new URL("../src/App.tsx", import.meta.url),
     "utf8",
   );
-  // Live telemetry, sessions and raw capture all remain reachable in the V0.7
-  // shell: the first as the dashboard views, the last inside Diagnostics.
-  assert.ok(app.includes("<OverviewView"));
-  assert.ok(app.includes("<SessionsView"));
-  assert.ok(app.includes("<DiagnosticsView"));
+  // Live telemetry, sessions and raw capture all remain reachable in the V1.1
+  // shell: the live views inside the Live workspace, sessions as a section,
+  // raw capture inside Diagnostics.
+  const read = (relative) =>
+    readFile(new URL(`../src/${relative}`, import.meta.url), "utf8");
+  assert.ok(app.includes("<LiveWorkspace"));
+  assert.ok(app.includes("<SessionsWorkspace"));
+  assert.ok(app.includes("<DiagnosticsWorkspace"));
+  assert.ok(
+    (await read("workspaces/LiveWorkspace.tsx")).includes("OverviewTab"),
+  );
+  assert.ok(
+    (await read("workspaces/DiagnosticsWorkspace.tsx")).includes(
+      "<DiagnosticsView",
+    ),
+  );
   const diagnostics = await readFile(
     new URL("../src/views/DiagnosticsView.tsx", import.meta.url),
     "utf8",
@@ -296,7 +322,7 @@ test("an interrupted session with no recovery record says it has not been checke
 test("a truncated recording reports how many frames were recovered", () => {
   // The count is grouped for the reader, so the expectation is written the
   // same way rather than assuming a separator this machine may not use.
-  const grouped = (4321).toLocaleString();
+  const grouped = group(4321);
   const note = recoveryNote(interruptedManifest(scan()));
   assert.match(note, new RegExp(`${grouped} frames were recovered`));
   assert.match(note, /never reached the disk/i);
@@ -321,7 +347,7 @@ test("a fully readable interrupted recording still says it is not a finished ses
 test("a damaged recording claims only the frames before the damage", () => {
   const note = recoveryNote(interruptedManifest(scan({ outcome: "damaged" })));
   assert.match(note, /damaged/i);
-  assert.match(note, new RegExp(`first ${(4321).toLocaleString()} frames`));
+  assert.match(note, new RegExp(`first ${group(4321)} frames`));
 });
 
 test("an unreadable recording claims nothing at all", () => {

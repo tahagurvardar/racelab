@@ -1,21 +1,18 @@
-import { useEffect, useReducer } from "react";
+import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { StatsSnapshot, TelemetryState } from "../telemetry-state.ts";
 import {
-  initialTelemetryState,
-  telemetryReducer,
-  type StatsSnapshot,
-  type TelemetryState,
-} from "../telemetry-state.ts";
+  transportFailed,
+  transportReceived,
+  transportStore,
+} from "../state/stores.ts";
+import { useStore } from "../state/use-store.ts";
 
 /// V0.2.2 transport counters arrive as 4 Hz backend events, not by polling.
 /// Subscribing before the initial query supports remount and reload; a late
 /// rejected query cannot undo a successful event.
-export function useTransportStats(): TelemetryState & {
-  apply: (snapshot: StatsSnapshot) => void;
-} {
-  const [state, dispatch] = useReducer(telemetryReducer, initialTelemetryState);
-
+export function useTransportStats(): void {
   useEffect(() => {
     let disposed = false;
     let unlisten: UnlistenFn | undefined;
@@ -25,7 +22,9 @@ export function useTransportStats(): TelemetryState & {
           "telemetry://stats",
           (event) => {
             if (!disposed)
-              dispatch({ type: "snapshot", snapshot: event.payload });
+              transportStore.update((state) =>
+                transportReceived(state, event.payload),
+              );
           },
         );
         if (disposed) {
@@ -34,10 +33,13 @@ export function useTransportStats(): TelemetryState & {
         }
         unlisten = cleanup;
         const snapshot = await invoke<StatsSnapshot>("get_telemetry_stats");
-        if (!disposed) dispatch({ type: "snapshot", snapshot });
+        if (!disposed)
+          transportStore.update((state) => transportReceived(state, snapshot));
       } catch (reason) {
         if (!disposed)
-          dispatch({ type: "connectionFailure", message: String(reason) });
+          transportStore.update((state) =>
+            transportFailed(state, String(reason)),
+          );
       }
     }
     void subscribe();
@@ -46,10 +48,9 @@ export function useTransportStats(): TelemetryState & {
       unlisten?.();
     };
   }, []);
+}
 
-  return {
-    ...state,
-    apply: (snapshot: StatsSnapshot) =>
-      dispatch({ type: "snapshot", snapshot }),
-  };
+/// Reader; see `useLive`.
+export function useTransport<S>(select: (state: TelemetryState) => S): S {
+  return useStore(transportStore, select);
 }
