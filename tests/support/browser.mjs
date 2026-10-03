@@ -145,12 +145,16 @@ export async function startBrowser() {
   );
 
   const portFile = path.join(profile, "DevToolsActivePort");
-  const devtoolsPort = await waitFor(
-    () =>
-      fs.existsSync(portFile) &&
-      fs.readFileSync(portFile, "utf8").split("\n")[0].trim(),
-    "browser DevTools port",
-  );
+  const devtoolsPort = await waitFor(() => {
+    try {
+      return fs.readFileSync(portFile, "utf8").split("\n")[0].trim();
+    } catch (error) {
+      // Chrome can still hold its port file while writing it on Windows.
+      // Retry that transient startup race within the existing timeout.
+      if (error.code === "ENOENT" || error.code === "EBUSY") return false;
+      throw error;
+    }
+  }, "browser DevTools port");
   const target = await waitFor(async () => {
     try {
       const list = await (
@@ -182,7 +186,7 @@ export async function startBrowser() {
         () =>
           page
             .evaluate(
-              "document.readyState === 'complete' && !!document.querySelector('[role=tabpanel] [data-source]')",
+              "document.readyState === 'complete' && !!document.querySelector('.workspace-view h1')",
             )
             .catch(() => false),
         `render of ${pathname}`,

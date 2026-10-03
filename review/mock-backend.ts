@@ -1,5 +1,5 @@
 /// DEV-ONLY review harness. Never imported by the application and never part
-/// of `pnpm build` (Vite builds `index.html` alone).
+/// of `pnpm build` (Vite builds the main and overlay entry points alone).
 ///
 /// It stands in for the Tauri backend so the redesigned shell can be reviewed
 /// and screenshotted in a plain browser, in every product state, without a
@@ -9,6 +9,11 @@
 /// Scenarios: ?scenario=live | stress | degraded | idle | waiting |
 ///            first-run | grace |
 ///            port-error | recording-failed | recovered-recorder
+///            f1-live | f1-stale | f1-idle | f1-spectating | both
+/// F1 25 snapshot: ?f1=stationary | driving | braking | high-speed
+///   (default driving). F1 25 values are NOT illustrative: they are the real
+///   captured fixtures decoded by the backend (live-snapshots.json, pinned by
+///   a Rust test). Only their ages are set here.
 /// Session sets: ?sessions=mixed | none | delayed (see session-fixtures.ts)
 /// Storage: ?storage=over — over the limit, one failed deletion, and a saved
 ///          limit that differs from the one in force (applies next start)
@@ -16,6 +21,19 @@ import "./dev-only.ts";
 import type { LiveSnapshot } from "../src/telemetry/live-snapshot.ts";
 import type { RecorderStatus } from "../src/session-state.ts";
 import { SESSION_RESPONSES } from "./session-fixtures.ts";
+import F1_SNAPSHOTS from "../src-tauri/tests/fixtures/f1_25/live-snapshots.json";
+import type { F1LiveStatus } from "../src/telemetry/f1-player.ts";
+import type { F1EvidenceStatus } from "../src/telemetry/f1-evidence.ts";
+import { f1Detail, f1Recorder } from "./f1-session-fixtures.ts";
+import {
+  DEFAULT_OVERLAY,
+  type OverlayFrame,
+  type OverlayStatus,
+} from "../src/overlay/model.ts";
+
+// Phase D review: ?sessions=multi-game | f1-empty | f1-long, with
+// ?scenario=f1-recording | fh6-recording-f1-live. Select an F1 row to review
+// Summary, Laps, Events and Data. F1 session data is synthetic and fixed.
 
 type Scenario =
   | "live"
@@ -32,12 +50,126 @@ type Scenario =
   | "recording-failed"
   /// Recording again after an earlier write failure: `last_error` is still
   /// set, `status` is not "error". Nothing may present it as current.
-  | "recovered-recorder";
+  | "recovered-recorder"
+  /// F1 25 only: real fixture values, every family fresh.
+  | "f1-live"
+  /// F1 25 only: Car Telemetry not updating (1.8 s), Motion Ex gone (6 s),
+  /// Car Status and Lap Data fresh.
+  | "f1-stale"
+  /// F1 25 sending, but no Car Telemetry: connected, not driving.
+  | "f1-idle"
+  /// F1 25 sending with no player car (playerCarIndex 255).
+  | "f1-spectating"
+  /// Forza Horizon 6 live and F1 25 live at once: the first game to send
+  /// keeps the screen.
+  | "both"
+  | "f1-recording"
+  | "fh6-recording-f1-live";
 
 const scenario = (new URLSearchParams(location.search).get("scenario") ??
   "live") as Scenario;
 const started = Date.now();
 let revision = 0;
+
+const F1_SCENARIOS = new Set<string>([
+  "f1-live",
+  "f1-stale",
+  "f1-idle",
+  "f1-spectating",
+  "both",
+  "f1-recording",
+  "fh6-recording-f1-live",
+]);
+const fh6Silent = F1_SCENARIOS.has(scenario) && scenario !== "both";
+
+type F1Name = keyof typeof F1_SNAPSHOTS;
+const f1Name = (new URLSearchParams(location.search).get("f1") ??
+  "driving") as F1Name;
+
+/// `get_f1_live`. Outside the F1 scenarios F1 25 is listening and silent, as
+/// in a development build with only Forza Horizon 6 running.
+function f1Live(): F1LiveStatus {
+  const base = {
+    enabled: true,
+    configured_port: 20777,
+    listening: true,
+    bound_port: 20777,
+    listener_error: null,
+  };
+  const empty = {
+    session_uid: null,
+    player_car_index: null,
+    player_available: false,
+    session_resets: 0,
+    player_resets: 0,
+    out_of_order_dropped: 0,
+    car_telemetry: null,
+    car_status: null,
+    lap_data: null,
+    motion_ex: null,
+  };
+  if (!F1_SCENARIOS.has(scenario)) {
+    return { ...base, last_accepted_age_ms: null, live: empty };
+  }
+  const source = structuredClone(
+    F1_SNAPSHOTS[f1Name] ?? F1_SNAPSHOTS.driving,
+  ) as unknown as F1LiveStatus["live"];
+  const aged = <T extends { age_ms: number } | null>(family: T, age: number) =>
+    family == null ? null : { ...family, age_ms: age };
+  const live = {
+    ...source,
+    car_telemetry: aged(source.car_telemetry, 30),
+    car_status: aged(source.car_status, 30),
+    lap_data: aged(source.lap_data, 30),
+    motion_ex: aged(source.motion_ex, 30),
+  };
+  switch (scenario) {
+    case "f1-stale":
+      return {
+        ...base,
+        last_accepted_age_ms: 30,
+        live: {
+          ...live,
+          car_telemetry: aged(source.car_telemetry, 1800),
+          motion_ex: aged(source.motion_ex, 6000),
+        },
+      };
+    case "f1-idle":
+      return {
+        ...base,
+        last_accepted_age_ms: 30,
+        live: { ...live, car_telemetry: null, motion_ex: null },
+      };
+    case "f1-spectating":
+      return {
+        ...base,
+        last_accepted_age_ms: 30,
+        live: {
+          ...live,
+          player_car_index: 255,
+          player_available: false,
+          car_telemetry: live.car_telemetry && {
+            ...live.car_telemetry,
+            value: { ...live.car_telemetry.value, player: null },
+          },
+          car_status: live.car_status && {
+            ...live.car_status,
+            value: { player: null },
+          },
+          lap_data: live.lap_data && {
+            ...live.lap_data,
+            value: { ...live.lap_data.value, player: null },
+          },
+          motion_ex: live.motion_ex && {
+            ...live.motion_ex,
+            value: { player: null },
+          },
+        },
+      };
+    default:
+      return { ...base, last_accepted_age_ms: 30, live };
+  }
+}
 
 function wheel(phase: number, rear: boolean) {
   const t = (Date.now() - started) / 1000;
@@ -240,6 +372,23 @@ function live(): LiveSnapshot {
           }
     ) as LiveSnapshot;
   }
+  if (fh6Silent) {
+    return {
+      ...base,
+      connection: "LISTENING",
+      health: "LOST",
+      protocol: null,
+      valid_packets: 0,
+      valid_active_fh6: 0,
+      valid_inactive_fh6: 0,
+      input_packet_hz: 0,
+      valid_frame_hz: 0,
+      last_packet_age_ms: null,
+      last_valid_frame_age_ms: null,
+      frame: null,
+      session: null,
+    } as LiveSnapshot;
+  }
   switch (scenario) {
     case "stress":
       return {
@@ -248,6 +397,7 @@ function live(): LiveSnapshot {
         frame: stressFrame(),
         session,
       } as LiveSnapshot;
+    case "both":
     case "live":
     case "recording-failed":
     case "recovered-recorder":
@@ -318,7 +468,10 @@ function live(): LiveSnapshot {
 
 let recorderRevision = 0;
 function recorder(): RecorderStatus {
-  const recording = scenario === "live" || scenario === "recovered-recorder";
+  const recording =
+    scenario === "live" ||
+    scenario === "recovered-recorder" ||
+    scenario === "fh6-recording-f1-live";
   if (recording || recorderRevision === 0) recorderRevision += 1;
   const elapsed = Date.now() - started;
   return {
@@ -358,9 +511,111 @@ const storageOver =
   new URLSearchParams(location.search).get("storage") === "over";
 /// The saved limit; with ?storage=over it differs from the one in force.
 let configuredBudget = storageOver ? 25 * GIB : 8 * GIB;
+let f1RecorderRevision = 1;
+const sessionMode = new URLSearchParams(location.search).get("sessions");
+const reviewF1Sessions =
+  ["multi-game", "f1-empty", "f1-long"].includes(sessionMode ?? "") ||
+  scenario === "f1-recording" ||
+  scenario === "fh6-recording-f1-live"
+    ? [f1Detail()]
+    : [];
+for (const detail of reviewF1Sessions) {
+  if (scenario === "f1-recording") {
+    detail.session.racelab_session.status = "recording";
+    detail.session.racelab_session.ended_at_unix_ms = null;
+    detail.session.racelab_session.completion_reason = null;
+  }
+  if (sessionMode === "f1-empty") {
+    detail.laps = null;
+    detail.events = [];
+    detail.events_total = 0;
+    detail.result = null;
+  }
+  if (sessionMode === "f1-long") {
+    detail.labels.track = {
+      raw: 127,
+      label: "A very long synthetic track name for narrow window layout review",
+    };
+    detail.session.f1_25.integrity.write_error =
+      "Synthetic review error: " + "long-directory-segment/".repeat(16);
+  }
+}
+
+// Overlay-specific variants never change the frozen main-window fixtures.
+// ?overlay=stale|unavailable|disabled, ?drs=on (SYNTHETIC), ?gear=R|N|8,
+// ?long=1 (SYNTHETIC limits), ?scale=1|1.25|1.5, ?edit=1.
+const overlayParams = new URLSearchParams(location.search);
+const overlayState: OverlayStatus = {
+  preferences: {
+    ...DEFAULT_OVERLAY,
+    enabled:
+      location.pathname.includes("overlay") &&
+      overlayParams.get("overlay") !== "disabled",
+    scale: Number(overlayParams.get("scale") ?? 1),
+  },
+  editing: overlayParams.get("edit") === "1",
+  visible: true,
+  error: null,
+};
+const overlayCalls: Record<string, number> = {};
+function overlayFrame(): OverlayFrame {
+  const f1 = f1Live();
+  const variant = overlayParams.get("overlay");
+  for (const family of [
+    f1.live.car_telemetry,
+    f1.live.car_status,
+    f1.live.lap_data,
+  ]) {
+    if (family)
+      family.age_ms =
+        variant === "unavailable"
+          ? 4000
+          : variant === "stale"
+            ? 1800
+            : family.age_ms;
+  }
+  const telemetry = f1.live.car_telemetry?.value.player;
+  if (telemetry) {
+    if (overlayParams.get("drs") === "on")
+      telemetry.drs = { raw: 1, label: "On" }; // synthetic UI acceptance only
+    const gear = overlayParams.get("gear");
+    if (gear === "R" || gear === "N" || gear === "8")
+      telemetry.gear = {
+        raw: gear === "R" ? -1 : gear === "N" ? 0 : 8,
+        label: gear,
+      };
+    if (overlayParams.get("long") === "1") {
+      telemetry.engine_rpm = 65535;
+      telemetry.speed_kmh = 65535;
+    }
+  }
+  return {
+    state: overlayState,
+    f1,
+    fh6_active: scenario === "both" || scenario === "live",
+    sample_age_ms: 0,
+  };
+}
 
 const RESPONSES: Record<string, (args: Record<string, unknown>) => unknown> = {
+  get_overlay_frame: overlayFrame,
+  get_overlay_state: () => overlayState,
+  configure_overlay: (args) => {
+    overlayState.preferences.enabled = Boolean(args.enabled);
+    overlayState.preferences.scale = Number(args.scale);
+    overlayState.preferences.opacity = Number(args.opacity);
+    overlayState.editing =
+      Boolean(args.editing) && overlayState.preferences.enabled;
+    return overlayState;
+  },
+  move_overlay: (args) => {
+    overlayState.preferences.x =
+      (overlayState.preferences.x ?? 24) + Number(args.dx);
+    overlayState.preferences.y =
+      (overlayState.preferences.y ?? 24) + Number(args.dy);
+  },
   get_live_telemetry: live,
+  get_f1_live: f1Live,
   get_recorder_status: recorder,
   get_setup_state: () => {
     const firstRun =
@@ -394,6 +649,33 @@ const RESPONSES: Record<string, (args: Record<string, unknown>) => unknown> = {
         ? "could not bind 127.0.0.1:20440 (os error 10048)"
         : null,
   }),
+  // Opt-in visual review of the development Diagnostics tab. Evidence counters
+  // stay empty; player values come from the captured, decoder-pinned fixtures.
+  get_f1_evidence: () =>
+    ({
+      ...f1Live(),
+      enabled: new URLSearchParams(location.search).get("evidence") === "1",
+      transport_datagrams: 0,
+      receive_errors: 0,
+      capture: null,
+      evidence: {
+        detected: false,
+        last_accepted_age_ms: null,
+        last_accepted_unix_ms: null,
+        header: null,
+        session_uid_changes: 0,
+        datagrams: 0,
+        accepted: 0,
+        truncated: 0,
+        wrong_packet_format: 0,
+        wrong_game_year: 0,
+        unknown_packet_id: 0,
+        unsupported_version: 0,
+        size_mismatch: 0,
+        last_rejection: null,
+        kinds: [],
+      },
+    }) satisfies F1EvidenceStatus,
   get_capture_stats: () => ({
     revision: 1,
     status: "idle",
@@ -414,6 +696,55 @@ const RESPONSES: Record<string, (args: Record<string, unknown>) => unknown> = {
     last_error: null,
   }),
   ...SESSION_RESPONSES,
+  get_f1_recorder_status: () => {
+    const status = f1Recorder(scenario === "f1-recording");
+    const phase = new URLSearchParams(location.search).get("f1recorder");
+    if (
+      phase === "grace" ||
+      phase === "ending" ||
+      phase === "candidate" ||
+      phase === "disabled"
+    ) {
+      status.phase = phase;
+      status.recording = phase === "grace" || phase === "ending";
+      status.enabled = phase !== "disabled";
+    }
+    if (phase === "error") {
+      status.phase = "idle";
+      status.recording = false;
+      status.last_error =
+        "Synthetic review error: Access denied writing samples.rlf1";
+    }
+    if (status.recording) {
+      status.revision = ++f1RecorderRevision;
+      status.duration_ms += Date.now() - started;
+    }
+    if (recorder().recording) {
+      status.recording_owner = "fh6";
+      status.waiting_reason = "another_game_recording";
+      status.sessions_refused_by_owner = 1;
+    }
+    return status;
+  },
+  list_recent_sessions: (args) => {
+    const fh6 = SESSION_RESPONSES.list_recent_sessions(
+      args,
+    ) as import("../src/session-state.ts").RecentSessions;
+    return {
+      ...fh6,
+      f1_sessions: reviewF1Sessions.map(({ session, labels }) => ({
+        session,
+        labels,
+      })),
+    };
+  },
+  get_f1_session: (args) => {
+    const detail = reviewF1Sessions.find(
+      (item) => item.session.racelab_session.session_id === args.sessionId,
+    );
+    if (!detail) throw new Error("F1 review session not found");
+    return detail;
+  },
   get_storage_status: () => ({
     retention: {
       budget_bytes: 8 * GIB,
@@ -481,6 +812,7 @@ const internals = {
     callbacks.delete(id);
   },
   async invoke(command: string, args: Record<string, unknown> = {}) {
+    overlayCalls[command] = (overlayCalls[command] ?? 0) + 1;
     if (command === "plugin:event|listen") return ++callbackId;
     if (command === "plugin:event|unlisten") return undefined;
     const respond = RESPONSES[command];
@@ -491,6 +823,7 @@ const internals = {
 };
 
 Object.assign(window, {
+  __overlayCalls: overlayCalls,
   __TAURI_INTERNALS__: internals,
   __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener() {} },
 });

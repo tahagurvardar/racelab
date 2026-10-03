@@ -21,7 +21,7 @@ export function ControlBar({
     <div
       className={`control-bar control-bar-${size}${
         reading.available ? "" : " is-unavailable"
-      }`}
+      }${reading.stale ? " is-stale" : ""}`}
       data-channel={reading.key}
       data-source={reading.source}
       data-role={reading.role}
@@ -33,7 +33,7 @@ export function ControlBar({
         role="img"
         aria-label={`${reading.label}: ${
           reading.available ? `${reading.value} percent` : "unavailable"
-        }`}
+        }${reading.stale ? ", not updating" : ""}`}
       >
         {reading.available ? (
           <span

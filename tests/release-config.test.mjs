@@ -91,16 +91,31 @@ test("the brand is final: one mark, and the packaged icons share its geometry", 
     ),
   );
   assert.ok(!/direction|ACTIVE_BRAND/.test(brand));
-  // The icon source draws exactly the bars the AppMark component draws.
   const svg = read("src-tauri", "icons", "icon.svg");
-  const paths = (source) =>
-    [...source.matchAll(/\bd="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(paths(svg), paths(brand));
-  assert.equal(paths(brand).length, 2);
-  // So does the window's inline favicon (no /favicon.ico request to fail).
-  const page = read("index.html");
-  for (const d of paths(brand))
-    assert.ok(page.includes(d), `index.html icon: ${d}`);
+  const master = "M0 15H80V65H44V49H0Z";
+  assert.ok(brand.includes(master));
+  assert.ok(svg.includes(`d="${master}"`));
+  assert.equal((svg.match(/<path /g) ?? []).length, 1);
+  const optical = {
+    16: "M1 4H14V12H8V9H1Z",
+    20: "M2 6H18V16H11V13H2Z",
+    24: "M2 7H21V19H12V15H2Z",
+    32: "M3 9H27V24H16V19H3Z",
+  };
+  for (const [size, path] of Object.entries(optical)) {
+    assert.ok(brand.includes(`"${path}"`));
+    const icon = read("src-tauri", "icons", `mark-${size}.svg`);
+    assert.ok(icon.includes(`d="${path}"`));
+    assert.ok(icon.includes('shape-rendering="crispEdges"'));
+  }
+  assert.equal(
+    read("public", "favicon.svg"),
+    read("src-tauri", "icons", "mark-16.svg"),
+  );
+  assert.ok(read("index.html").includes('href="/favicon.svg"'));
+  assert.ok(!brand.includes("fill={mono"));
+  assert.ok(!brand.includes("var(--accent)"));
+  assert.ok(!brand.includes("M4.5 19.5"));
   // No gradient anywhere in the mark or the icon.
   assert.ok(!/<(linear|radial)Gradient|gradient\(/i.test(brand + svg));
   // The installer, executable and window icon are the generated ones: the

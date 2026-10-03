@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"RaceLab desktop capability","local":true,"windows":["main"],"permissions":["core:default","core:event:default"]}}
+{"default":{"identifier":"default","description":"RaceLab desktop capability","local":true,"windows":["main"],"permissions":["core:default","core:event:default"]},"overlay":{"identifier":"overlay","description":"Overlay edit gestures only; play has no interactive controls","local":true,"windows":["overlay"],"permissions":["core:window:allow-start-dragging","core:window:allow-start-resize-dragging"]}}

@@ -1,0 +1,39 @@
+.overlay-settings {
+  display: grid;
+  gap: 12px;
+}
+.overlay-enable {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.overlay-enable input {
+  width: 16px;
+  height: 16px;
+}
+.overlay-setting-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+.overlay-setting-controls label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}
+.overlay-setting-controls select {
+  min-width: 96px;
+}
+.overlay-position-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.overlay-position-controls p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--type-small);
+  color: var(--text-2);
+}

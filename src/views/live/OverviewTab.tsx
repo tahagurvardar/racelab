@@ -1,7 +1,8 @@
-import { ControlBar } from "../../components/live/ControlBar";
+import { CoreDrive } from "../../components/live/CoreDrive";
+import { DriverInput } from "../../components/live/DriverInput";
+import { Region } from "../../components/Region";
 import { NotAvailable } from "../../components/live/NotAvailable";
 import { Readout } from "../../components/live/Readout";
-import { RpmBar } from "../../components/live/RpmBar";
 import { overviewLayout } from "../../telemetry/live-layout.ts";
 import type {
   LiveFrameState,
@@ -30,39 +31,36 @@ export default function OverviewTab({
   const model = overviewLayout(state);
   return (
     <div className="live-overview">
-      <section className="live-panel overview-drive" aria-label="Driving state">
-        <div className="drive-main">
-          <Readout reading={model.speed} size="hero" className="drive-speed" />
-          <div className="drive-rpm">
-            <Readout reading={model.rpm} size="display" />
-            <RpmBar fraction={model.rpm.fraction} max={model.rpm.max} />
-          </div>
+      <CoreDrive speed={model.speed} gear={model.gear} rpm={model.rpm} />
+      <DriverInput
+        pedals={model.pedals}
+        steering={model.steering}
+        auxiliary={model.auxiliary}
+      />
+      <Region title="Timing & Race State" className="overview-timing">
+        <div className="timing-readings">
+          {model.race.map((reading) => (
+            <Readout
+              key={reading.key}
+              reading={reading}
+              size={reading.key === "race-time-precise" ? "figure" : "value"}
+            />
+          ))}
         </div>
+        <div className="timing-availability">
+          <span className="readout-label">Lap time / delta</span>
+          <span className="readout-value">—</span>
+          <p className="live-footnote">
+            Not available for Forza Horizon 6 yet.
+          </p>
+        </div>
+      </Region>
+      <Region title="Powertrain" className="overview-output">
         <div className="drive-secondary">
           <Readout reading={model.power} size="figure" />
           <Readout reading={model.torque} size="figure" />
-          <Readout reading={model.gear} size="figure" />
         </div>
-      </section>
-
-      <section
-        className="live-panel overview-inputs"
-        aria-label="Driver inputs"
-      >
-        <h2 className="live-section-title">Inputs</h2>
-        <div className="inputs-primary">
-          {model.pedals.map((reading) => (
-            <ControlBar key={reading.key} reading={reading} />
-          ))}
-          <ControlBar reading={model.steering} />
-        </div>
-        <div className="inputs-auxiliary">
-          {model.auxiliary.map((reading) => (
-            <ControlBar key={reading.key} reading={reading} size="compact" />
-          ))}
-        </div>
-      </section>
-
+      </Region>
       <section className="overview-context" aria-label="Session and race">
         <div className="context-group">
           <p className={`context-state tone-${context.session.tone}`}>
@@ -73,18 +71,11 @@ export default function OverviewTab({
             </span>
           </p>
           <p
-            className={`context-state tone-${context.recording.tone}${
-              context.recording.active ? " is-recording" : ""
-            }`}
+            className={`context-state tone-${context.recording.tone}${context.recording.active ? " is-recording" : ""}`}
           >
             <span className="context-label">Recording</span>
             <span className="context-value">{context.recording.value}</span>
           </p>
-        </div>
-        <div className="context-group">
-          {model.race.map((reading) => (
-            <Readout key={reading.key} reading={reading} size="compact" />
-          ))}
         </div>
         <div className="context-group">
           {model.identity.map((reading) => (
@@ -92,22 +83,21 @@ export default function OverviewTab({
           ))}
         </div>
       </section>
-
-      <div className="overview-notes">
+      <details className="overview-notes measurement-notes">
+        <summary>Measurement availability</summary>
         <p className="live-footnote">
           Lap and position are counters: both read 0 outside a race, which is a
           measured value rather than a missing one.
         </p>
         <NotAvailable
           items={[
-            // Gear already has its reading above; only its reason is here.
             ...(model.gear.available
               ? []
               : [{ key: "gear", label: "Gear", note: model.gear.note }]),
             ...model.unavailable,
           ]}
         />
-      </div>
+      </details>
     </div>
   );
 }

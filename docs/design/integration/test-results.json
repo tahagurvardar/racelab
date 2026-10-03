@@ -1,0 +1,72 @@
+{
+  "redesign_final_nonbrowser": {
+    "tests": 425,
+    "pass": 422,
+    "fail": 3
+  },
+  "integration_start_nonbrowser": {
+    "tests": 425,
+    "pass": 424,
+    "fail": 1,
+    "skipped": 0
+  },
+  "frontend_full_serial_final": {
+    "tests": 480,
+    "pass": 480,
+    "fail": 0,
+    "skipped": 0
+  },
+  "frontend_command": "node --experimental-strip-types --import ./tests/support/register-tsx.mjs --test --test-concurrency=1 tests/*.test.mjs",
+  "rust": {
+    "passed": 383,
+    "failed": 0,
+    "ignored": 5
+  },
+  "design_icon_release": {
+    "tests": 36,
+    "pass": 36,
+    "fail": 0,
+    "skipped": 0
+  },
+  "production_build": "passed",
+  "production_typescript": "passed",
+  "review_typescript": "passed",
+  "visual": {
+    "screenshots": 69,
+    "sizes": [
+      [
+        960,
+        640
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        1920,
+        1080
+      ]
+    ],
+    "console_errors": 0,
+    "document_overflow": 0
+  },
+  "locked_assets": {
+    "checked": 23,
+    "changed": 0
+  },
+  "native": {
+    "udp_bursts_received": [
+      20,
+      10
+    ],
+    "udp_payload_bytes": 128,
+    "stop_restart": "passed",
+    "f1_real_fixture_packets_accepted": 4,
+    "f1_live": {
+      "speed_kmh": 170,
+      "gear": 4,
+      "rpm": 11024
+    },
+    "real_game_lifecycle_acceptance": "pending"
+  }
+}

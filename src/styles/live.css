@@ -9,8 +9,9 @@
 .live-panel {
   min-width: 0;
   padding: var(--sp-5);
-  border: 1px solid var(--border);
-  border-radius: var(--r-3);
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: var(--r-1);
   background: var(--surface-1);
 }
 
@@ -87,7 +88,6 @@
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
   font-variant-numeric: tabular-nums;
-  transition: color var(--dur-3) var(--ease);
 }
 .readout-unit {
   color: var(--text-3);
@@ -100,17 +100,17 @@
 
 .readout-hero .readout-value {
   font-family: var(--font-display);
-  font-size: clamp(var(--type-display), 8cqi, var(--type-mega));
+  font-size: var(--type-hero);
   line-height: 0.95;
   letter-spacing: var(--tracking-display);
 }
 .readout-hero .readout-unit {
   margin-left: var(--sp-1);
-  font-size: var(--type-title);
+  font-size: var(--type-body);
 }
 .readout-display .readout-value {
   font-family: var(--font-display);
-  font-size: clamp(var(--type-figure), 4.2cqi, var(--type-display));
+  font-size: var(--type-display);
   letter-spacing: var(--tracking-tight);
 }
 .readout-display .readout-unit {
@@ -257,7 +257,7 @@
 .rpm-bar-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: var(--ch-neutral);
+  background: var(--ch-rpm);
   transition: width var(--dur-sample) linear;
 }
 .rpm-bar-scale {
@@ -307,7 +307,7 @@
 
 .live-overview {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.38fr);
   gap: var(--sp-4);
 }
 .overview-context,
@@ -323,9 +323,12 @@
 }
 .drive-main {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 1.2fr) minmax(60px, 0.5fr) minmax(
+      160px,
+      1fr
+    );
   align-items: end;
-  gap: var(--sp-5) var(--sp-7);
+  gap: var(--sp-4) var(--sp-6);
 }
 .drive-rpm {
   display: flex;
@@ -338,8 +341,8 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--border-subtle);
+  padding-top: 0;
+  border-top: 0;
 }
 
 .overview-inputs {
@@ -349,6 +352,7 @@
 }
 .inputs-primary {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-4);
 }
 .inputs-auxiliary {
@@ -367,9 +371,10 @@
   align-items: flex-start;
   gap: var(--sp-4) 0;
   padding: var(--sp-4) var(--sp-5);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-3);
-  background: var(--bg-chrome);
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
 }
 .context-group {
   display: flex;
@@ -701,7 +706,6 @@
   color: var(--text);
   font-size: var(--type-lead);
   font-weight: var(--weight-semibold);
-  transition: color var(--dur-3) var(--ease);
 }
 .axis-table td.is-unavailable {
   color: var(--text-unavailable);
@@ -741,7 +745,6 @@
 }
 
 @container workspace (max-width: 860px) {
-  .live-overview,
   .powertrain-engine {
     grid-template-columns: 1fr;
   }
@@ -753,7 +756,10 @@
 
 @container workspace (max-width: 680px) {
   .drive-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .drive-rpm {
+    grid-column: 1 / -1;
   }
   .vehicle-codes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -768,4 +774,430 @@
   .context-group + .context-group {
     border-left: 0;
   }
+}
+
+/* ----------------------------------------------------- waiting for a game */
+
+.waiting-games {
+  display: grid;
+  gap: var(--sp-3);
+}
+.waiting-game-list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.waiting-game-list li {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(
+      12rem,
+      1.4fr
+    );
+  gap: var(--sp-2) var(--sp-4);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--type-body);
+}
+.waiting-game-name {
+  font-weight: var(--weight-semibold);
+}
+.waiting-game-target {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.waiting-game-status {
+  display: flex;
+  gap: var(--sp-2);
+  color: var(--text-2);
+}
+.waiting-game-status.tone-bad {
+  color: var(--bad-text);
+}
+
+/* ------------------------------------------------------------- F1 25 */
+/* F1 25's Live tabs reuse the V1.1 primitives (panels, readouts, bars,
+   corner cards, axis tables). Only F1-specific arrangement lives here. */
+
+/* A value that is real but no longer updating: quieter, never hidden, and
+   always said in words beside it (FamilyBadge, visually hidden text). */
+.readout.is-stale .readout-value,
+.axis-table td.is-stale {
+  color: var(--text-2);
+}
+.control-bar.is-stale .control-bar-fill {
+  opacity: 0.5;
+}
+
+.family-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.family-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+.family-badge-name {
+  color: var(--text-2);
+}
+.family-badge-text {
+  font-variant-numeric: tabular-nums;
+}
+.family-badge.is-fresh .state-glyph {
+  color: var(--status-ok);
+}
+.family-badge.is-stale .state-glyph,
+.family-badge.is-stale .family-badge-text {
+  color: var(--warn-text);
+}
+
+.f1-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.f1-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+}
+.f1-readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--sp-4) var(--sp-5);
+}
+
+/* Overview */
+.f1-drive-secondary {
+  grid-template-columns: minmax(0, 1fr);
+}
+.f1-car-state {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4) var(--sp-6);
+}
+.f1-car-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  align-content: start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.f1-car-group + .f1-car-group {
+  padding-left: var(--sp-6);
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* Race */
+.f1-race {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.f1-race-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.f1-race-lap {
+  grid-column: 1 / -1;
+}
+
+/* Tyres: four corner cards, front axle above, left on the left. */
+.f1-tyres {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.f1-tyre-set {
+  margin-bottom: var(--sp-2);
+}
+.f1-corner-grid {
+  display: grid;
+  grid-template-areas:
+    "fl fr"
+    "rl rr";
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.f1-corner {
+  grid-template-areas:
+    "head"
+    "temps"
+    "values";
+  grid-template-columns: minmax(0, 1fr);
+}
+.f1-corner-temps {
+  display: grid;
+  grid-area: temps;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.f1-corner-values {
+  display: grid;
+  grid-area: values;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--sp-3) var(--sp-4);
+}
+
+/* Dynamics */
+.f1-dynamics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.f1-dynamics-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+.f1-wheel-table .axis-table {
+  min-width: 34rem;
+}
+
+@container workspace (max-width: 1000px) {
+  .f1-car-state {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .f1-dynamics-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container workspace (max-width: 860px) {
+  .f1-race-grid {
+    grid-template-columns: 1fr;
+  }
+  .waiting-game-list li {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container workspace (max-width: 680px) {
+  .f1-corner-grid {
+    grid-template-areas: "fl" "fr" "rl" "rr";
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Operational workspace: drive and input lanes left, race timing right. */
+.overview-drive {
+  grid-column: 1;
+  grid-row: 1;
+}
+.overview-inputs {
+  grid-column: 1;
+  grid-row: 2;
+}
+.overview-timing {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+.overview-output {
+  grid-column: 1;
+  grid-row: 3;
+}
+.overview-output .drive-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 0;
+  border: 0;
+}
+.region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.timing-readings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+.timing-readings .readout-figure {
+  grid-column: 1 / -1;
+}
+.timing-availability {
+  display: grid;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+}
+.drive-gear .readout-value {
+  min-width: 1.5ch;
+}
+.drive-speed .readout-value {
+  text-align: left;
+}
+.drive-rpm .readout-value {
+  text-align: left;
+}
+.readout-value {
+  font-weight: var(--weight-medium);
+}
+.readout-label,
+.control-bar-label {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.f1-car-state.region {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.f1-car-state > .live-section-title {
+  grid-column: 1 / -1;
+}
+.f1-car-group + .f1-car-group {
+  padding-left: var(--sp-4);
+}
+.f1-car-group .readout-value {
+  font-size: var(--type-lead);
+}
+.readout[data-channel="ers_store_energy_j"] .readout-value {
+  color: var(--ch-energy);
+}
+.readout[data-channel="fuel_in_tank"] .readout-value {
+  color: var(--ch-fuel);
+}
+.f1-overview .overview-timing {
+  grid-row: 1 / span 2;
+}
+.overview-tyres {
+  grid-column: 1 / -1;
+}
+.tyres-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+.tyre-readout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-3);
+}
+.tyre-readout .corner-code {
+  grid-row: 1 / span 2;
+}
+.tyres-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-6);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.measurement-notes {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.measurement-notes > summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.measurement-notes[open] > * + * {
+  margin-top: var(--sp-3);
+}
+@container workspace (max-width: 1000px) {
+  .live-overview {
+    grid-template-columns: minmax(0, 1fr) 224px;
+    gap: var(--sp-3);
+  }
+  .live-overview .live-panel {
+    padding: var(--sp-4);
+  }
+  .drive-main {
+    grid-template-columns: minmax(160px, 1fr) 60px minmax(130px, 1fr);
+    gap: var(--sp-3);
+  }
+  .drive-rpm .readout-value {
+    font-size: var(--type-figure);
+  }
+  .timing-readings {
+    column-gap: var(--sp-2);
+  }
+}
+@container workspace (max-width: 720px) {
+  .live-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overview-drive,
+  .overview-inputs,
+  .overview-timing,
+  .overview-output,
+  .f1-overview .overview-timing {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .f1-car-state.region {
+    grid-template-columns: 1fr;
+  }
+  .f1-car-group + .f1-car-group {
+    padding-left: 0;
+    padding-top: var(--sp-4);
+    border-left: 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .tyres-compact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.timing-sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.readout[data-compound="soft"] .readout-value {
+  color: var(--tyre-soft);
+}
+.readout[data-compound="medium"] .readout-value {
+  color: var(--tyre-medium);
+}
+.readout[data-compound="hard"] .readout-value {
+  color: var(--tyre-hard);
+}
+.readout[data-compound="intermediate"] .readout-value {
+  color: var(--tyre-intermediate);
+}
+.readout[data-compound="wet"] .readout-value {
+  color: var(--tyre-wet);
+}
+
+.live-overview .region {
+  padding: var(--sp-4);
+  gap: var(--sp-3);
+}
+.live-overview .inputs-primary {
+  gap: var(--sp-4);
+}
+.live-overview .inputs-auxiliary {
+  margin-top: 0;
+  padding-top: var(--sp-3);
+}
+.live-overview .control-bar {
+  row-gap: var(--sp-1);
+}
+.live-overview .control-bar-track {
+  height: 10px;
+}
+.live-overview .control-bar-compact .control-bar-track {
+  height: 4px;
+}
+.live-overview .drive-main {
+  align-items: center;
+}
+.live-overview .drive-secondary .readout-value {
+  font-size: var(--type-figure);
 }

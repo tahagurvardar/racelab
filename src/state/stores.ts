@@ -12,6 +12,9 @@
 import { newerLive, type LiveSnapshot } from "../telemetry/live-snapshot.ts";
 import type { SetupState } from "../telemetry/setup-view-model.ts";
 import { newerRecorder, type RecorderStatus } from "../session-state.ts";
+import type { F1EvidenceStatus } from "../telemetry/f1-evidence.ts";
+import type { F1LiveStatus } from "../telemetry/f1-player.ts";
+import type { F1RecorderStatus } from "../f1-sessions.ts";
 import {
   initialTelemetryState,
   telemetryReducer,
@@ -160,6 +163,134 @@ export function setupFailed(
   return state.error === error ? state : { ...state, error };
 }
 
+// ------------------------------------------------------------------- f1 25
+
+export interface F1StoreState {
+  status: F1EvidenceStatus | null;
+  /// Null until the backend has answered once; false when it runs no F1
+  /// evidence listener (a release build) or has no such command. Latched.
+  available: boolean | null;
+  error: string | null;
+}
+
+export const INITIAL_F1: F1StoreState = {
+  status: null,
+  available: null,
+  error: null,
+};
+
+export function f1Received(
+  state: F1StoreState,
+  incoming: F1EvidenceStatus,
+): F1StoreState {
+  if (!incoming.enabled) {
+    return state.available === false
+      ? state
+      : { status: null, available: false, error: null };
+  }
+  return { status: incoming, available: true, error: null };
+}
+
+/// A failure before any answer means this backend has no F1 evidence
+/// command at all; a failure after one is a real, reportable error.
+export function f1Failed(state: F1StoreState, reason: unknown): F1StoreState {
+  if (state.available !== true) {
+    return state.available === false
+      ? state
+      : { status: null, available: false, error: null };
+  }
+  const error = String(reason);
+  return state.error === error ? state : { ...state, error };
+}
+
+// -------------------------------------------------------------- f1 25 live
+
+/// The product Live view's F1 25 reading (`get_f1_live`): decoded player
+/// values with per-family freshness. Separate from `f1Store`, which holds the
+/// Diagnostics evidence and is read far less often.
+export interface F1LiveState {
+  status: F1LiveStatus | null;
+  /// Null until the backend has answered once; false when this build runs no
+  /// F1 25 listener or has no such command. Latched.
+  available: boolean | null;
+  error: string | null;
+}
+
+export const INITIAL_F1_LIVE: F1LiveState = {
+  status: null,
+  available: null,
+  error: null,
+};
+
+export function f1LiveReceived(
+  state: F1LiveState,
+  incoming: F1LiveStatus,
+): F1LiveState {
+  if (!incoming.enabled) {
+    return state.available === false
+      ? state
+      : { status: null, available: false, error: null };
+  }
+  return { status: incoming, available: true, error: null };
+}
+
+/// As `f1Failed`: a failure before any answer means no F1 25 support here; a
+/// failure after one is a real error, and the last status is kept with it.
+export function f1LiveFailed(state: F1LiveState, reason: unknown): F1LiveState {
+  if (state.available !== true) {
+    return state.available === false
+      ? state
+      : { status: null, available: false, error: null };
+  }
+  const error = String(reason);
+  return state.error === error ? state : { ...state, error };
+}
+
+// ---------------------------------------------------------- f1 25 recorder
+
+/// F1 25 recording (`get_f1_recorder_status`, V2.0 Phase D). Like the F1
+/// live store, `available` is false on a backend with no such command.
+export interface F1RecorderState {
+  status: F1RecorderStatus | null;
+  available: boolean | null;
+  error: string | null;
+}
+
+export const INITIAL_F1_RECORDER: F1RecorderState = {
+  status: null,
+  available: null,
+  error: null,
+};
+
+/// A newer status replaces the current one; a late reply never does; an
+/// identical revision renders nothing.
+export function f1RecorderReceived(
+  state: F1RecorderState,
+  incoming: F1RecorderStatus,
+): F1RecorderState {
+  if (
+    state.status != null &&
+    incoming.revision <= state.status.revision &&
+    state.error === null
+  ) {
+    return state;
+  }
+  return { status: incoming, available: true, error: null };
+}
+
+export function f1RecorderFailed(
+  state: F1RecorderState,
+  reason: unknown,
+): F1RecorderState {
+  if (state.available !== true) {
+    return state.available === false
+      ? state
+      : { status: null, available: false, error: null };
+  }
+  const error = String(reason);
+  return state.error === error ? state : { ...state, error };
+}
+
 // ----------------------------------------------------------------- transport
 
 export function transportReceived(
@@ -181,6 +312,10 @@ export function transportFailed(
 export const liveStore = createStore<LiveState>(INITIAL_LIVE);
 export const recorderStore = createStore<RecorderState>(INITIAL_RECORDER);
 export const setupStore = createStore<SetupStoreState>(INITIAL_SETUP);
+export const f1Store = createStore<F1StoreState>(INITIAL_F1);
+export const f1LiveStore = createStore<F1LiveState>(INITIAL_F1_LIVE);
+export const f1RecorderStore =
+  createStore<F1RecorderState>(INITIAL_F1_RECORDER);
 export const transportStore = createStore<TelemetryState>(
   initialTelemetryState,
 );

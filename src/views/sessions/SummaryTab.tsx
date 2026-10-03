@@ -10,6 +10,8 @@ import {
 } from "../../session-workspace.ts";
 import { FactList } from "./parts";
 import { SessionTimeline } from "./SessionTimeline";
+import { duration } from "../../session-state.ts";
+import { integer } from "../../telemetry/formatting.ts";
 
 /// "What happened in this session?" — in recorded facts only. The manifest's
 /// own summary first, then, when an analysis exists, its timeline, the
@@ -27,7 +29,26 @@ export const SummaryTab = memo(function SummaryTab({
 }) {
   return (
     <div className="session-summary">
-      {analysis ? <SessionTimeline analysis={analysis} /> : analysisState}
+      <div className="insight-strip" aria-label="Session insight">
+        <div>
+          <span>Recorded time</span>
+          <strong>{duration(manifest.duration_us / 1_000_000)}</strong>
+        </div>
+        <div>
+          <span>Frames</span>
+          <strong>{integer(manifest.frame_count)}</strong>
+        </div>
+        {sessionFigures(manifest)
+          .filter((fact) =>
+            ["duration", "max-speed", "distance", "frames"].includes(fact.key),
+          )
+          .map((fact) => (
+            <div key={fact.key}>
+              <span>{fact.label}</span>
+              <strong>{fact.value}</strong>
+            </div>
+          ))}
+      </div>
 
       <div className="summary-columns">
         <section
@@ -59,6 +80,8 @@ export const SummaryTab = memo(function SummaryTab({
           </section>
         ) : null}
       </div>
+
+      {analysis ? <SessionTimeline analysis={analysis} /> : analysisState}
 
       {analysis ? <EventCounts analysis={analysis} /> : null}
     </div>

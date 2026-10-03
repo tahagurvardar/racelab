@@ -107,13 +107,13 @@ button.ghost:hover,
 }
 
 .primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--text-on-accent);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
 }
 .primary:hover {
-  border-color: var(--accent-strong);
-  background: var(--accent-strong);
+  border-color: var(--text-3);
+  background: var(--surface-3);
 }
 
 /* Destructive controls are outlined, not filled: they are rare and must not

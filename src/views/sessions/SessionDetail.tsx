@@ -18,15 +18,25 @@ import { AnalysisStatePanel, Badge, FactList, LifecyclePill } from "./parts";
 import { SlipTab } from "./SlipTab";
 import { SummaryTab } from "./SummaryTab";
 import { TurnsTab } from "./TurnsTab";
+import { F1SessionDetail } from "./F1SessionDetail";
 
 /// The selected session: a compact header, then Summary, Events, Turns, Slip
 /// and Data. Everything shown belongs to `selected.id` — the controller drops
-/// any reply that does not — so switching sessions can never mix two.
+/// any reply that does not — so switching sessions can never mix two. An
+/// F1 25 session has its own factual detail (`F1SessionDetail`).
 export function SessionDetail({
   controller,
 }: {
   controller: SessionsController;
 }) {
+  const selected = useSessions(controller, (state) => state.selected);
+  if (selected?.game === "f1_25") {
+    return <F1SessionDetail controller={controller} selected={selected} />;
+  }
+  return <Fh6SessionDetail controller={controller} />;
+}
+
+function Fh6SessionDetail({ controller }: { controller: SessionsController }) {
   const selected = useSessions(controller, (state) => state.selected);
   const tab = useSessions(controller, (state) => state.tab);
   const loaded = useSessions(controller, (state) => state.list.loaded);

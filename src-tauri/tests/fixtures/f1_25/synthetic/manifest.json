@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "provenance": "SYNTHETIC. Written field by field in the order of the official Data Output from F1 25 Game v3 structs by src-tauri/tests/f1_synthetic, with fixed values. Never captured from a game.",
+  "session_uid": "ASCII SYNTHET! (bytes 7..14)",
+  "regenerate": "RACELAB_WRITE_SYNTHETIC_FIXTURES=1 cargo test --test f1_25_packets_d",
+  "files": [
+    {
+      "file": "id01-session.bin",
+      "packet_id": 1,
+      "size": 753,
+      "sha256": "d48e793fa3417473c5710992da213b5557f517519c86c4f6dba130969ee9b613"
+    },
+    {
+      "file": "id03-event-penalty.bin",
+      "packet_id": 3,
+      "size": 45,
+      "sha256": "dcfdf43939f37dc169cf06c8b2319a6448066de8b69a010f576c1e37f4fc4679"
+    },
+    {
+      "file": "id03-event-speed-trap.bin",
+      "packet_id": 3,
+      "size": 45,
+      "sha256": "f2b1d913b426f281f5a3845f68387ffc430244d7086b0514ecef62998d32f5aa"
+    },
+    {
+      "file": "id04-participants.bin",
+      "packet_id": 4,
+      "size": 1284,
+      "sha256": "a700fc62cddbc8b70d32f7ed2a6df6ca7bad062c7302bdba9fffe5de69979c95"
+    },
+    {
+      "file": "id08-final-classification.bin",
+      "packet_id": 8,
+      "size": 1042,
+      "sha256": "d1c5d036f21d6969cbc103e9723ad9f0632960585a16a964e9ea4aa61daad84c"
+    },
+    {
+      "file": "id10-car-damage.bin",
+      "packet_id": 10,
+      "size": 1041,
+      "sha256": "3c3a3067778e7c81ce5d1accd81b0c7623f251145d9f49e638f7a4cfedde9a84"
+    },
+    {
+      "file": "id11-session-history.bin",
+      "packet_id": 11,
+      "size": 1460,
+      "sha256": "8e9f7268a9b1c73ac66d9081260bbf3ff1f9614405f981c4919f51c14a3e921a"
+    },
+    {
+      "file": "id12-tyre-sets.bin",
+      "packet_id": 12,
+      "size": 231,
+      "sha256": "62c0260ef45c42402ef8c77fdc3ecf580f574353642ce068ca42e50cdcf0dbf6"
+    },
+    {
+      "file": "id14-time-trial.bin",
+      "packet_id": 14,
+      "size": 101,
+      "sha256": "73add498ee7af2b2ec572f471eea93073daad632f35b70123580851c97cfbc2f"
+    },
+    {
+      "file": "id15-lap-positions.bin",
+      "packet_id": 15,
+      "size": 1131,
+      "sha256": "21b98df25ca127865c9c531128dfcd4cf352ddc02ac4498924dc133d4f81017d"
+    }
+  ]
+}

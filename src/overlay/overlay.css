@@ -1,0 +1,152 @@
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+body {
+  font-family: var(--font-sans);
+  color: var(--text);
+}
+* {
+  box-sizing: border-box;
+}
+.telemetry-overlay {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  user-select: none;
+  overflow: hidden;
+}
+.telemetry-overlay[hidden] {
+  display: none;
+}
+.telemetry-overlay.is-playing {
+  pointer-events: none;
+}
+.telemetry-overlay.is-editing {
+  border-color: var(--accent);
+}
+.telemetry-overlay header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--type-micro);
+  line-height: 14px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.is-editing header {
+  cursor: move;
+}
+.telemetry-overlay dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr 1fr;
+  gap: 12px;
+}
+.overlay-reading {
+  min-width: 0;
+}
+.telemetry-overlay dt {
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-3);
+}
+.telemetry-overlay dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.overlay-primary {
+  padding-top: 5px;
+  align-items: end;
+}
+.overlay-primary dd {
+  font-size: var(--type-brand);
+  line-height: 44px;
+  font-weight: 600;
+}
+.overlay-gear dd {
+  font-size: var(--type-display);
+  line-height: 52px;
+}
+.overlay-rpm dd {
+  font-size: var(--type-figure);
+}
+.overlay-primary small {
+  font: var(--type-micro) var(--font-sans);
+  margin-left: 4px;
+  color: var(--text-2);
+}
+.telemetry-overlay .overlay-inputs {
+  grid-template-columns: 1fr 1fr;
+  margin: 8px 0;
+}
+.overlay-inputs > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px;
+}
+.overlay-inputs dd {
+  font-size: var(--type-label);
+}
+.overlay-input-track {
+  grid-column: 1/-1;
+  height: 3px;
+  background: var(--surface-2);
+}
+.overlay-input-track span {
+  display: block;
+  height: 100%;
+  background: var(--text-2);
+}
+.overlay-context {
+  padding-top: 3px;
+  border-top: 1px solid var(--border);
+}
+.overlay-context .overlay-reading,
+.overlay-car .overlay-reading {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.overlay-context dd {
+  font-size: var(--type-body);
+}
+.telemetry-overlay .overlay-car {
+  margin-top: 8px;
+}
+.overlay-car dd {
+  font-size: var(--type-heading);
+}
+.telemetry-overlay [data-freshness="stale"] dd {
+  color: var(--text-3);
+}
+.telemetry-overlay [data-freshness="unavailable"] dd {
+  color: var(--text-unavailable);
+}
+.overlay-edit-note {
+  margin: 6px 0 0;
+  font-size: var(--type-micro);
+  color: var(--text-2);
+}
+.overlay-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+  text-align: center;
+  color: var(--accent);
+}

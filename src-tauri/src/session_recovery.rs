@@ -24,9 +24,12 @@
 //! takes seconds to read, and startup — let alone UDP ingestion — must not wait
 //! for it. The synchronous half of startup only rewrites a `recording` status
 //! to `interrupted`, which is a manifest-sized operation.
-use crate::session_format::{
-    self, FrameStreamReader, RecoveryOutcome, RecoveryRecordV1, SessionManifestV1, SessionStatus,
-    FRAME_FILE_NAME,
+use crate::{
+    f1_session,
+    session_format::{
+        self, FrameStreamReader, RecoveryOutcome, RecoveryRecordV1, SessionManifestV1,
+        SessionStatus, FRAME_FILE_NAME,
+    },
 };
 use serde::Serialize;
 use std::{
@@ -74,6 +77,20 @@ pub struct RecoveryStatus {
     pub running: bool,
     pub last_session_id: Option<String>,
     pub last_error: Option<String>,
+    /// F1 25 sessions (V2.0 Phase D), counted apart: their files are
+    /// different and so is what "recovered" means for them.
+    pub f1: F1RecoveryCounts,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct F1RecoveryCounts {
+    pub reclassified: u64,
+    pub pending: u64,
+    pub scanned: u64,
+    pub complete: u64,
+    pub truncated: u64,
+    pub damaged: u64,
+    pub unreadable: u64,
 }
 
 /// Reads one session's frame stream and reports what is readable. Never writes.
@@ -270,6 +287,10 @@ impl RecoveryService {
             Ok(reclassified) => status.reclassified = reclassified,
             Err(error) => status.last_error = Some(error),
         }
+        match f1_session::classify_interrupted_sessions(&root) {
+            Ok(reclassified) => status.f1.reclassified = reclassified,
+            Err(error) => status.last_error = Some(error),
+        }
         let status = Arc::new(Mutex::new(status));
         let stop = Arc::new(AtomicBool::new(false));
         // One slot: a second request while one is queued is the same request.
@@ -377,5 +398,39 @@ fn run_sweep(root: &Path, status: &Arc<Mutex<RecoveryStatus>>, stop: &Arc<Atomic
             }
         }
     }
+    run_f1_sweep(root, status, stop);
     lock(status).running = false;
+}
+
+/// F1 25's half of a sweep: each pending interrupted F1 session is scanned
+/// once and its finding recorded. Files are read, never repaired.
+fn run_f1_sweep(root: &Path, status: &Arc<Mutex<RecoveryStatus>>, stop: &Arc<AtomicBool>) {
+    let pending = f1_session::sessions_awaiting_scan(root);
+    lock(status).f1.pending = pending.len() as u64;
+    for directory in pending {
+        if stop.load(Ordering::Acquire) {
+            break;
+        }
+        let outcome = f1_session::recover_session(&directory);
+        let mut status = lock(status);
+        status.f1.pending = status.f1.pending.saturating_sub(1);
+        match outcome {
+            Ok(outcome) => {
+                status.f1.scanned += 1;
+                match outcome {
+                    RecoveryOutcome::Complete => status.f1.complete += 1,
+                    RecoveryOutcome::Truncated => status.f1.truncated += 1,
+                    RecoveryOutcome::Damaged => status.f1.damaged += 1,
+                    RecoveryOutcome::Unreadable => status.f1.unreadable += 1,
+                    RecoveryOutcome::Pending => {}
+                }
+            }
+            Err(error) => {
+                status.last_error = Some(format!(
+                    "Could not record recovery for {}: {error}",
+                    directory.display()
+                ));
+            }
+        }
+    }
 }

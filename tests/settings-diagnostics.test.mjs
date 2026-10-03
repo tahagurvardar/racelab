@@ -427,7 +427,7 @@ test("Diagnostics: only the open tab follows live telemetry", async () => {
 
 // ------------------------------------------------------------ navigation
 
-test("Live, Sessions and Settings stay the only product sections; Diagnostics sits apart", async () => {
+test("Home, Live and Sessions are primary; Diagnostics and Settings sit apart", async () => {
   install();
   await mount(h(ShellHarness));
   const groups = $$(".sidebar-list").map((list) =>
@@ -435,5 +435,9 @@ test("Live, Sessions and Settings stay the only product sections; Diagnostics si
       item.textContent.trim(),
     ),
   );
-  assert.deepEqual(groups, [["Live", "Sessions", "Settings"], ["Diagnostics"]]);
+  assert.deepEqual(groups, [
+    ["Home", "Live", "Sessions"],
+    ["Diagnostics"],
+    ["Settings"],
+  ]);
 });

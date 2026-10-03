@@ -28,6 +28,10 @@
 /// 4. **Metadata only.** The backend commands used here return manifests and
 ///    analysis documents. There is no command that returns frames, and no type
 ///    here that could hold one.
+/// 5. **One history, two games** (V2.0 Phase D). An F1 25 session is selected
+///    like any other, but it has no FH6 analysis: selecting one reads its
+///    factual detail (`get_f1_session`) under the same generation rule and
+///    opens no analysis lane and no refresh timer.
 import type { SessionAnalysisState } from "./analysis-state.ts";
 import {
   orderSessions,
@@ -36,6 +40,11 @@ import {
   type StorageStatus,
 } from "./session-state.ts";
 import { createStore, type Store } from "./state/stores.ts";
+import type {
+  F1SessionDetail,
+  GameFilter,
+  SessionGameId,
+} from "./f1-sessions.ts";
 
 /// Exactly as V1.0 listed sessions. Pagination is out of scope for V1.1.
 export const RECENT_LIMIT = 20;
@@ -53,6 +62,17 @@ export const DETAIL_TABS: { id: DetailTab; label: string }[] = [
   { id: "data", label: "Data" },
 ];
 
+/// F1 25's detail tabs. Factual only: no FH6 analysis concept (turns, slip)
+/// is applied to F1 25.
+export type F1DetailTab = "summary" | "laps" | "events" | "data";
+
+export const F1_DETAIL_TABS: { id: F1DetailTab; label: string }[] = [
+  { id: "summary", label: "Summary" },
+  { id: "laps", label: "Laps" },
+  { id: "events", label: "Events" },
+  { id: "data", label: "Data" },
+];
+
 /// The IPC commands Sessions uses, as functions, so tests can script replies
 /// and their order. `invokeBackend` in the hook maps each to the same Tauri
 /// command V1.0 called.
@@ -62,6 +82,8 @@ export interface SessionsBackend {
   session(sessionId: string): Promise<SessionManifest>;
   analysis(sessionId: string): Promise<SessionAnalysisState>;
   reanalyze(sessionId: string): Promise<unknown>;
+  /// F1 25 session detail. Absent on a backend without F1 25 sessions.
+  f1Session?(sessionId: string): Promise<F1SessionDetail>;
 }
 
 export interface Timers {
@@ -85,6 +107,12 @@ export interface SessionsListState {
 
 export interface SelectedSession {
   id: string;
+  /// Which game recorded it, from the listing. FH6 unless listed as F1 25.
+  game: SessionGameId;
+  /// F1 25 only: the session's factual detail, and its read state.
+  f1: F1SessionDetail | null;
+  f1Loading: boolean;
+  f1Error: string | null;
   /// The manifest for `id`: the listed copy at first, replaced by a fresh read.
   /// Never another session's manifest.
   manifest: SessionManifest | null;
@@ -106,19 +134,31 @@ export interface SessionsState {
   list: SessionsListState;
   selected: SelectedSession | null;
   tab: DetailTab;
+  f1Tab: F1DetailTab;
+  /// Presentation only: which game's sessions the list shows.
+  filter: GameFilter;
 }
 
 /// What the workspace remembers while another section is open, so returning
 /// to Sessions shows the same session on the same tab. Module scope on
 /// purpose: the workspace unmounts when the user leaves it.
-const memory: { id: string | null; tab: DetailTab } = {
+const memory: {
+  id: string | null;
+  tab: DetailTab;
+  f1Tab: F1DetailTab;
+  filter: GameFilter;
+} = {
   id: null,
   tab: "summary",
+  f1Tab: "summary",
+  filter: "all",
 };
 
 export function resetSessionsMemory(): void {
   memory.id = null;
   memory.tab = "summary";
+  memory.f1Tab = "summary";
+  memory.filter = "all";
 }
 
 export interface SessionsController {
@@ -130,6 +170,8 @@ export interface SessionsController {
   /// Selects a session. Selecting the session already shown does nothing.
   select(sessionId: string): void;
   setTab(tab: DetailTab): void;
+  setF1Tab(tab: F1DetailTab): void;
+  setFilter(filter: GameFilter): void;
   /// Recovery only, exactly as V1.0 offered it: asks the backend to analyze
   /// the selected session again, then reads its new state (which starts the
   /// refresh if the job is queued).
@@ -145,6 +187,10 @@ function emptySelection(
 ): SelectedSession {
   return {
     id,
+    game: "fh6",
+    f1: null,
+    f1Loading: false,
+    f1Error: null,
     manifest,
     manifestLoading: true,
     manifestError: null,
@@ -201,6 +247,8 @@ export function createSessionsController(
     list: { recent: null, storage: null, error: null, loaded: false },
     selected: null,
     tab: memory.tab,
+    f1Tab: memory.f1Tab,
+    filter: memory.filter,
   });
 
   let disposed = false;
@@ -250,6 +298,47 @@ export function createSessionsController(
     } catch (reason) {
       if (current(gen) == null || seq !== manifestSeq) return;
       patch(gen, { manifestLoading: false, manifestError: String(reason) });
+    }
+  }
+
+  let f1Seq = 0;
+
+  function isF1(id: string): boolean {
+    return (
+      store
+        .get()
+        .list.recent?.f1_sessions?.some(
+          (listing) => listing.session.racelab_session.session_id === id,
+        ) ?? false
+    );
+  }
+
+  /// F1 25 detail under the same rule as a manifest: only the newest read of
+  /// the current generation lands, and it must name the selected session.
+  async function readF1(gen: number, id: string) {
+    const seq = ++f1Seq;
+    if (backend.f1Session == null) {
+      patch(gen, {
+        f1Loading: false,
+        f1Error: "This RaceLab backend cannot read F1 25 sessions.",
+      });
+      return;
+    }
+    try {
+      const detail = await backend.f1Session(id);
+      if (current(gen) == null || seq !== f1Seq) return;
+      const named = detail.session.racelab_session.session_id;
+      if (named !== id) {
+        patch(gen, {
+          f1Loading: false,
+          f1Error: `The backend returned session ${named} for ${id}.`,
+        });
+        return;
+      }
+      patch(gen, { f1: detail, f1Loading: false, f1Error: null });
+    } catch (reason) {
+      if (current(gen) == null || seq !== f1Seq) return;
+      patch(gen, { f1Loading: false, f1Error: String(reason) });
     }
   }
 
@@ -326,10 +415,49 @@ export function createSessionsController(
         .list.recent?.sessions.find((manifest) => manifest.session_id === id) ??
       null;
     memory.id = id;
+    if (isF1(id)) {
+      // No FH6 manifest, no analysis lane, no refresh timer.
+      lane = null;
+      store.set({
+        ...store.get(),
+        selected: {
+          ...emptySelection(id, null),
+          game: "f1_25",
+          manifestLoading: false,
+          analysisLoading: false,
+          f1Loading: true,
+        },
+      });
+      void readF1(gen, id);
+      return;
+    }
     store.set({ ...store.get(), selected: emptySelection(id, listed) });
     lane = { gen, id, reading: false, again: false, reanalyzing: false };
     void readManifest(gen, id);
     requestAnalysis(lane);
+  }
+
+  /// Every listed session of the filtered games, newest first, as ids.
+  function listedIds(): string[] {
+    const recent = store.get().list.recent;
+    const filter = store.get().filter;
+    const rows: { id: string; started: number }[] = [
+      ...(filter === "f1_25" ? [] : orderSessions(recent?.sessions ?? [])).map(
+        (manifest) => ({
+          id: manifest.session_id,
+          started: manifest.started_at_unix_ms ?? 0,
+        }),
+      ),
+      ...(filter === "fh6" ? [] : (recent?.f1_sessions ?? [])).map(
+        (listing) => ({
+          id: listing.session.racelab_session.session_id,
+          started: listing.session.racelab_session.started_at_unix_ms ?? 0,
+        }),
+      ),
+    ];
+    return rows
+      .sort((a, b) => b.started - a.started || b.id.localeCompare(a.id))
+      .map((row) => row.id);
   }
 
   async function refreshList() {
@@ -353,15 +481,17 @@ export function createSessionsController(
       },
     });
 
-    const sessions = orderSessions(store.get().list.recent?.sessions ?? []);
+    const ids = listedIds();
     const selected = store.get().selected;
     if (selected == null) {
       // Open the remembered session if it is still listed, else the newest.
-      const remembered = sessions.find(
-        (manifest) => manifest.session_id === memory.id,
-      );
-      const first = remembered ?? sessions[0];
-      if (first) select(first.session_id);
+      const first = ids.find((id) => id === memory.id) ?? ids[0];
+      if (first) select(first);
+      return;
+    }
+    if (selected.game === "f1_25") {
+      // A completed recording may have finalized or recovered this session.
+      void readF1(generation, selected.id);
       return;
     }
     // A completed recording may have changed the selected session itself
@@ -413,6 +543,32 @@ export function createSessionsController(
     if (store.get().tab !== tab) store.set({ ...store.get(), tab });
   }
 
+  function setF1Tab(f1Tab: F1DetailTab) {
+    memory.f1Tab = f1Tab;
+    if (store.get().f1Tab !== f1Tab) store.set({ ...store.get(), f1Tab });
+  }
+
+  /// Shows one game's sessions, or all. A selection the filter hides is
+  /// replaced by the newest visible session, so the detail never shows a
+  /// session the list does not.
+  function setFilter(filter: GameFilter) {
+    if (disposed) return;
+    memory.filter = filter;
+    if (store.get().filter === filter) return;
+    store.set({ ...store.get(), filter });
+    const ids = listedIds();
+    const selected = store.get().selected;
+    if (ids.length === 0) {
+      generation += 1;
+      clearTimer();
+      lane = null;
+      memory.id = null;
+      store.set({ ...store.get(), selected: null });
+    } else if (selected == null || !ids.includes(selected.id)) {
+      select(ids[0]);
+    }
+  }
+
   function dispose() {
     disposed = true;
     generation += 1;
@@ -421,5 +577,14 @@ export function createSessionsController(
     clearTimer();
   }
 
-  return { store, refreshList, select, setTab, reanalyze, dispose };
+  return {
+    store,
+    refreshList,
+    select,
+    setTab,
+    setF1Tab,
+    setFilter,
+    reanalyze,
+    dispose,
+  };
 }

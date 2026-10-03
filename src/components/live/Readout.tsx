@@ -26,8 +26,14 @@ export function Readout({
     <div
       className={`readout readout-${size}${
         reading.available ? "" : " is-unavailable"
-      }${className ? ` ${className}` : ""}`}
+      }${reading.stale ? " is-stale" : ""}${className ? ` ${className}` : ""}`}
       data-source={reading.source}
+      data-channel={reading.key}
+      data-compound={
+        reading.key.includes("tyre_compound")
+          ? reading.value.toLowerCase()
+          : undefined
+      }
       data-role={reading.role}
       data-available={reading.available}
     >
@@ -47,6 +53,11 @@ export function Readout({
         )}
         {reading.unit && reading.available ? (
           <span className="readout-unit">{reading.unit}</span>
+        ) : null}
+        {/* A real value that is no longer updating (F1 25 packet families).
+            Said in words, not only by the dimmed style. */}
+        {reading.stale ? (
+          <span className="visually-hidden">, not updating</span>
         ) : null}
       </span>
     </div>

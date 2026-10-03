@@ -1,0 +1,117 @@
+[
+  {
+    "path": "public\\favicon.svg",
+    "hash": "2F8DD3548B22EF968B73086F835BB0C595AB024F5A3EDD61C66096155D91970C",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\mark-32.svg",
+    "hash": "8EBDE4E3E4CB66B18AFDAFC8444519880EA6FEDC3E4D8423C4163121A8D45978",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\mark-24.svg",
+    "hash": "B9CE130850C1764DF3AC995A2BD9BD4EA45B4961AB91A245DC1A9EFE97A47357",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\mark-20.svg",
+    "hash": "E5A3C4FB4EC0E8326BDDC43F3785120677D2CC237352A406BF137EF18F4F6E56",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\mark-16.svg",
+    "hash": "2F8DD3548B22EF968B73086F835BB0C595AB024F5A3EDD61C66096155D91970C",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\icon.svg",
+    "hash": "95F6038C67F674FD3BC585557C573BD87600F37DAE7D23DA2864411AA8792E90",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\icon.png",
+    "hash": "A6A0A81BFCF25024AD9EE234F1CF521C0380B779A2054BB403E9F841BA2E2536",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\icon.ico",
+    "hash": "DE59501519F9ABD3DDDC83F7EE0EC4CBBB03B9A8D8398213213EE71CF1681F10",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\32x32.png",
+    "hash": "79B2C8351ABA62D03588FBA827C865A6E7D49E06A3B2957C93F382823445BCAE",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\128x128@2x.png",
+    "hash": "A6A0A81BFCF25024AD9EE234F1CF521C0380B779A2054BB403E9F841BA2E2536",
+    "unchanged": true
+  },
+  {
+    "path": "src-tauri/icons\\128x128.png",
+    "hash": "C9043B194250B236A86E4B5B757560675C4060D35B07FE31853B519BE7DCA1EE",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\views.css",
+    "hash": "7D9107D5CC78D0A8FFD8EB9D78800F270ECF04D5963568FE1B4EA3F758E9ABC0",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\tokens.css",
+    "hash": "064FA67D1F4E7722B42FC02A523986F37A3DEC0E9E4DC385D785671108A6DB91",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\shell.css",
+    "hash": "EE266941DDCC611424604A50A6D060AE00C6504DCC15776F32DA28A1C2609AD1",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\sessions.css",
+    "hash": "45790B02ACFA933F2B622889624A9C2E342E3BAC414377DDBDB60985AD01D5B2",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\live.css",
+    "hash": "D95C06A998164A609E6E6FF1330DBFC048442C2C6E96843B67C21FC597C75CF3",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\fonts.css",
+    "hash": "131CC818B2482319896F4FAB72588A37F16421C06678AC148E600919ADB764B5",
+    "unchanged": true
+  },
+  {
+    "path": "src/styles\\base.css",
+    "hash": "1CD8D493787ED4FBFD2CACDC6FD9E6EA067E6DEDC33BD7242F1386AAB31923BC",
+    "unchanged": true
+  },
+  {
+    "path": "src/assets\\fonts\\OFL.txt",
+    "hash": "C683BFBCC7E087F5D37A54EF628F10387C451A83DDC459B151403A164AC46C90",
+    "unchanged": true
+  },
+  {
+    "path": "src/assets\\fonts\\GeistMono.woff2",
+    "hash": "AFAACC4C5FBBA89D2EBF7A02DC4070208540874592A5504D57175782FE893101",
+    "unchanged": true
+  },
+  {
+    "path": "src/assets\\fonts\\Geist.woff2",
+    "hash": "2FFEBE993E969069A9789D15164B7715D42491B5835516C5E3B935D5F81B05F1",
+    "unchanged": true
+  },
+  {
+    "path": "src/components/brand/Brand.tsx",
+    "hash": "A8752424B2FE68C6083B18B9B92AD4B39EB296BFDF70986C98F199114A8374E3",
+    "unchanged": true
+  },
+  {
+    "path": "docs/design/racelab-v1-reference.png",
+    "hash": "2C46D2CDBE8A86B6FF6747CE34F49AC00000B1CFEC3D7D1325E01CA410F6EC68",
+    "unchanged": true
+  }
+]

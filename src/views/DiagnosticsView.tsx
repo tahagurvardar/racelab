@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import CapturePanel from "../CapturePanel";
+import { useF1 } from "../hooks/use-f1-evidence.ts";
 import { useLive } from "../hooks/use-live-telemetry.ts";
 import { useRecorder } from "../hooks/use-recorder-status.ts";
 import { useSetup } from "../hooks/use-setup-state.ts";
@@ -23,8 +24,26 @@ import {
   transportDiagnostics,
   type DiagnosticEntry,
 } from "../telemetry/diagnostics-view-model.ts";
+import {
+  f1Connection,
+  f1CounterEntries,
+  f1HeaderEntries,
+  f1KindRows,
+} from "../telemetry/f1-evidence.ts";
+import {
+  playerAvailability,
+  playerSections,
+  type CaptureManifest,
+  type CaptureStatus,
+  type F1LiveSnapshot,
+} from "../telemetry/f1-player.ts";
 
-export type DiagnosticsTab = "connection" | "pipeline" | "adapter" | "capture";
+export type DiagnosticsTab =
+  | "connection"
+  | "pipeline"
+  | "adapter"
+  | "capture"
+  | "f1";
 
 export const DIAGNOSTICS_TABS: { id: DiagnosticsTab; label: string }[] = [
   { id: "connection", label: "Connection" },
@@ -32,6 +51,13 @@ export const DIAGNOSTICS_TABS: { id: DiagnosticsTab; label: string }[] = [
   { id: "adapter", label: "Adapter" },
   { id: "capture", label: "Capture" },
 ];
+
+/// Shown only when the backend reports the F1 25 evidence listener enabled
+/// (a development build, or `RACELAB_F1_EVIDENCE=1`).
+export const F1_EVIDENCE_TAB: { id: DiagnosticsTab; label: string } = {
+  id: "f1",
+  label: "F1 25",
+};
 
 /// A labelled group of readings as a table: the reading, then its value with
 /// any caveat that qualifies it directly beneath. A caveat shared by every
@@ -402,6 +428,299 @@ function AdapterTab() {
   );
 }
 
+// ---------------------------------------------------------------------- f1
+
+/// V2.0 Phase A: what the F1 25 listener has seen, from headers and sizes
+/// alone. Read at 1 Hz by the shell's `useF1Evidence`; no events, no packet
+/// stream, no payload bytes.
+/// Phase B: one table per decoded section, values exactly as decoded, each
+/// with the packet it came from and how old that packet is.
+function F1PlayerSections({ live }: { live: F1LiveSnapshot }) {
+  const unavailable = playerAvailability(live);
+  return (
+    <section className="diag-group" aria-labelledby="diag-f1-player">
+      <h2 className="diag-group-title" id="diag-f1-player">
+        Player car · decoded
+      </h2>
+      <p className="diag-note" data-entry="f1-player-key">
+        playerCarIndex {code(live.player_car_index)} · out-of-order dropped{" "}
+        {integer(live.out_of_order_dropped)} · session resets{" "}
+        {integer(live.session_resets)} · player resets{" "}
+        {integer(live.player_resets)}
+      </p>
+      {unavailable ? (
+        <p className="diag-status" data-entry="f1-player-unavailable">
+          {unavailable}
+        </p>
+      ) : null}
+      <div className="diag-columns">
+        {playerSections(live).map((section) => (
+          <div
+            className="diag-column"
+            key={section.key}
+            data-section={section.key}
+          >
+            {section.entries ? (
+              <EntryTable
+                title={section.title}
+                entries={section.entries}
+                note={section.source}
+              />
+            ) : (
+              <section className="diag-group" aria-label={section.title}>
+                <h2 className="diag-group-title">{section.title}</h2>
+                <p className="diag-note">{section.source} · no player values</p>
+              </section>
+            )}
+            {section.wheels.length > 0 ? (
+              <div className="table-scroll">
+                <table className="diag-table diag-matrix">
+                  <caption className="visually-hidden">
+                    {section.title} by wheel
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Channel</th>
+                      <th scope="col" className="numeric">
+                        FL
+                      </th>
+                      <th scope="col" className="numeric">
+                        FR
+                      </th>
+                      <th scope="col" className="numeric">
+                        RL
+                      </th>
+                      <th scope="col" className="numeric">
+                        RR
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.wheels.map((row) => (
+                      <tr key={row.key} data-entry={"f1-wheels-" + row.key}>
+                        <th scope="row">{row.label}</th>
+                        <td className="diag-value numeric">{row.values.fl}</td>
+                        <td className="diag-value numeric">{row.values.fr}</td>
+                        <td className="diag-value numeric">{row.values.rl}</td>
+                        <td className="diag-value numeric">{row.values.rr}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <p className="diag-note">
+        Values are the decoded wire values in the F1 25 specification&rsquo;s
+        units; a unit is shown only where the specification states one. Each
+        table comes from its own packet and frame: they are not one moment.
+      </p>
+    </section>
+  );
+}
+
+const CAPTURE_LABELS = ["stationary", "driving", "braking", "high-speed"];
+const CAPTURE_DELAYS = [0, 5000, 10000];
+
+/// Development only, present only with `RACELAB_F1_CAPTURE=1`. Writes one
+/// bounded snapshot of the four decoded packets; shows the manifest, never
+/// the bytes.
+function F1CapturePanel({ capture }: { capture: CaptureStatus }) {
+  const [label, setLabel] = useState(CAPTURE_LABELS[0]);
+  const [delay, setDelay] = useState(0);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function take() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    setResult(null);
+    try {
+      const manifest = await invoke<CaptureManifest>("capture_f1_fixtures", {
+        label,
+        delayMs: delay,
+      });
+      setResult(manifest.directory);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setPending(false);
+    }
+  }
+  const problem = error ?? capture.last_error;
+  return (
+    <section className="diag-group" aria-labelledby="diag-f1-capture">
+      <h2 className="diag-group-title" id="diag-f1-capture">
+        Fixture capture · development only
+      </h2>
+      <div className="controls">
+        <label>
+          <span>Label</span>
+          <select
+            value={label}
+            disabled={pending}
+            onChange={(event) => setLabel(event.target.value)}
+          >
+            {CAPTURE_LABELS.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Delay</span>
+          <select
+            value={delay}
+            disabled={pending}
+            onChange={(event) => setDelay(Number(event.target.value))}
+          >
+            {CAPTURE_DELAYS.map((item) => (
+              <option key={item} value={item}>
+                {item === 0 ? "now" : String(item / 1000) + " s"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void take()}
+          aria-disabled={pending}
+        >
+          {pending ? "Capturing…" : "Capture snapshot"}
+        </button>
+      </div>
+      <p className="diag-note" data-entry="f1-capture-count">
+        {capture.snapshots_taken} of {capture.max_snapshots} snapshots this run,
+        into {capture.directory}
+      </p>
+      {result ? (
+        <p className="diag-status" data-entry="f1-capture-result">
+          Written to {result}
+        </p>
+      ) : null}
+      {problem ? (
+        <Notice tone="bad" title="Capture refused" technical={problem}>
+          Nothing was written.
+        </Notice>
+      ) : null}
+    </section>
+  );
+}
+
+function F1Tab() {
+  const status = useF1((state) => state.status);
+  const error = useF1((state) => state.error);
+  const connection = f1Connection(status);
+  const problem = error ?? status?.listener_error ?? null;
+  const glyph =
+    connection.tone === "good" ? "●" : connection.tone === "bad" ? "✕" : "○";
+  return (
+    <div className="diag-stack">
+      <p className="diag-intro">
+        F1 25 evidence: header checks, packet counts and the player car&rsquo;s
+        decoded values. Live shows the current player telemetry; recording
+        status is shown in the status bar and recorded sessions in Sessions.
+      </p>
+      <p className="diag-status" data-entry="f1-connection">
+        <span
+          className={`state-glyph tone-${connection.tone}`}
+          aria-hidden="true"
+        >
+          {glyph}
+        </span>
+        {connection.text}
+      </p>
+      {problem ? (
+        <Notice tone="bad" title="F1 25 listener problem" technical={problem}>
+          The F1 25 evidence listener is not receiving.
+        </Notice>
+      ) : null}
+      {status ? (
+        <>
+          <div className="diag-columns">
+            <div className="diag-column">
+              <EntryTable
+                title="Latest accepted header"
+                entries={f1HeaderEntries(status.evidence.header)}
+              />
+            </div>
+            <div className="diag-column">
+              <EntryTable title="Counters" entries={f1CounterEntries(status)} />
+            </div>
+          </div>
+          <section className="diag-group" aria-labelledby="diag-f1-kinds">
+            <h2 className="diag-group-title" id="diag-f1-kinds">
+              Packet types
+            </h2>
+            <div className="table-scroll">
+              <table className="diag-table diag-matrix">
+                <caption className="visually-hidden">
+                  F1 25 packet types by ID: expected and observed size, rate
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="numeric">
+                      ID
+                    </th>
+                    <th scope="col">Packet</th>
+                    <th scope="col" className="numeric">
+                      Expected
+                    </th>
+                    <th scope="col" className="numeric">
+                      Observed
+                    </th>
+                    <th scope="col">Size source</th>
+                    <th scope="col" className="numeric">
+                      Rate
+                    </th>
+                    <th scope="col" className="numeric">
+                      Accepted
+                    </th>
+                    <th scope="col" className="numeric">
+                      Rejected
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {f1KindRows(status.evidence).map((row) => (
+                    <tr key={row.id} data-entry={`f1-kind-${row.id}`}>
+                      <td className="diag-value numeric">{row.id}</td>
+                      <th scope="row">{row.name}</th>
+                      <td className="diag-value numeric">{row.expected}</td>
+                      <td
+                        className={`diag-value numeric${row.size === "mismatch" ? " tone-bad" : ""}`}
+                        data-size={row.size}
+                      >
+                        {row.observed}
+                      </td>
+                      <td>{row.evidence}</td>
+                      <td className="diag-value numeric">{row.rate}</td>
+                      <td className="diag-value numeric">{row.accepted}</td>
+                      <td className="diag-value numeric">{row.rejected}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="diag-note">
+              Rate is accepted packets over the last one-second window.
+              &ldquo;Spec&rdquo; sizes come from the F1 25 specification and
+              have not yet been seen from the installed game.
+            </p>
+          </section>
+          <F1PlayerSections live={status.live} />
+          {status.capture ? <F1CapturePanel capture={status.capture} /> : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 // ----------------------------------------------------------------- capture
 
 function CaptureTab() {
@@ -421,6 +740,8 @@ export default function DiagnosticsView({ tab }: { tab: DiagnosticsTab }) {
       return <AdapterTab />;
     case "capture":
       return <CaptureTab />;
+    case "f1":
+      return <F1Tab />;
     default:
       return <ConnectionTab />;
   }

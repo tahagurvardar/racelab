@@ -246,8 +246,15 @@ test("the sessions UI only calls manifest-level commands and has no Start Record
   assert.ok(app.includes("<LiveWorkspace"));
   assert.ok(app.includes("<SessionsWorkspace"));
   assert.ok(app.includes("<DiagnosticsWorkspace"));
+  // V2.0: Live routes to one workspace per game.
+  const router = await read("workspaces/LiveWorkspace.tsx");
+  assert.ok(router.includes("<Fh6LiveWorkspace"));
+  assert.ok(router.includes("<F1LiveWorkspace"));
   assert.ok(
-    (await read("workspaces/LiveWorkspace.tsx")).includes("OverviewTab"),
+    (await read("workspaces/Fh6LiveWorkspace.tsx")).includes("OverviewTab"),
+  );
+  assert.ok(
+    (await read("workspaces/F1LiveWorkspace.tsx")).includes("F1OverviewTab"),
   );
   assert.ok(
     (await read("workspaces/DiagnosticsWorkspace.tsx")).includes(

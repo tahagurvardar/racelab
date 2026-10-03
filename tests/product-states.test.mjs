@@ -45,6 +45,9 @@ function visibleText(root = document.body) {
     }
     if (node.nodeType !== 1) return;
     if (node.hidden || node.classList.contains("visually-hidden")) return;
+    // A game's own menu label, quoted verbatim so a player can find it (F1
+    // 25 names its telemetry settings "UDP ..."). Only these are exempt.
+    if (node.hasAttribute("data-game-menu")) return;
     if (node.tagName === "DETAILS" && !node.open) {
       const summary = node.querySelector("summary");
       if (summary) walk(summary);
@@ -140,13 +143,14 @@ test("waiting: the top bar and Live use the same words", async () => {
     live: snapshot({ connection: "LISTENING", health: "LOST", frame: null }),
     rec: recorder({ status: "idle", recording: false }),
   });
+  // V2.0: no supported game is active, so the words are product-level.
   assert.equal(
     $(".state-pill-title").textContent,
-    "Waiting for Forza Horizon 6",
+    "Waiting for a supported game",
   );
   assert.equal(
     $(".telemetry-empty-title").textContent,
-    "Waiting for Forza Horizon 6",
+    "Waiting for a supported game",
   );
   assert.equal($$(".telemetry-empty").length, 1);
   assert.equal($(".shell-alert-slot"), null);
@@ -267,14 +271,15 @@ test("first run: the guide is the one message; Live does not add a waiting box",
   });
   assert.equal($$(".setup-guide").length, 1);
   assert.equal($(".telemetry-empty"), null);
-  assert.equal($(".state-pill-title").textContent, "Set up Forza Horizon 6");
+  // V2.0: the top bar is product-level; the guide itself is FH6's setup.
+  assert.equal($(".state-pill-title").textContent, "Set up a supported game");
   const guide = $(".setup-guide");
   assert.equal(guide.querySelectorAll("ol > li").length, 6);
   assert.match(guide.textContent, /127\.0\.0\.1/);
   assert.match(guide.textContent, /20440/);
   assert.match(
     guide.textContent,
-    /reopen these steps at any time from Settings/,
+    /reopen either game’s steps at any time from Settings/,
   );
   for (const jargon of [
     /\budp\b/i,

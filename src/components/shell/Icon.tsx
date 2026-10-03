@@ -3,6 +3,7 @@
 /// default — the control that holds an icon carries the accessible name.
 
 export type IconName =
+  | "home"
   | "live"
   | "sessions"
   | "settings"
@@ -10,6 +11,7 @@ export type IconName =
   | "chevron-down";
 
 const PATHS: Record<IconName, string[]> = {
+  home: ["M2.5 7 8 2.5 13.5 7V13.5H9.5V9.5H6.5V13.5H2.5Z"],
   // A gauge: the live instrument.
   live: ["M2.75 11.5a5.25 5.25 0 0 1 10.5 0", "M8 11.5l2.75-3.25"],
   // Stacked recordings.

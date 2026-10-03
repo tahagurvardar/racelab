@@ -374,7 +374,10 @@ test("live updates reach mounted Live content (positive control)", async () => {
   const view = await mount(h(ShellHarness));
   resetRenders();
   await liveUpdates(20);
-  assert.equal(renders.LiveWorkspace, 20, "one Live render per update");
+  assert.equal(renders.Fh6LiveWorkspace, 20, "one Live render per update");
+  // The game router selects the game, not the reading: it never re-renders
+  // for telemetry.
+  assert.equal(renders.LiveWorkspace ?? 0, 0);
   assert.ok(renders.OverviewTab >= 20);
   // And the reading on screen is the latest one: 29 m/s = 104 km/h.
   assert.match($(".drive-speed .readout-value").textContent, /^104$/);

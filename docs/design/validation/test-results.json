@@ -1,0 +1,58 @@
+{
+  "redesign_full_frontend_before_concurrent_recording": {
+    "tests": 447,
+    "passed": 447,
+    "failed": 0,
+    "skipped": 0
+  },
+  "current_working_tree_non_browser": {
+    "tests": 425,
+    "pass": 422,
+    "fail": 3,
+    "skipped": 0
+  },
+  "out_of_scope_failures": [
+    "dashboard-architecture: new concurrent F1 recorder polling owner",
+    "f1-live: concurrent recording availability wording",
+    "f1-live: concurrent removal of F1 sessions unavailable note"
+  ],
+  "final_assets_and_design_checks": {
+    "tests": 36,
+    "passed": 36,
+    "failed": 0
+  },
+  "rust": {
+    "passed": 383,
+    "failed": 0,
+    "ignored": 5
+  },
+  "visual": {
+    "screenshots": 27,
+    "sizes": [
+      [
+        960,
+        640
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        1920,
+        1080
+      ]
+    ],
+    "document_overflows": 0,
+    "console_errors": 0
+  },
+  "native": {
+    "tauri_dev_opened": true,
+    "raw_udp": {
+      "packets": 20,
+      "packet_bytes": 128,
+      "total_bytes": 2560
+    },
+    "subsequent_bind_conflict": "Expected: another RaceLab instance occupied port 20440"
+  },
+  "scope": "Original redesign scope; concurrent F1 recording integration preserved for a separate pass"
+}

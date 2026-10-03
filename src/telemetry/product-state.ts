@@ -11,6 +11,7 @@
 import type { LiveSnapshot } from "./live-snapshot.ts";
 import type { SetupState } from "./setup-view-model.ts";
 import { number } from "./formatting.ts";
+import type { GameActivity } from "./games.ts";
 
 export type ProductStateKind =
   | "service_unreachable"
@@ -58,6 +59,10 @@ export interface ProductStateInput {
 }
 
 export const GAME = "Forza Horizon 6";
+
+/// The product-level wording when no supported game is the active one. Every
+/// game-specific sentence below is reached only while that game is active.
+export const SUPPORTED_GAMES_TEXT = "Forza Horizon 6 or F1 25";
 
 /// Priority, highest first: a broken service, then a listener that cannot
 /// receive anything, then a failing recording, then where the game is.
@@ -112,8 +117,8 @@ export function resolveProductState(input: ProductStateInput): ProductState {
     return {
       kind: "first_run",
       tone: "neutral",
-      title: `Set up ${GAME}`,
-      detail: `Turn on Data Out in ${GAME} once, and RaceLab does the rest.`,
+      title: "Set up a supported game",
+      detail: `Turn on telemetry output in ${SUPPORTED_GAMES_TEXT} once, and RaceLab does the rest.`,
     };
   }
   const frame = snapshot.stale ? null : snapshot.frame;
@@ -177,9 +182,8 @@ export function resolveProductState(input: ProductStateInput): ProductState {
       return {
         kind: "waiting",
         tone: "neutral",
-        title: `Waiting for ${GAME}`,
-        detail:
-          "RaceLab is listening and connects on its own as soon as the game sends telemetry.",
+        title: "Waiting for a supported game",
+        detail: `RaceLab is listening and connects on its own as soon as ${SUPPORTED_GAMES_TEXT} sends telemetry.`,
       };
   }
 }
@@ -222,4 +226,35 @@ function degradedState(
         : "No reading is presented as current."
     }`,
   };
+}
+
+/// The top-bar state while F1 25 is the active game, from the arbitration's
+/// own reading of it. F1 25 has no recorded session, so there is no hold or
+/// countdown: a silent game is simply paused until it sends again or goes.
+export function resolveF1ProductState(activity: GameActivity): ProductState {
+  switch (activity) {
+    case "active":
+      return {
+        kind: "live",
+        tone: "good",
+        title: "Live",
+        detail: "Receiving live driving telemetry from F1 25.",
+      };
+    case "detected":
+      return {
+        kind: "connected_idle",
+        tone: "good",
+        title: "Connected · not driving",
+        detail:
+          "F1 25 is connected but is not sending driving telemetry — usually a menu, a loading screen, a pause or spectating.",
+      };
+    default:
+      return {
+        kind: "paused",
+        tone: "warn",
+        title: "Paused",
+        detail:
+          "F1 25 stopped sending telemetry. Nothing is presented as current until it sends again.",
+      };
+  }
 }

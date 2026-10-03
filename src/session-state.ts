@@ -1,4 +1,5 @@
 import { integer } from "./telemetry/formatting.ts";
+import type { F1SessionListing } from "./f1-sessions.ts";
 
 export interface RecorderStatus {
   revision: number;
@@ -132,7 +133,10 @@ export interface StorageStatus {
 }
 
 export interface RecentSessions {
+  /// Forza Horizon 6 sessions, exactly as V1.1 listed them.
   sessions: SessionManifest[];
+  /// F1 25 sessions (V2.0 Phase D). Absent from a pre-V2.0 backend.
+  f1_sessions?: F1SessionListing[];
   unreadable: number;
   directory: string;
   limit: number;

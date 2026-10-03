@@ -67,10 +67,23 @@ const SESSIONS_DATA = [
   "session-workspace.ts",
   "session-timeline.ts",
 ];
+// V2.0: F1 25's own Live workspace and tabs. Every boundary rule applies to
+// them too, and they are kept apart from FH6's (see "each game's Live
+// presentation is isolated").
+const F1_LIVE = [
+  "workspaces/F1LiveWorkspace.tsx",
+  "views/live/f1/F1OverviewTab.tsx",
+  "views/live/f1/F1RaceTab.tsx",
+  "views/live/f1/F1TyresTab.tsx",
+  "views/live/f1/F1DynamicsTab.tsx",
+  "views/live/f1/parts.tsx",
+];
 const PRODUCT_VIEWS = [
   ...LIVE_TABS,
   ...LIVE_COMPONENTS,
   "workspaces/LiveWorkspace.tsx",
+  "workspaces/Fh6LiveWorkspace.tsx",
+  ...F1_LIVE,
   ...SESSIONS,
 ];
 
@@ -82,6 +95,7 @@ test("every Live tab, the shell and the four workspaces exist", () => {
     "components/AppShell.tsx",
     "components/shell/Sidebar.tsx",
     "components/shell/TopBar.tsx",
+    "workspaces/HomeWorkspace.tsx", // coarse source readiness, never raw values
     "components/shell/AlertSlot.tsx",
     "workspaces/LiveWorkspace.tsx",
     "workspaces/SettingsWorkspace.tsx",
@@ -140,12 +154,29 @@ test("telemetry polling is started once, above the view switch", () => {
   const callers = ALL.filter((file) =>
     read(file).includes("startLatestPolling("),
   );
-  // Only these hooks poll. No view, component or panel owns a loop.
+  // Main telemetry owner hooks remain above the switch. The separate overlay
+  // entry reads its own cached frame; Settings reads coarse window state only.
   assert.deepEqual(callers.sort(), [
+    "components/OverlaySettings.tsx",
+    "hooks/use-f1-evidence.ts",
+    "hooks/use-f1-live.ts",
+    "hooks/use-f1-recorder-status.ts",
     "hooks/use-live-telemetry.ts",
     "hooks/use-recorder-status.ts",
     "hooks/use-setup-state.ts",
+    "overlay/Overlay.tsx",
   ]);
+  assert.ok(!read("overlay/main.tsx").includes('"./App"'));
+  assert.match(read("overlay/Overlay.tsx"), /"get_overlay_frame"/);
+  assert.ok(
+    !/get_f1_live|useF1Live|useRecorder/.test(read("overlay/Overlay.tsx")),
+  );
+  assert.match(read("components/OverlaySettings.tsx"), /"get_overlay_state"/);
+  assert.ok(
+    !/get_overlay_frame|get_f1_live|useF1Live/.test(
+      read("components/OverlaySettings.tsx"),
+    ),
+  );
   const app = read("App.tsx");
   // Both hooks are called unconditionally in the shell, so a view change can
   // neither start a second loop nor tear the existing one down.
@@ -155,6 +186,9 @@ test("telemetry polling is started once, above the view switch", () => {
   assert.equal(app.match(/useLiveTelemetry\(\)/g).length, 1);
   assert.equal(app.match(/useRecorderStatus\(\)/g).length, 1);
   assert.equal(app.match(/useSetupState\(\)/g).length, 1);
+  assert.equal(app.match(/useF1Evidence\(\)/g).length, 1);
+  assert.equal(app.match(/useF1LiveTelemetry\(\)/g).length, 1);
+  assert.equal(app.match(/useF1RecorderStatus\(\)/g).length, 1);
   // Views are rendered as children of the shell; none of them calls a hook
   // that polls.
   for (const view of [...PRODUCT_VIEWS, "views/DiagnosticsView.tsx"]) {
@@ -162,6 +196,7 @@ test("telemetry polling is started once, above the view switch", () => {
     assert.ok(!source.includes("useLiveTelemetry"), view);
     assert.ok(!source.includes("useRecorderStatus"), view);
     assert.ok(!source.includes("useSetupState"), view);
+    assert.ok(!source.includes("useF1RecorderStatus"), view);
   }
 });
 
@@ -185,12 +220,19 @@ test("switching views cannot duplicate a polling loop", () => {
 // ANALYSIS_REFRESH_MS, only while it is queued or analyzing (behaviour in
 // tests/session-controller.test.mjs). Any other timer in the frontend is a
 // new loop and must be reviewed, not added quietly.
-test("the analysis refresh is the only timer outside the telemetry poller", () => {
+test("main analysis refresh and the separate overlay freshness watchdog are the only extra timers", () => {
   const timers = ALL.filter((file) =>
     /\bset(Timeout|Interval)\(/.test(code(file)),
   ).sort();
-  assert.deepEqual(timers, ["latest-poller.ts", "session-controller.ts"]);
-  assert.ok(!ALL.some((file) => /\bsetInterval\(/.test(code(file))));
+  assert.deepEqual(timers, [
+    "latest-poller.ts",
+    "overlay/Overlay.tsx",
+    "session-controller.ts",
+  ]);
+  assert.deepEqual(
+    ALL.filter((file) => /\bsetInterval\(/.test(code(file))),
+    ["overlay/Overlay.tsx"],
+  );
   const controller = code("session-controller.ts");
   assert.match(controller, /ANALYSIS_REFRESH_MS = 2000/);
   // It re-reads one command — the selected session's analysis — and nothing
@@ -231,8 +273,18 @@ test("only the views that show live telemetry re-render with it", () => {
   const liveReaders = ALL.filter((file) => /\buseLive\(/.test(code(file)));
   assert.deepEqual(liveReaders.sort(), [
     "views/DiagnosticsView.tsx", // its open tab's counters, only while open
-    "workspaces/LiveWorkspace.tsx",
+    "workspaces/Fh6LiveWorkspace.tsx",
   ]);
+  // F1 25's live values have one full reader: its own workspace. Settings
+  // selects coarse facts (available, listening, port) and never the values.
+  const f1Readers = ALL.filter((file) => /\buseF1Live\(/.test(code(file)));
+  assert.deepEqual(f1Readers.sort(), [
+    "workspaces/F1LiveWorkspace.tsx",
+    "workspaces/SettingsWorkspace.tsx",
+  ]);
+  assert.ok(
+    !/state\.status\?\.live/.test(code("workspaces/SettingsWorkspace.tsx")),
+  );
   // The frame components derive small view models and re-render only when
   // what they display changes.
   const derivedReaders = ALL.filter(
@@ -246,6 +298,10 @@ test("only the views that show live telemetry re-render with it", () => {
     "components/shell/AlertSlot.tsx",
     "components/shell/Sidebar.tsx",
     "components/shell/TopBar.tsx",
+    "workspaces/HomeWorkspace.tsx", // source readiness changes, not raw values
+    // V2.0: Live's neutral waiting view, re-rendered when its sentence
+    // changes.
+    "workspaces/LiveWorkspace.tsx",
   ]);
   // Settings and the first-run slot read no live telemetry themselves.
   for (const file of [
@@ -293,6 +349,11 @@ test("each store is written only by its owner", () => {
   assert.deepEqual(writers("liveStore"), ["hooks/use-live-telemetry.ts"]);
   assert.deepEqual(writers("recorderStore"), ["hooks/use-recorder-status.ts"]);
   assert.deepEqual(writers("setupStore"), ["hooks/use-setup-state.ts"]);
+  assert.deepEqual(writers("f1Store"), ["hooks/use-f1-evidence.ts"]);
+  assert.deepEqual(writers("f1LiveStore"), ["hooks/use-f1-live.ts"]);
+  // The active game is a derived store: one module recomputes it from the two
+  // telemetry stores, and nothing else ever sets it.
+  assert.deepEqual(writers("activeGameStore"), ["state/active-game.ts"]);
   // The listener controls apply the snapshot their command returns, as V1.0's
   // `apply` did, through the one exported action next to the store.
   assert.deepEqual(writers("transportStore"), [
@@ -306,11 +367,17 @@ test("every subscription cleans up on unmount", () => {
     const source = read(file);
     if (source.includes("startLatestPolling(")) {
       // The poller returns its own disposer; the effect must return it.
-      assert.match(
-        source,
-        /useEffect\(\s*\(\)\s*=>\s*\n?\s*startLatestPolling\(/,
-        `${file} must return the poller disposer from useEffect`,
-      );
+      if (file === "overlay/Overlay.tsx") {
+        assert.match(
+          source,
+          /return \(\) => \{\s*stop\(\);\s*clearInterval\(timer\);/,
+        );
+      } else
+        assert.match(
+          source,
+          /useEffect\(\s*\(\)\s*=>\s*\n?\s*startLatestPolling\(/,
+          `${file} must return the poller disposer from useEffect`,
+        );
     }
     if (source.includes("await listen<")) {
       assert.ok(source.includes("unlisten?.()"), `${file} must unlisten`);
@@ -343,7 +410,7 @@ test("navigation separates the product sections from diagnostics", async () => {
   } = await import("../src/views/navigation.ts");
   assert.deepEqual(
     product.map((item) => item.id),
-    ["live", "sessions", "settings"],
+    ["home", "live", "sessions"],
   );
   assert.deepEqual(
     engineering.map((item) => item.id),
@@ -399,6 +466,10 @@ test("the wheel corner mapping exists in exactly one frontend module", () => {
     /front_left|rear_right/.test(code(file)),
   );
   assert.deepEqual(mappers.sort(), [
+    // F1 25 (V2.0): the backend names F1 corners from the F1 wire order
+    // (RL, RR, FL, FR); this one module reads those names into presentation
+    // order for F1 Live and Diagnostics alike, and shares nothing with FH6.
+    "telemetry/f1-wheels.ts",
     "telemetry/frame.ts", // declares the shape
     "telemetry/telemetry-view-model.ts", // maps corner -> field, once
   ]);
@@ -455,5 +526,41 @@ test("diagnostics still exposes the raw per-wheel and race adapter values", () =
     "Gear (raw code)",
   ]) {
     assert.ok(diagnostics.includes(expected), `diagnostics lost ${expected}`);
+  }
+});
+
+test("each game's Live presentation is isolated", () => {
+  // F1 25 views never reach FH6's builders, wheel mapping or wording, and
+  // FH6's never reach F1 25's.
+  for (const file of F1_LIVE) {
+    const source = code(file);
+    assert.ok(
+      !/telemetry-view-model|from "\.\.\/\.\.\/telemetry\/live-layout\.ts"|useLive\(|liveStore/.test(
+        source.replace(/import type[^;]+;/g, ""),
+      ),
+      `${file} must not use FH6 telemetry`,
+    );
+  }
+  for (const file of [
+    ...LIVE_TABS,
+    "workspaces/Fh6LiveWorkspace.tsx",
+    "telemetry/live-layout.ts",
+    "telemetry/telemetry-view-model.ts",
+  ]) {
+    // Imports and identifiers, not prose: the neutral waiting sentence may
+    // name "F1 25" as a supported game.
+    assert.ok(
+      !/from "[^"]*f1-|useF1|f1LiveStore|f1Store|F1Live|F1_/.test(code(file)),
+      `${file} must not use F1 25 data`,
+    );
+  }
+  // Wheels reach F1 tabs only through the F1 layout, never by index.
+  for (const file of F1_LIVE) {
+    const source = code(file);
+    assert.ok(!/wheels\s*\[|\[\s*[0-3]\s*\]\./.test(source), file);
+    assert.ok(
+      !/front_left|rear_right|rear_left|front_right/.test(source),
+      file,
+    );
   }
 });
