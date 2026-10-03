@@ -1,36 +1,47 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import type { StorageStatus } from "../session-state.ts";
 import {
   BUDGET_CHOICES,
   budgetChoiceLabel,
-  describeBudget,
+  storageView,
   type SettingsSnapshot,
 } from "../settings-state.ts";
+import { Notice } from "./shell/Notice";
 
-/// The one setting V1.0 exposes.
+/// The storage limit — the one product setting RaceLab has, and the only
+/// place it can be changed.
 ///
 /// A fixed set of choices rather than a byte field: the honest range is a
 /// handful of sizes, and a free-form number would only invite a value small
 /// enough to delete a recording as fast as it was made. "Keep everything" is
-/// offered because some users would rather manage the folder themselves, and
-/// hiding that option would not stop them — it would just make RaceLab delete
-/// their recordings without ever having offered an alternative.
+/// offered because some users would rather manage the folder themselves.
+///
+/// Two one-off reads on open (the setting and current usage) and one write
+/// per choice. Nothing here polls or follows live telemetry.
 export function StorageBudget() {
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const labelId = useId();
 
   useEffect(() => {
     let disposed = false;
     void (async () => {
-      try {
-        const snapshot = await invoke<SettingsSnapshot>("get_settings");
-        if (!disposed) setSettings(snapshot);
-      } catch (reason) {
-        // Settings are additive. The sessions list must render regardless.
-        if (!disposed) setError(String(reason));
-      }
+      const [read, usage] = await Promise.allSettled([
+        invoke<SettingsSnapshot>("get_settings"),
+        invoke<StorageStatus>("get_storage_status"),
+      ]);
+      if (disposed) return;
+      if (read.status === "fulfilled") setSettings(read.value);
+      else setReadError(String(read.reason));
+      // Usage is additive: the limit can still be shown and changed without it.
+      if (usage.status === "fulfilled") setStorage(usage.value);
+      setLoading(false);
     })();
     return () => {
       disposed = true;
@@ -38,9 +49,9 @@ export function StorageBudget() {
   }, []);
 
   async function choose(budget: number) {
-    if (pending) return;
-    setPending(true);
-    setError(null);
+    if (pending != null || settings?.storage_budget_bytes === budget) return;
+    setPending(budget);
+    setSaveError(null);
     setSaved(false);
     try {
       setSettings(
@@ -50,67 +61,145 @@ export function StorageBudget() {
       );
       setSaved(true);
     } catch (reason) {
-      setError(String(reason));
+      setSaveError(String(reason));
     } finally {
-      setPending(false);
+      setPending(null);
     }
   }
 
-  if (!settings) {
-    return error ? (
-      <p className="section-footnote" role="status">
-        The storage limit could not be read: {error}
+  if (loading) {
+    return (
+      <p className="settings-loading" role="status">
+        Reading storage settings…
       </p>
-    ) : null;
+    );
+  }
+  if (settings == null) {
+    return (
+      <Notice
+        tone="bad"
+        title="The storage limit could not be read"
+        technical={readError}
+      >
+        Recording and clean-up carry on as before. Reopen Settings to try again.
+      </Notice>
+    );
   }
 
+  const view = storageView(settings, storage);
   const locked = settings.storage_budget_from_environment;
+
   return (
-    <div className="storage-budget">
-      <p>{describeBudget(settings)}</p>
-      {locked ? (
-        <p className="section-footnote" role="status">
-          The storage limit is being set by the RACELAB_STORAGE_BUDGET_BYTES
-          environment variable, so it cannot be changed here.
+    <div className="storage-settings">
+      <div className="storage-usage-block">
+        <p className="storage-usage-figure">
+          {view.used != null ? (
+            <>
+              <strong>{view.used}</strong> used
+              {view.limit && view.limit !== "No limit" ? (
+                <> of {view.limit}</>
+              ) : (
+                <> · no limit</>
+              )}
+            </>
+          ) : (
+            "Current usage is not available."
+          )}
         </p>
-      ) : (
-        <>
-          <div className="controls">
-            {BUDGET_CHOICES.map((choice) => (
-              <button
-                key={choice}
-                type="button"
-                className={
-                  choice === settings.storage_budget_bytes ? "primary" : ""
-                }
-                disabled={pending}
-                onClick={() => void choose(choice)}
-              >
-                {budgetChoiceLabel(choice)}
-              </button>
-            ))}
+        {view.fraction != null ? (
+          <div
+            className="storage-meter-track"
+            role="meter"
+            aria-label="Storage used"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(view.fraction * 100)}
+            aria-valuetext={`${view.used} of ${view.limit}`}
+          >
+            <span
+              className="storage-meter-bar"
+              style={{ width: `${(view.fraction * 100).toFixed(1)}%` }}
+            />
           </div>
-          <p className="section-footnote">
-            A new limit applies the next time RaceLab starts. Nothing is deleted
-            when you change it.
+        ) : null}
+        {view.sessions ? (
+          <p className="settings-note">{view.sessions}</p>
+        ) : null}
+      </div>
+
+      <div className="settings-field">
+        <p className="settings-label" id={labelId}>
+          Storage limit
+        </p>
+        {locked ? (
+          <p className="settings-note">
+            This limit is set outside RaceLab, by the
+            RACELAB_STORAGE_BUDGET_BYTES environment variable, so it cannot be
+            changed here.
           </p>
-        </>
-      )}
-      {saved && !error ? (
-        <p className="section-footnote" role="status">
+        ) : (
+          <div className="segmented" role="group" aria-labelledby={labelId}>
+            {BUDGET_CHOICES.map((choice) => {
+              const current = choice === settings.storage_budget_bytes;
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  className="segment"
+                  aria-pressed={current}
+                  // Not `disabled`: a focused button that becomes disabled
+                  // drops keyboard focus to the page. `choose` ignores
+                  // presses while a save is pending.
+                  aria-disabled={pending != null}
+                  onClick={() => void choose(choice)}
+                >
+                  {pending === choice ? "Saving…" : budgetChoiceLabel(choice)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <p className="settings-explain">{view.meaning}</p>
+        {!locked ? (
+          <p className="settings-note">
+            Changing the limit deletes nothing now. A new limit applies the next
+            time RaceLab starts.
+          </p>
+        ) : null}
+      </div>
+
+      {view.pendingChange ? (
+        <Notice tone="neutral" title="Limit changes on next start" live={false}>
+          {view.pendingChange}
+        </Notice>
+      ) : null}
+      {saved && !saveError ? (
+        <p className="settings-saved" role="status">
+          <span className="state-glyph" aria-hidden="true">
+            ●
+          </span>
           Saved.
         </p>
       ) : null}
-      {error ? (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
+      {saveError ? (
+        <Notice
+          tone="bad"
+          title="The new limit could not be saved"
+          technical={saveError}
+        >
+          The previous limit is still in place.
+        </Notice>
       ) : null}
-      {settings.last_error ? (
-        <p className="error-banner" role="alert">
-          {settings.last_error}
-        </p>
-      ) : null}
+      {view.warnings.map((warning) => (
+        <Notice
+          key={warning.key}
+          tone="warn"
+          title={warning.title}
+          technical={warning.technical}
+        >
+          {warning.detail}
+        </Notice>
+      ))}
     </div>
   );
 }

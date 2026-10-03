@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 24 24">
+  <!-- Source of every packaged RaceLab icon: pnpm tauri icon src-tauri/icons/icon.svg
+       The mark is AppMark (src/components/brand/Brand.tsx) on a tile. Colours are
+       the surface-1, text and accent tokens of src/styles/tokens.css. Change both together. -->
+  <rect width="24" height="24" rx="5" fill="#12161b"/>
+  <path d="M4.5 19.5 10.5 4.5H15L9 19.5Z" fill="#eceff3"/>
+  <path d="M12 19.5 15 12h4.5l-3 7.5Z" fill="#5aa8ff"/>
+</svg>

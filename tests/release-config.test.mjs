@@ -26,25 +26,30 @@ test("the application version is identical in every file that declares one", () 
   assert.equal(PACKAGE.version, cargoVersion);
 });
 
-test("the version is 1.0.0, and only a deliberate decision moves it again", () => {
-  // V1.0 was a release decision, not a side effect of an edit: it was taken
-  // after packaged-build FH6 acceptance, startup fatal-error acceptance and
-  // clean-profile installation all passed. This test is the thing that has to
-  // be changed on purpose the next time that decision is made.
-  assert.equal(PACKAGE.version, "1.0.0");
+test("the version is 1.1.0, and only a deliberate decision moves it again", () => {
+  // Each version is a release decision, not a side effect of an edit: 1.1.0
+  // was taken after the final independent V1.1 audit and the packaged-build
+  // release gate passed. This test is the thing that has to be changed on
+  // purpose the next time that decision is made.
+  assert.equal(PACKAGE.version, "1.1.0");
 });
 
 // --------------------------------------------------------------- packaging
 
 test("the version shown in the window matches the version that was built", () => {
-  // The sidebar label is a literal in the shell. It is the one copy of the
-  // version a user actually sees, and the one most easily forgotten when the
-  // other three files are bumped together.
-  const shell = read("src", "components", "AppShell.tsx");
+  // The version a user sees is a literal in `app-version.ts`. It is the one
+  // copy most easily forgotten when the other three files are bumped together.
+  const version = read("src", "app-version.ts");
   assert.ok(
-    shell.includes(`<em>V${PACKAGE.version}</em>`),
-    `AppShell must show V${PACKAGE.version}`,
+    version.includes(`APP_VERSION = "${PACKAGE.version}"`),
+    `app-version.ts must declare ${PACKAGE.version}`,
   );
+  // And it is actually on screen: the brand renders it, and the sidebar
+  // renders the brand's version label.
+  const brand = read("src", "components", "brand", "Brand.tsx");
+  assert.ok(brand.includes("{APP_VERSION}"));
+  const sidebar = read("src", "components", "shell", "Sidebar.tsx");
+  assert.ok(sidebar.includes("<VersionLabel />"));
 });
 
 test("a Windows installer is actually produced", () => {
@@ -75,6 +80,38 @@ test("every bundled icon exists on disk", () => {
       `missing bundle icon ${icon}`,
     );
   }
+});
+
+test("the brand is final: one mark, and the packaged icons share its geometry", () => {
+  const brand = read("src", "components", "brand", "Brand.tsx");
+  // No direction switch is left in the product.
+  assert.ok(
+    !existsSync(
+      join(ROOT, "src", "components", "brand", "brand-directions.ts"),
+    ),
+  );
+  assert.ok(!/direction|ACTIVE_BRAND/.test(brand));
+  // The icon source draws exactly the bars the AppMark component draws.
+  const svg = read("src-tauri", "icons", "icon.svg");
+  const paths = (source) =>
+    [...source.matchAll(/\bd="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(paths(svg), paths(brand));
+  assert.equal(paths(brand).length, 2);
+  // So does the window's inline favicon (no /favicon.ico request to fail).
+  const page = read("index.html");
+  for (const d of paths(brand))
+    assert.ok(page.includes(d), `index.html icon: ${d}`);
+  // No gradient anywhere in the mark or the icon.
+  assert.ok(!/<(linear|radial)Gradient|gradient\(/i.test(brand + svg));
+  // The installer, executable and window icon are the generated ones: the
+  // .ico carries a 16 px layer for the title bar.
+  const ico = readFileSync(join(ROOT, "src-tauri", "icons", "icon.ico"));
+  const layers = ico.readUInt16LE(4);
+  const sizes = Array.from(
+    { length: layers },
+    (_, index) => ico[6 + index * 16] || 256,
+  );
+  assert.ok(sizes.includes(16) && sizes.includes(32), `ico layers ${sizes}`);
 });
 
 test("a release build opens no console window", () => {

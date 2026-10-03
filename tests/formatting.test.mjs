@@ -11,8 +11,10 @@ import {
   elapsed,
   gForce,
   hertz,
+  grouped,
   integer,
   lapTime,
+  namedCode,
   number,
   percent,
   rangeFraction,
@@ -127,7 +129,7 @@ test("identifiers and codes are never digit-grouped, quantities are", () => {
   assert.equal(code(20440), "20440");
   assert.equal(code(2599), "2599");
   assert.equal(code(-1), "-1");
-  assert.equal(integer(20440), (20440).toLocaleString());
+  assert.equal(integer(20440), grouped(20440));
 });
 
 test("a range bar is only drawn for a usable range", () => {
@@ -142,4 +144,63 @@ test("a range bar is only drawn for a usable range", () => {
   assert.equal(rangeFraction(4000, 800, null), null);
   assert.equal(rangeFraction(null, 800, 8000), null);
   assert.equal(rangeFraction(4000, 8000, 800), null);
+});
+
+// ------------------------------------------------------------ V1.1 locale
+
+const NNBSP = " ";
+
+test("counts group for the reader's locale, but never with the decimal point", () => {
+  // Readings with a fraction are printed with an invariant "." everywhere
+  // (312.4 kW, 123.456 s), so a count may not group with "." too.
+  assert.equal(grouped(1234567, "en-US"), "1,234,567");
+  assert.equal(grouped(1234567, "tr-TR"), `1${NNBSP}234${NNBSP}567`);
+  assert.equal(grouped(1234567, "de-DE"), `1${NNBSP}234${NNBSP}567`);
+  // A locale that already groups with a space keeps its own space.
+  assert.ok(!grouped(1234567, "fr-FR").includes("."));
+  for (const locale of [
+    "en-US",
+    "en-GB",
+    "tr-TR",
+    "de-DE",
+    "es-ES",
+    "it-IT",
+    "nl-NL",
+    "pt-BR",
+    "fr-FR",
+  ]) {
+    for (const value of [0, 7, 1200, 36_000, 14_220, 1_234_567]) {
+      const text = grouped(value, locale);
+      assert.ok(!text.includes("."), `${locale} ${value} -> ${text}`);
+      assert.equal(
+        Number(text.replace(/[^0-9]/g, "")),
+        value,
+        `${locale} ${value}`,
+      );
+    }
+  }
+  // No locale picked here: the default follows the machine.
+  assert.equal(grouped(20440), integer(20440));
+});
+
+test("a state code reads as a name, with the verbatim code kept when it differs", () => {
+  const names = { idle: "Idle", recording: "Capturing", complete: "Saved" };
+  // Capitalising adds nothing: the code is not repeated.
+  assert.deepEqual(namedCode("idle", names), { name: "Idle", code: null });
+  // A name that differs keeps the backend's own word beside it.
+  assert.deepEqual(namedCode("recording", names), {
+    name: "Capturing",
+    code: "recording",
+  });
+  // An unknown code is shown as it is, never guessed at.
+  assert.deepEqual(namedCode("draining", names), {
+    name: "draining",
+    code: null,
+  });
+  assert.deepEqual(namedCode(null, names), { name: UNAVAILABLE, code: null });
+  // Inherited object keys are not names.
+  assert.deepEqual(namedCode("toString", names), {
+    name: "toString",
+    code: null,
+  });
 });

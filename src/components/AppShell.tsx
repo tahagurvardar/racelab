@@ -1,99 +1,104 @@
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import {
-  DIAGNOSTIC_VIEWS,
-  PRODUCT_VIEWS,
-  type NavItem,
-  type ViewId,
+  shortcutAction,
+  type NavigationAction,
+  type NavigationState,
 } from "../views/navigation.ts";
+import { AlertSlot } from "./shell/AlertSlot";
+import { FirstRunSlot } from "./shell/FirstRunSlot";
+import { Sidebar } from "./shell/Sidebar";
+import { TopBar } from "./shell/TopBar";
 
-function NavGroup({
-  title,
-  items,
-  active,
-  onSelect,
-}: {
-  title: string;
-  items: NavItem[];
-  active: ViewId;
-  onSelect: (id: ViewId) => void;
-}) {
+function isEditable(target: EventTarget | null): boolean {
   return (
-    <div className="nav-group">
-      <p className="nav-group-title">{title}</p>
-      <ul>
-        {items.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={`nav-item${item.id === active ? " is-active" : ""}`}
-              aria-current={item.id === active ? "page" : undefined}
-              onClick={() => onSelect(item.id)}
-            >
-              <span className="nav-item-label">{item.label}</span>
-              <span className="nav-item-hint">{item.hint}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement)
   );
 }
 
-/// The persistent application frame: a fixed sidebar, the global status bar and
-/// the active view. Views are swapped inside this frame; nothing that owns a
-/// polling loop lives below it, so switching views never restarts telemetry.
+/// The persistent application frame: sidebar, top bar, the global alert and
+/// the active workspace. Nothing here owns a polling loop, and the frame
+/// itself reads no store: each part of it subscribes to exactly what it
+/// shows, so a 20 Hz live update never re-renders the frame or a workspace
+/// that does not read live telemetry.
 export function AppShell({
-  active,
-  onSelect,
-  status,
-  banner,
-  setup,
+  navigation,
+  onNavigate,
   children,
 }: {
-  active: ViewId;
-  onSelect: (id: ViewId) => void;
-  status: ReactNode;
-  banner: string | null;
-  /// First-run guidance. Rendered above the active view rather than inside one,
-  /// so a user who is still configuring the game finds the instructions
-  /// wherever they happen to have clicked.
-  setup: ReactNode;
+  navigation: NavigationState;
+  onNavigate: (action: NavigationAction) => void;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const action = shortcutAction(
+        {
+          key: event.key,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          metaKey: event.metaKey,
+          shiftKey: event.shiftKey,
+          editable: isEditable(event.target),
+        },
+        navigation,
+      );
+      if (action == null) return;
+      event.preventDefault();
+      onNavigate(action);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigation, onNavigate]);
+
+  // The workspace is one scroll container shared by every section, so a new
+  // destination would otherwise open at the previous one's scroll position.
+  // Reset it before paint on every section or Live-tab change — no animation,
+  // and no per-workspace restoration (not in scope yet).
+  const workspace = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (workspace.current) workspace.current.scrollTop = 0;
+  }, [navigation.section, navigation.liveTab]);
+
+  // A section shortcut pressed with focus inside the workspace removes the
+  // focused control with the section it belonged to, and the browser drops
+  // focus to the page. Put it on the new workspace's title instead, so the
+  // next Tab continues from there. Not on first render: launching the app
+  // moves no focus.
+  const shownSection = useRef(navigation.section);
+  useLayoutEffect(() => {
+    if (shownSection.current === navigation.section) return;
+    shownSection.current = navigation.section;
+    const active = document.activeElement;
+    if (active == null || active === document.body || !active.isConnected) {
+      workspace.current
+        ?.querySelector<HTMLElement>(".workspace-view h1")
+        ?.focus({ preventScroll: true });
+    }
+  }, [navigation.section]);
+
   return (
     <div className="app-shell">
-      <nav className="sidebar" aria-label="Dashboard sections">
-        <div className="sidebar-brand">
-          <span className="sidebar-mark" aria-hidden="true" />
-          <span>
-            RaceLab
-            <em>V1.0.0</em>
-          </span>
-        </div>
-        <NavGroup
-          title="Telemetry"
-          items={PRODUCT_VIEWS}
-          active={active}
-          onSelect={onSelect}
-        />
-        <div className="nav-divider" role="separator" />
-        <NavGroup
-          title="Engineering"
-          items={DIAGNOSTIC_VIEWS}
-          active={active}
-          onSelect={onSelect}
-        />
-      </nav>
+      <Sidebar
+        active={navigation.section}
+        onSelect={(section) => onNavigate({ type: "section", section })}
+      />
       <div className="app-main">
-        {status}
-        {banner ? (
-          <p className="banner" role="alert">
-            {banner}
-          </p>
-        ) : null}
-        <main className="view">
-          {setup}
-          {children}
+        <TopBar />
+        <main className="workspace" ref={workspace}>
+          <div className="workspace-inner">
+            <AlertSlot />
+            <FirstRunSlot />
+            {/* Keyed by section so a section change replays the short
+                entry transition; nothing below owns a subscription that a
+                remount could duplicate. */}
+            <div className="workspace-view" key={navigation.section}>
+              {children}
+            </div>
+          </div>
         </main>
       </div>
     </div>

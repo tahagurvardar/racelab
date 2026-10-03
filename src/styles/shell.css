@@ -1,0 +1,596 @@
+/* The application frame: sidebar, top bar, global alert, workspace, tabs and
+   brand. Tokens only. */
+
+/* ---------------------------------------------------------------- frame */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+}
+
+/* The workspace is the only scroll container, and the container that
+   view-level layouts query, so a layout responds to the space it actually
+   has rather than to the window. */
+.workspace {
+  /* The containing block for absolutely positioned descendants — above all
+     the visually-hidden screen-reader text. Without it they are laid out
+     against the document, outside this scroll container, and a long
+     workspace grows the document itself: a second, outer scrollbar. */
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  container: workspace / inline-size;
+}
+
+.workspace-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-6) var(--sp-7);
+}
+
+.workspace-view,
+.tab-panel,
+.tab-panel-content,
+.live-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.workspace-view,
+.tab-panel-content {
+  animation: enter var(--dur-1) var(--ease);
+}
+
+.tab-panel:focus-visible {
+  outline-offset: 4px;
+  border-radius: var(--r-2);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+  }
+}
+
+.workspace-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-4);
+  min-height: 32px;
+}
+.workspace-header h1:focus {
+  outline: none;
+}
+.workspace-header h1:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.workspace-header h1 {
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* -------------------------------------------------------------- sidebar */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-height: 0;
+  padding: var(--sp-4) var(--sp-3);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-chrome);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 32px;
+  margin-bottom: var(--sp-5);
+  padding: 0 var(--sp-2);
+  color: var(--text);
+}
+.sidebar-wordmark {
+  font-size: var(--type-lead);
+}
+
+.sidebar-list {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.sidebar-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.sidebar-item.is-active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+/* The selected edge: the accent marks where you are, nothing else. */
+.sidebar-item.is-active::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 2px;
+  border-radius: var(--r-1);
+  background: var(--accent);
+}
+.sidebar-item .icon {
+  flex: none;
+}
+.sidebar-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-indicator {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+}
+.sidebar-indicator.is-live {
+  background: var(--status-ok);
+}
+.sidebar-indicator.is-degraded {
+  background: var(--status-warn);
+}
+.sidebar-indicator.is-rec {
+  background: var(--rec);
+  animation: rec-pulse 2s var(--ease) infinite;
+}
+
+.sidebar-spacer {
+  flex: 1 1 auto;
+}
+
+.sidebar-group-label {
+  margin: var(--sp-3) 0 var(--sp-1);
+  padding: 0 var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.sidebar-footer {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.version-label {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+
+/* The 56 px rail: same markup, labels kept for assistive technology. */
+@media (max-width: 1199px) {
+  .app-shell {
+    grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  }
+  .sidebar {
+    align-items: center;
+    padding: var(--sp-4) var(--sp-2);
+  }
+  .sidebar-brand {
+    justify-content: center;
+    padding: 0;
+  }
+  .sidebar-wordmark,
+  .sidebar-group-label {
+    display: none;
+  }
+  .sidebar-item {
+    justify-content: center;
+    width: 40px;
+    padding: 0;
+  }
+  .sidebar-item-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .sidebar-indicator {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+  }
+  .sidebar-footer {
+    padding: var(--sp-3) 0 0;
+    text-align: center;
+  }
+  .sidebar-footer .version-label {
+    font-size: var(--type-label);
+  }
+  .sidebar-group-label + .sidebar-list {
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+/* --------------------------------------------------------------- top bar */
+
+.topbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-5);
+  height: var(--topbar-height);
+  padding: 0 var(--sp-6);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-chrome);
+}
+
+.topbar-state {
+  position: relative;
+}
+
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  /* The same height as the REC pill beside it. */
+  height: 28px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+.state-pill:hover,
+.state-pill[aria-expanded="true"] {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.state-pill-title {
+  font-variant-numeric: tabular-nums;
+}
+.state-pill-figure {
+  display: inline-block;
+  text-align: right;
+}
+.state-pill .icon {
+  color: var(--text-3);
+}
+.state-pill.tone-warn {
+  border-color: var(--warn-border);
+}
+.state-pill.tone-bad {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+  color: var(--bad-text);
+}
+
+.state-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--status-neutral);
+  transition: background-color var(--dur-2) var(--ease);
+}
+.tone-good > .state-dot {
+  background: var(--status-ok);
+}
+.tone-warn > .state-dot {
+  background: var(--status-warn);
+}
+.tone-bad > .state-dot {
+  background: var(--status-bad);
+}
+/* Expressive only while telemetry is live: one slow ring, nothing else. */
+.topbar[data-state="live"] .state-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1px solid var(--status-ok);
+  border-radius: var(--r-pill);
+  opacity: 0;
+  animation: live-ring 2.4s var(--ease) infinite;
+}
+
+.state-popover {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 340px;
+  padding: var(--sp-4);
+  border-radius: var(--r-3);
+  background: var(--overlay);
+  box-shadow: var(--shadow-overlay);
+  animation: enter var(--dur-1) var(--ease);
+}
+.state-popover-detail {
+  margin-bottom: var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.state-popover-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.state-popover-items dt {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.state-popover-items dd {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-top: 2px;
+  font-size: var(--type-body);
+}
+.state-popover-items .tone-good .state-glyph {
+  color: var(--status-ok);
+}
+.state-popover-items .tone-warn .state-glyph {
+  color: var(--status-warn);
+}
+.state-popover-items .tone-bad .state-glyph {
+  color: var(--status-bad);
+}
+.state-popover-items .tone-neutral .state-glyph {
+  color: var(--status-neutral);
+}
+
+.topbar-game {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.topbar-facts {
+  display: flex;
+  gap: var(--sp-5);
+  margin-left: auto;
+}
+.topbar-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.topbar-facts dt {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.topbar-facts dd {
+  font-size: var(--type-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.rec-indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease);
+}
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--text-3);
+  border-radius: var(--r-pill);
+}
+.rec-indicator.is-recording {
+  border-color: var(--border-strong);
+  color: var(--text);
+  letter-spacing: var(--tracking-label);
+}
+.rec-indicator.is-recording .rec-dot {
+  border-color: var(--rec);
+  background: var(--rec);
+  animation: rec-pulse 2s var(--ease) infinite;
+}
+.rec-indicator.tone-bad {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+  color: var(--bad-text);
+}
+.rec-indicator.tone-bad .rec-dot {
+  border-color: var(--status-bad);
+}
+.rec-drops {
+  color: var(--warn-text);
+  letter-spacing: 0;
+}
+
+@media (max-width: 1099px) {
+  .topbar {
+    gap: var(--sp-4);
+    padding: 0 var(--sp-4);
+  }
+  .topbar-game {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------ the alert */
+
+/* The global alert is a Notice (views.css); the slot only places it. */
+.shell-alert-slot {
+  display: grid;
+}
+
+/* ------------------------------------------------------------------ tabs */
+
+.tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+
+.tab {
+  position: relative;
+  height: 28px;
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.is-selected {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.tab.is-selected::after {
+  content: "";
+  position: absolute;
+  right: var(--sp-3);
+  bottom: 3px;
+  left: var(--sp-3);
+  height: 2px;
+  border-radius: var(--r-1);
+  background: var(--accent);
+}
+
+/* ----------------------------------------------------------------- brand */
+
+.app-mark {
+  flex: none;
+  color: var(--text);
+}
+
+/* One word in two tones of the same weight: the product name, never a
+   logotype in capitals. Upright — the rake belongs to the mark. */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  white-space: nowrap;
+}
+.wordmark-race {
+  color: var(--text);
+}
+.wordmark-lab {
+  color: var(--text-2);
+}
+
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.about-wordmark {
+  font-size: var(--type-figure);
+}
+
+/* ---------------------------------------------------------------- motion */
+
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes live-ring {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.6);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-indicator.is-rec,
+  .rec-indicator.is-recording .rec-dot,
+  .topbar[data-state="live"] .state-dot::after {
+    animation: none;
+  }
+}

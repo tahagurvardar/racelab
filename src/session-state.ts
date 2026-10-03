@@ -1,3 +1,5 @@
+import { integer } from "./telemetry/formatting.ts";
+
 export interface RecorderStatus {
   revision: number;
   status: "idle" | "recording" | "error";
@@ -200,7 +202,7 @@ export function recoveryNote(manifest: SessionManifest): string | null {
   if (recovery == null) {
     return "RaceLab did not finish this recording. It has not been checked, so how much of it is readable is not yet known.";
   }
-  const frames = recovery.readable_frame_count.toLocaleString();
+  const frames = integer(recovery.readable_frame_count);
   switch (recovery.outcome) {
     case "pending":
       return "RaceLab did not finish this recording. It is being checked to see how much of it can be read.";
@@ -226,7 +228,7 @@ export function recoveryLabel(manifest: SessionManifest): string | null {
     case "complete":
       return "fully recovered";
     case "truncated":
-      return `${recovery.readable_frame_count.toLocaleString()} frames recovered`;
+      return `${integer(recovery.readable_frame_count)} frames recovered`;
     case "damaged":
       return "damaged";
     default:
@@ -242,12 +244,12 @@ export function recoveryLabel(manifest: SessionManifest): string | null {
 export function retentionNote(status: RetentionStatus | null): string | null {
   if (status == null) return null;
   if (!status.enabled) {
-    return `Storage limit off. ${bytes(status.used_bytes)} of recordings kept across ${status.retained_sessions.toLocaleString()} session(s); RaceLab will not delete anything.`;
+    return `Storage limit off. ${bytes(status.used_bytes)} of recordings kept across ${integer(status.retained_sessions)} session(s); RaceLab will not delete anything.`;
   }
-  const base = `${bytes(status.used_bytes)} of ${bytes(status.budget_bytes)} used across ${status.retained_sessions.toLocaleString()} session(s).`;
+  const base = `${bytes(status.used_bytes)} of ${bytes(status.budget_bytes)} used across ${integer(status.retained_sessions)} session(s).`;
   const removed =
     status.deleted_sessions > 0
-      ? ` ${status.deleted_sessions.toLocaleString()} oldest session(s) deleted this run, freeing ${bytes(status.reclaimed_bytes)}.`
+      ? ` ${integer(status.deleted_sessions)} oldest session(s) deleted this run, freeing ${bytes(status.reclaimed_bytes)}.`
       : "";
   const held = status.over_budget
     ? " Over the limit: the sessions that would be next are still in use, so nothing more was deleted."

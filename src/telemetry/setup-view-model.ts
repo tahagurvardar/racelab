@@ -54,6 +54,9 @@ export function resolveSetupStage({
 export interface SetupStep {
   key: string;
   text: string;
+  /// The exact value to type, where the step has one. It also appears in
+  /// `text`; it is separate only so it can be presented prominently.
+  value?: string;
 }
 
 /// The Data Out steps, with the address and port taken from the backend rather
@@ -70,8 +73,13 @@ export function setupSteps(setup: SetupState): SetupStep[] {
     {
       key: "address",
       text: `Set Data Out IP Address to ${setup.listen_host}.`,
+      value: setup.listen_host,
     },
-    { key: "port", text: `Set Data Out IP Port to ${setup.listen_port}.` },
+    {
+      key: "port",
+      text: `Set Data Out IP Port to ${setup.listen_port}.`,
+      value: String(setup.listen_port),
+    },
     {
       key: "drive",
       text: "Go back and start driving. RaceLab picks everything up on its own from here.",

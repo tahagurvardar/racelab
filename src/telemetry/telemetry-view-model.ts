@@ -28,18 +28,19 @@ import {
   text,
 } from "./formatting.ts";
 
-/// Why a value cannot be shown. These are product statements about the RaceLab
-/// canonical model, not claims about what any game transmits.
+/// Why a value cannot be shown, in words a driver can read. These are
+/// statements about what RaceLab has established, not claims about what the
+/// game transmits; the raw values themselves stay in Diagnostics.
 export const NO_CANONICAL_FIELD =
-  "Not in canonical telemetry. The FH6 value exists but its units are unverified, so it stays in Diagnostics.";
+  "Not shown. Forza Horizon 6 sends this value, but its unit has not been verified. The raw value is in Diagnostics.";
 export const NOT_DECODED =
-  "Not in canonical telemetry. The FH6 adapter does not decode this field.";
+  "Not shown. RaceLab does not read this value from Forza Horizon 6.";
 /// The FH6 bytes exist and are preserved, but every captured packet held zero,
 /// so nothing about the value has been established.
 export const NEVER_OBSERVED =
-  "Not in canonical telemetry. Every FH6 packet captured so far carries zero here, so its unit and meaning are unestablished.";
+  "Not shown. Forza Horizon 6 has sent zero here in every recording so far, so what it means is unknown.";
 export const GEAR_UNVALIDATED =
-  "FH6 gear semantics are not established. The raw code is in Diagnostics and is never shown as a gear.";
+  "Not shown. What Forza Horizon 6's gear value means has not been confirmed. The raw value is in Diagnostics.";
 
 export interface Metric {
   key: string;
@@ -217,14 +218,14 @@ export function resolveLiveFrame(
       frame: null,
       availability: "stopped",
       reason:
-        "The UDP listener is stopped. Start it from Diagnostics to receive telemetry.",
+        "RaceLab is not listening for telemetry, so nothing from the game can arrive. Restarting RaceLab starts it again.",
     };
   }
   if (!snapshot) {
     return {
       frame: null,
       availability: "waiting",
-      reason: "Connecting to the RaceLab backend…",
+      reason: "RaceLab is starting.",
     };
   }
   const frame = snapshot.stale ? null : snapshot.frame;
@@ -252,7 +253,7 @@ export function resolveLiveFrame(
         frame: null,
         availability: "stale",
         reason:
-          "Telemetry is degraded. Recent packets failed validation, so no reading is presented as current.",
+          "Telemetry is degraded: RaceLab recently saw invalid packets or dropped telemetry frames, so no reading is presented as current.",
       };
     case "ERROR":
       return {
@@ -265,7 +266,7 @@ export function resolveLiveFrame(
         frame: null,
         availability: "waiting",
         reason:
-          "Waiting for a supported game. RaceLab listens automatically and connects on its own.",
+          "RaceLab is listening and connects on its own as soon as Forza Horizon 6 sends telemetry.",
       };
   }
 }
@@ -302,8 +303,14 @@ function status(
   return { key, label, value, tone, glyph: GLYPHS[tone] };
 }
 
+/// The product name for a protocol/game code, or null for a code RaceLab does
+/// not know. Shared by the live status and the recorded-session views.
+export function gameName(code: string | null | undefined): string | null {
+  return code === "fh6" ? "Forza Horizon 6" : null;
+}
+
 export function gameLabel(snapshot: LiveSnapshot | null): string {
-  return snapshot?.protocol === "fh6" ? "Forza Horizon 6" : "No game detected";
+  return gameName(snapshot?.protocol) ?? "No game detected";
 }
 
 export function connectionPresentation(snapshot: LiveSnapshot | null): {
@@ -480,7 +487,9 @@ export function buildOverview(state: LiveFrameState): OverviewModel {
     ],
     identity: [
       metric("vehicle", "Vehicle ID", text(frame?.vehicle_id)),
-      metric("game", "Game", text(frame?.game)),
+      // The product name, not the protocol code; an unknown code is shown
+      // as-is rather than guessed.
+      metric("game", "Game", text(gameName(frame?.game) ?? frame?.game)),
     ],
     // Codes, never names. RaceLab has no class or drivetrain database, so each
     // of these renders as the integer the game sent and nothing more.

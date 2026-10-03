@@ -1,0 +1,183 @@
+/* Element defaults and shared primitives. Tokens only. */
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg-app);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg-app);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+dt,
+ul,
+ol {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+::selection {
+  background: var(--accent-surface);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Scrollbars that belong to a dark desktop app rather than a web page. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+.button,
+.primary,
+.danger,
+button.ghost,
+:where(.controls) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.button:hover,
+button.ghost:hover,
+:where(.controls) button:not(.primary, .danger):hover {
+  background: var(--surface-3);
+}
+
+.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.primary:hover {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+
+/* Destructive controls are outlined, not filled: they are rare and must not
+   be the loudest thing on screen. */
+.danger {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+  color: var(--bad-text);
+}
+.danger:hover {
+  border-color: var(--status-bad);
+}
+
+/* A button that is busy (aria-disabled) looks disabled but keeps focus. */
+button:disabled,
+button:disabled:hover,
+button[aria-disabled="true"],
+button[aria-disabled="true"]:hover {
+  border-color: var(--border-subtle);
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* ----------------------------------------------------------------- forms */
+
+/* A text field's outline is the only thing that says "type here", so it needs
+   3:1 against the panel (WCAG 1.4.11). The bottom edge carries it, as native
+   Windows fields do; the other sides stay quiet. */
+input {
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-bottom-color: var(--text-3);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease);
+}
+input:hover {
+  border-color: var(--text-3);
+}
+input:focus-visible {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+  outline-offset: 0;
+}
+input:disabled {
+  border-color: var(--border-subtle);
+  color: var(--text-disabled);
+}
+
+/* ------------------------------------------------------------- utilities */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

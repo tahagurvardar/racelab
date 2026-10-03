@@ -110,9 +110,31 @@ export function elapsed(seconds: Nullable): string {
     : `${minutes}:${secs}`;
 }
 
-/// A counted quantity, grouped for the reader's locale.
+/// Digit grouping for the reader's locale, with one exception. Every reading
+/// with a fraction is printed with an invariant "." (312.4 kW, 123.456 s), so
+/// a locale that groups with "." (tr-TR, de-DE: 12.345) would make a count
+/// indistinguishable from a reading. There the group separator becomes a
+/// narrow no-break space, the ISO 80000 grouping (12 345); a locale whose
+/// separator cannot be mistaken for the decimal point (en-US 12,345, fr-FR
+/// 12 345) is left exactly as it is.
+const GROUPING = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+
+export function grouped(value: number, locale?: string): string {
+  const format =
+    locale == null
+      ? GROUPING
+      : new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+  return format
+    .formatToParts(value)
+    .map((part) =>
+      part.type === "group" && part.value === "." ? " " : part.value,
+    )
+    .join("");
+}
+
+/// A counted quantity, grouped for the reader's locale (see `grouped`).
 export function integer(raw: Nullable): string {
-  return usable(raw) ? Math.trunc(raw).toLocaleString() : UNAVAILABLE;
+  return usable(raw) ? grouped(Math.trunc(raw)) : UNAVAILABLE;
 }
 
 /// An identifier, port or opaque code. Never grouped: digit grouping would
@@ -125,12 +147,35 @@ export function text(raw: string | null | undefined): string {
   return raw == null || raw === "" ? UNAVAILABLE : raw;
 }
 
+/// A backend state or identifier code with a readable name. The name only
+/// spells the same state out (it never renames, merges or grades one), and
+/// the verbatim code is kept beside it whenever the name is more than the code
+/// capitalised, so what the backend and its logs say stays visible. A code
+/// with no known name is shown as it is.
+export interface NamedCode {
+  name: string;
+  /// The verbatim code, or null when the name already shows it.
+  code: string | null;
+}
+
+export function namedCode(
+  raw: string | null | undefined,
+  names: Readonly<Record<string, string>>,
+): NamedCode {
+  if (raw == null || raw === "") return { name: UNAVAILABLE, code: null };
+  const name = Object.hasOwn(names, raw) ? names[raw] : raw;
+  return {
+    name,
+    code: name.toLowerCase() === raw.toLowerCase() ? null : raw,
+  };
+}
+
 export function hertz(raw: Nullable): string {
   return usable(raw) ? `${raw.toFixed(1)} Hz` : UNAVAILABLE;
 }
 
 export function ageMs(raw: Nullable): string {
-  return usable(raw) ? `${Math.trunc(raw).toLocaleString()} ms` : UNAVAILABLE;
+  return usable(raw) ? `${grouped(Math.trunc(raw))} ms` : UNAVAILABLE;
 }
 
 /// Position within an inclusive range, 0..100, for a progress bar. Returns null
@@ -145,4 +190,19 @@ export function rangeFraction(
     return null;
   }
   return Math.min(100, Math.max(0, ((value - low) / (high - low)) * 100));
+}
+
+/// Metres -> km. Presentation only; the canonical distance stays in metres.
+export function kilometres(metres: Nullable, digits = 1): string {
+  return usable(metres) ? (metres / 1000).toFixed(digits) : UNAVAILABLE;
+}
+
+/// A signed figure with an explicit sign, for measured quantities whose sign
+/// is part of the reading (e.g. the strongest longitudinal deceleration,
+/// stored negative). U+2212 so the sign is as wide as "+".
+export function signed(raw: Nullable, digits = 1): string {
+  if (!usable(raw)) return UNAVAILABLE;
+  const fixed = Math.abs(raw).toFixed(digits);
+  if (Number(fixed) === 0) return fixed;
+  return `${raw < 0 ? "−" : "+"}${fixed}`;
 }

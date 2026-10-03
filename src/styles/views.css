@@ -1,0 +1,597 @@
+/* Settings, Diagnostics, first-run setup, inline notices and the Live empty
+   state (Stage E). Tokens only. Live has live.css; Sessions has sessions.css. */
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+
+/* --------------------------------------------------------------- notice */
+
+/* An inline message inside a workspace: glyph, short title, plain detail,
+   and the backend's words behind a disclosure. Never colour alone. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.notice.tone-warn {
+  border-color: var(--warn-border);
+  background: var(--warn-surface);
+}
+.notice.tone-bad {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+}
+.notice.tone-good {
+  border-color: var(--ok-border);
+}
+.notice-glyph {
+  flex: none;
+  font-size: var(--type-small);
+  line-height: 1.8;
+}
+.notice.tone-warn .notice-glyph {
+  color: var(--status-warn);
+}
+.notice.tone-bad .notice-glyph {
+  color: var(--status-bad);
+}
+.notice.tone-good .notice-glyph {
+  color: var(--status-ok);
+}
+.notice.tone-neutral .notice-glyph {
+  color: var(--status-neutral);
+}
+.notice-body {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.notice-title {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.notice.tone-warn .notice-title {
+  color: var(--warn-text);
+}
+.notice.tone-bad .notice-title {
+  color: var(--bad-text);
+}
+.notice-detail {
+  max-width: 88ch;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.notice-technical > summary {
+  width: fit-content;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+.notice-technical > p {
+  margin-top: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--type-small);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------ live empty state */
+
+.telemetry-empty {
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--border-strong);
+  transition: border-color var(--dur-2) var(--ease);
+}
+.telemetry-empty-title {
+  font-size: var(--type-heading);
+  font-weight: var(--weight-bold);
+}
+.telemetry-empty-reason {
+  margin-top: var(--sp-1);
+  max-width: 88ch;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.telemetry-empty.tone-grace,
+.telemetry-empty.tone-stale {
+  border-left-color: var(--status-warn);
+}
+.telemetry-empty.tone-stopped {
+  border-left-color: var(--status-bad);
+}
+.telemetry-empty.tone-idle,
+.telemetry-empty.tone-waiting {
+  border-left-color: var(--text-3);
+}
+
+/* -------------------------------------------------------- shared bits */
+
+.state-glyph {
+  font-size: var(--type-small);
+  line-height: 1;
+}
+.tone-good > .state-glyph,
+.state-glyph.tone-good {
+  color: var(--status-ok);
+}
+.tone-warn > .state-glyph,
+.state-glyph.tone-warn {
+  color: var(--status-warn);
+}
+.tone-bad > .state-glyph,
+.state-glyph.tone-bad {
+  color: var(--status-bad);
+}
+.tone-neutral > .state-glyph {
+  color: var(--status-neutral);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+.controls label {
+  display: grid;
+  flex: 1 1 200px;
+  gap: var(--sp-1);
+  max-width: 320px;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+}
+.controls input {
+  width: 100%;
+}
+
+pre {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-2);
+  background: var(--bg-app);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ----------------------------------------------------------- first run */
+
+/* The only thing in RaceLab that asks the user to do something, so it
+   carries the accent edge; once done, the calm success edge. */
+.setup-guide {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.setup-guide.tone-good {
+  border-left-color: var(--status-ok);
+}
+.setup-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3) var(--sp-4);
+}
+.setup-heading h2 {
+  margin-top: var(--sp-1);
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: var(--weight-bold);
+}
+.setup-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.setup-guide.tone-good .setup-eyebrow .state-glyph {
+  color: var(--status-ok);
+}
+.setup-lead {
+  max-width: 80ch;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.setup-footnote {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.setup-steps {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: 80ch;
+  margin: 0;
+  padding-left: 1.6em;
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.setup-steps li::marker {
+  color: var(--text-3);
+  font-weight: var(--weight-semibold);
+}
+/* The exact value to type into the game. */
+.setup-value {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.setup-detection {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  max-width: 88ch;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--bg-chrome);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+.setup-detection.tone-good {
+  border-color: var(--ok-border);
+}
+.setup-detection.tone-warn {
+  border-color: var(--warn-border);
+}
+.setup-detection.tone-bad {
+  border-color: var(--bad-border);
+}
+
+/* ------------------------------------------------------------ settings */
+
+.settings-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 1080px;
+}
+
+/* A preferences group: what it is on the left, its controls on the right. */
+.settings-group {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: var(--sp-4) var(--sp-7);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.settings-group-header h2 {
+  font-size: var(--type-heading);
+  font-weight: var(--weight-bold);
+}
+.settings-group-header p {
+  margin-top: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+.settings-group-body {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.settings-group-body > * {
+  max-width: 100%;
+}
+
+.storage-settings {
+  display: grid;
+  gap: var(--sp-4);
+  width: 100%;
+}
+.storage-usage-block {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: 480px;
+}
+.storage-usage-figure {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.storage-usage-figure strong {
+  color: var(--text);
+  font-size: var(--type-lead);
+  font-weight: var(--weight-semibold);
+}
+.storage-meter-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+}
+.storage-meter-bar {
+  display: block;
+  height: 100%;
+  background: var(--ch-scale-3);
+}
+
+.settings-field {
+  display: grid;
+  gap: var(--sp-2);
+}
+.settings-label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.settings-explain {
+  max-width: 72ch;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.settings-note,
+.settings-loading {
+  max-width: 72ch;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+.settings-saved,
+.settings-status {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.settings-saved .state-glyph,
+.settings-status.tone-good .state-glyph {
+  color: var(--status-ok);
+}
+.settings-status.tone-neutral .state-glyph {
+  color: var(--status-neutral);
+}
+.settings-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-6);
+}
+.settings-facts dt {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.settings-facts dd {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--type-body);
+}
+.settings-setup {
+  display: grid;
+  gap: var(--sp-3);
+  width: 100%;
+}
+
+/* A choice among a few values: one bordered strip, the chosen one filled. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--bg-chrome);
+}
+/* The same height as a tab: both are choices in a 2px-inset strip. */
+.segment {
+  min-height: 28px;
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.segment:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.segment[aria-pressed="true"] {
+  background: var(--accent-surface);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- diagnostics */
+
+.diagnostics-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+/* Says what kind of page this is, once, instead of a paragraph. */
+.diag-badge {
+  margin-right: auto;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  line-height: 1.6;
+}
+.diag-intro {
+  max-width: 96ch;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+.diag-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+.diag-column {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.diag-group {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.diag-stack {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+.diag-group-title {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.diag-status {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--type-body);
+}
+.diag-note {
+  max-width: 96ch;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+.diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-small);
+}
+.diag-table th,
+.diag-table td {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: baseline;
+}
+.diag-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.diag-table tbody th {
+  width: 42%;
+  padding-right: var(--sp-4);
+  color: var(--text-2);
+  font-weight: var(--weight-regular);
+}
+.diag-value {
+  color: var(--text);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+/* A state or identifier: a readable name, with the backend's verbatim code
+   quietly beside it in the machine face. */
+.diag-name {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.diag-code {
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+}
+.diag-caveat {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  line-height: var(--leading-snug);
+}
+.diag-matrix thead th {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.diag-matrix tbody th {
+  width: auto;
+}
+.diag-matrix .numeric {
+  padding-left: var(--sp-4);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.issue-list {
+  display: grid;
+  gap: var(--sp-2);
+}
+.issue-list li {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--bad-border);
+  border-radius: var(--r-2);
+  background: var(--bad-surface);
+  color: var(--bad-text);
+  font-size: var(--type-small);
+  overflow-wrap: anywhere;
+}
+
+/* ----------------------------------------------------------- narrowing */
+
+@container workspace (max-width: 1000px) {
+  .diag-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container workspace (max-width: 820px) {
+  .settings-group {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-5);
+  }
+}

@@ -1,0 +1,969 @@
+/* Sessions (Stage D): a master/detail analysis workspace. Tokens only.
+   Hierarchy comes from position and type, not from a card per number: the
+   list is one panel, the detail is a header, tabs, and grouped regions. */
+
+.sessions-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.sessions-layout {
+  display: grid;
+  grid-template-columns: minmax(248px, 296px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------ list pane */
+
+/* The list stays in view while the detail scrolls: sticky inside the one
+   workspace scroll container, with its own scroll for a long history. */
+.sessions-master {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* Fits below the workspace header before any scrolling (top padding,
+     32px header, gap) and above the bottom edge, so every row of the list
+     can be shown in full without scrolling the workspace. */
+  max-height: calc(
+    100vh - var(--topbar-height) - 2 * var(--sp-5) - var(--sp-4) - 32px
+  );
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+
+.sessions-master-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pane-title,
+.panel-title {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.pane-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.pane-count {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-weight: var(--weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.storage-usage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.storage-meter {
+  grid-column: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+}
+.storage-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--ch-scale-3);
+}
+.storage-usage .link-button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+}
+.link-button:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+/* The pinned "now" row: not a session yet, so not selectable. */
+.recording-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--type-small);
+}
+.recording-row-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--status-neutral);
+}
+.recording-row.tone-rec .recording-row-dot {
+  background: var(--rec);
+  animation: rec-pulse 2s var(--ease) infinite;
+}
+.recording-row.tone-bad .recording-row-dot {
+  background: var(--status-bad);
+}
+.recording-row.tone-warn .recording-row-dot {
+  background: var(--status-warn);
+}
+.recording-row-title {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.recording-row-figure {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.recording-row-meta {
+  grid-column: 2 / -1;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.list-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.list-notice {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-snug);
+}
+.list-notice.tone-warn {
+  color: var(--warn-text);
+}
+
+.session-listbox {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-1) 0 var(--sp-2);
+}
+.session-day-label {
+  padding: var(--sp-3) var(--sp-4) var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.session-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease);
+}
+.session-option:hover {
+  background: var(--surface-2);
+}
+.session-option:focus-visible {
+  outline-offset: -2px;
+}
+.session-option.is-selected {
+  background: var(--surface-3);
+}
+.session-option.is-selected::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--accent);
+}
+.session-option-time {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+.session-option-duration {
+  color: var(--text-2);
+  font-size: var(--type-body);
+  text-align: right;
+}
+.session-option-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+  gap: var(--sp-1) var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+
+/* ----------------------------------------------------------- badges */
+
+.badge,
+.lifecycle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+  line-height: 1.6;
+  white-space: nowrap;
+  transition:
+    color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+.badge-glyph {
+  font-size: var(--type-label);
+}
+.tone-good > .badge-glyph {
+  color: var(--status-ok);
+}
+.tone-warn > .badge-glyph {
+  color: var(--status-warn);
+}
+.tone-bad > .badge-glyph {
+  color: var(--status-bad);
+}
+.tone-rec > .badge-glyph {
+  color: var(--rec);
+}
+.tone-neutral > .badge-glyph {
+  color: var(--status-neutral);
+}
+.badge.tone-warn,
+.lifecycle-pill.tone-warn {
+  border-color: var(--warn-border);
+  color: var(--warn-text);
+}
+.badge.tone-bad,
+.lifecycle-pill.tone-bad {
+  border-color: var(--bad-border);
+  color: var(--bad-text);
+}
+.badge.tone-good,
+.lifecycle-pill.tone-good {
+  border-color: var(--ok-border);
+}
+
+/* -------------------------------------------------------- detail pane */
+
+.sessions-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  container: session-detail / inline-size;
+}
+.sessions-detail.is-empty {
+  padding: var(--sp-7) var(--sp-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-3);
+}
+
+.session-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.session-header-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+.session-title {
+  margin-right: auto;
+  font-family: var(--font-display);
+  font-size: var(--type-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* The same shape as every other inline warning (views.css .notice). */
+.inline-alert {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r-2);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+.inline-alert.tone-warn {
+  border-color: var(--warn-border);
+  background: var(--warn-surface);
+}
+.inline-alert.tone-bad {
+  border-color: var(--bad-border);
+  background: var(--bad-surface);
+  color: var(--bad-text);
+}
+.inline-alert-title {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.inline-alert.tone-warn .inline-alert-title {
+  color: var(--warn-text);
+}
+
+.session-tab-panel {
+  gap: var(--sp-4);
+}
+
+.tab-count {
+  margin-left: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-weight: var(--weight-regular);
+}
+.tab.is-selected .tab-count {
+  color: var(--text-2);
+}
+
+/* --------------------------------------------------- panels and facts */
+
+.session-summary,
+.session-data,
+.session-events,
+.session-turns,
+.session-slip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.session-panel {
+  min-width: 0;
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.session-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.panel-aside {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.panel-footnote {
+  max-width: 96ch;
+  margin-top: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-small);
+  line-height: var(--leading-body);
+}
+.session-events > .panel-footnote,
+.session-turns > .panel-footnote,
+.session-slip > .panel-footnote {
+  margin-top: 0;
+}
+
+.summary-columns {
+  display: grid;
+  /* Two equal columns: a lone panel keeps half the width instead of
+     stretching its label and value apart across the whole detail. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+}
+@container session-detail (min-width: 1100px) {
+  .summary-columns .fact-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container session-detail (max-width: 640px) {
+  .summary-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A definition list read as rows: label left, value right, one divider
+   between rows. Not a card per value. */
+.fact-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--sp-6);
+}
+.fact-list.columns-auto {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.fact dt {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.fact dd {
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.fact dd.mono {
+  font-family: var(--font-mono);
+  font-size: var(--type-small);
+  font-weight: var(--weight-regular);
+}
+.fact.is-unavailable dd {
+  color: var(--text-unavailable);
+  font-weight: var(--weight-regular);
+}
+/* Worth a look, stated in words; the tone only echoes the text. */
+.fact.is-attention dd {
+  color: var(--warn-text);
+}
+
+/* The header facts read as one line of context. */
+.fact-list.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-5);
+}
+.fact-list.inline .fact {
+  justify-content: flex-start;
+  gap: var(--sp-2);
+  padding: 0;
+  border: 0;
+}
+
+.count-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  column-gap: var(--sp-6);
+}
+.count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.count dt {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.count dd {
+  color: var(--text);
+  font-size: var(--type-lead);
+  font-weight: var(--weight-semibold);
+}
+.count.is-unavailable dd {
+  color: var(--text-unavailable);
+  font-weight: var(--weight-regular);
+}
+
+/* --------------------------------------------------- analysis state */
+
+.analysis-state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.analysis-state:focus-visible {
+  outline-offset: 2px;
+}
+.analysis-state.tone-good {
+  border-left-color: var(--status-ok);
+}
+.analysis-state.tone-warn {
+  border-left-color: var(--status-warn);
+}
+.analysis-state.tone-bad {
+  border-left-color: var(--status-bad);
+}
+.analysis-state-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--type-heading);
+  font-weight: var(--weight-bold);
+}
+.analysis-state-detail {
+  max-width: 88ch;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+.analysis-state-note {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.analysis-state-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  margin-top: var(--sp-1);
+}
+
+/* Indeterminate: the queue position is not known, so no percentage. */
+.analysis-progress {
+  position: relative;
+  max-width: 320px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+}
+.analysis-progress > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  background: var(--ch-scale-3);
+  animation: progress-sweep 1s var(--ease) infinite;
+}
+@keyframes progress-sweep {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.pane-empty {
+  padding: var(--sp-5) var(--sp-4);
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+.sessions-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sessions-empty .recording-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r-3);
+  background: var(--surface-1);
+}
+.state-screen {
+  padding: var(--sp-8) var(--sp-6);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-3);
+  text-align: center;
+}
+.state-screen-title {
+  font-size: var(--type-heading);
+  font-weight: var(--weight-bold);
+}
+.state-screen-detail {
+  max-width: 60ch;
+  margin: var(--sp-2) auto 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+/* ------------------------------------------------------------ timeline */
+
+.timeline-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
+  row-gap: 6px;
+  column-gap: var(--sp-3);
+}
+.timeline-lane {
+  display: contents;
+}
+.timeline-lane-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--type-small);
+  white-space: nowrap;
+}
+.timeline-lane-count {
+  color: var(--text-3);
+}
+.timeline-track {
+  position: relative;
+  display: block;
+  height: 16px;
+  border-radius: var(--r-1);
+  background: var(--surface-2);
+}
+.timeline-track-note {
+  display: block;
+  padding-left: var(--sp-2);
+  color: var(--text-unavailable);
+  font-size: var(--type-small);
+  line-height: 16px;
+}
+.timeline-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.timeline-mark {
+  fill: var(--ch-scale-3);
+}
+.tone-throttle .timeline-mark {
+  fill: var(--ch-throttle);
+}
+.tone-brake .timeline-mark {
+  fill: var(--ch-brake);
+}
+.timeline-mark.level-1 {
+  fill-opacity: 0.45;
+}
+.timeline-mark.level-2 {
+  fill-opacity: 0.65;
+}
+.timeline-mark.level-3 {
+  fill-opacity: 0.85;
+}
+.timeline-mark.level-4 {
+  fill-opacity: 1;
+}
+.timeline-axis {
+  position: relative;
+  grid-column: 2;
+  height: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.timeline-tick {
+  position: absolute;
+  top: 2px;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.timeline-tick:first-child {
+  transform: none;
+}
+.timeline-tick[data-edge="end"] {
+  transform: translateX(-100%);
+}
+
+.timeline-table,
+.definitions {
+  margin-top: var(--sp-3);
+}
+.timeline-table > summary,
+.definitions > summary {
+  width: fit-content;
+  color: var(--accent);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+.definitions > summary {
+  color: var(--text-3);
+}
+.timeline-table .table-scroll {
+  margin-top: var(--sp-2);
+}
+
+/* --------------------------------------------------------------- tables */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-height: 28px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-weight: var(--weight-semibold);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.chip:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+  color: var(--text);
+}
+.chip-count {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+}
+
+/* A wide table scrolls inside its own box; the document never does. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.data-table th,
+.data-table td {
+  padding: 6px var(--sp-2);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-app);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  /* Headers wrap so a long label never sets a column wider than its data. */
+  white-space: normal;
+  vertical-align: bottom;
+}
+.data-table tbody th {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+.data-table td {
+  color: var(--text-2);
+}
+.data-table .numeric {
+  text-align: right;
+}
+.data-table .wrap {
+  min-width: 14ch;
+  white-space: normal;
+}
+.data-table .toggle-col {
+  width: 28px;
+  padding-right: 0;
+  padding-left: 0;
+}
+.data-table tbody:hover > tr:first-child {
+  background: var(--surface-1);
+}
+.data-table tr.is-expanded > * {
+  border-bottom-color: transparent;
+}
+.data-table.compact th,
+.data-table.compact td {
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.row-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-3);
+}
+.row-toggle:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.row-toggle-glyph {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--dur-1) var(--ease);
+}
+.row-toggle[aria-expanded="true"] .row-toggle-glyph {
+  transform: rotate(45deg);
+}
+
+.detail-row > td {
+  padding-top: 0;
+  padding-bottom: var(--sp-4);
+  white-space: normal;
+}
+.detail-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--sp-2) var(--sp-5);
+  margin-bottom: var(--sp-3);
+}
+.detail-facts dt {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.detail-facts dd {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--weight-semibold);
+}
+
+.corner-table {
+  border-collapse: collapse;
+  font-size: var(--type-small);
+}
+.corner-table th,
+.corner-table td {
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  text-align: left;
+  white-space: nowrap;
+}
+.corner-table thead th {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.corner-table .numeric {
+  padding-left: var(--sp-4);
+  text-align: right;
+}
+.corner-table tbody th {
+  color: var(--text);
+}
+.corner-table abbr {
+  text-decoration: none;
+}
+.corner-table tr.is-quiet > * {
+  color: var(--text-unavailable);
+}
+
+.show-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+
+/* ----------------------------------------------------------- narrowing */
+
+/* Below 1000px of workspace (a 960px window is 904px): the list stacks above the
+   detail as a bounded, scrollable strip of sessions in columns, so the
+   selected session is still visible beside its neighbours and the detail
+   starts within the first screen. */
+@container workspace (max-width: 1000px) {
+  .sessions-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sessions-master {
+    position: static;
+    max-height: none;
+  }
+  .session-listbox {
+    max-height: 184px;
+  }
+  /* Each day is its own grid (not `display: contents`, which can drop the
+     group's role from the accessibility tree). */
+  .session-day {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  .session-day-label {
+    grid-column: 1 / -1;
+  }
+  .sessions-master-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) var(--sp-4);
+  }
+  .storage-usage {
+    min-width: 240px;
+  }
+}
+
+@container workspace (max-width: 700px) {
+  .timeline-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .timeline-axis {
+    grid-column: 1;
+  }
+}
+
+/* Reduced motion: the REC dot stays solid red (still "recording"), and the
+   indeterminate sweep goes. A frozen sweep would read as a percentage that
+   does not exist; "Analysis queued" / "Analyzing" and their glyph already
+   say the work is pending. */
+@media (prefers-reduced-motion: reduce) {
+  .recording-row.tone-rec .recording-row-dot {
+    animation: none;
+  }
+  .analysis-progress {
+    display: none;
+  }
+}
