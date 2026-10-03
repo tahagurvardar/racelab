@@ -9,5 +9,7 @@ src-tauri/target/
 
 # Private captures stay outside the repository. Only reviewed minimal fixtures are allowed.
 *.rlcap
+*.rlframes
+*.rlf1
 *.summary.json
 !src-tauri/tests/fixtures/fh6/*.rlcap

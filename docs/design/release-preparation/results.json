@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-04",
+  "version": "1.1.0",
+  "frontend": {
+    "tests": 500,
+    "passed": 500,
+    "failed": 0,
+    "skipped": 0,
+    "serial": true
+  },
+  "rust": {
+    "passed": 388,
+    "failed": 0,
+    "ignored": 5
+  },
+  "design_icon_release_checks": {
+    "passed": 38,
+    "original_checks_preserved": 36
+  },
+  "screenshots": {
+    "passed": 69,
+    "sizes": [
+      [960, 640],
+      [1280, 720],
+      [1920, 1080]
+    ],
+    "console_errors": 0,
+    "document_overflow": 0
+  },
+  "locked_assets_unchanged": 23,
+  "candidate_sources_unchanged_during_final_validation": 211,
+  "font_license_hashes": {
+    "src/assets/fonts/OFL.txt": "c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90",
+    "public/licenses/Geist-OFL.txt": "c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90",
+    "dist/licenses/Geist-OFL.txt": "c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90"
+  },
+  "packaged_icon_resources": [
+    {
+      "file": "src-tauri/target/release/racelab.exe",
+      "sha256": "356893c18b207634175bcb43304ca6c4f5d9d124f8ff3bedf9d004b331fa1b59",
+      "frames": [
+        {
+          "group": "32512",
+          "id": 1,
+          "size": [16, 16],
+          "source_match": true,
+          "bytes": 104,
+          "expected_bytes": 104
+        },
+        {
+          "group": "32512",
+          "id": 2,
+          "size": [20, 20],
+          "source_match": true,
+          "bytes": 111,
+          "expected_bytes": 111
+        },
+        {
+          "group": "32512",
+          "id": 3,
+          "size": [24, 24],
+          "source_match": true,
+          "bytes": 117,
+          "expected_bytes": 117
+        },
+        {
+          "group": "32512",
+          "id": 4,
+          "size": [32, 32],
+          "source_match": true,
+          "bytes": 133,
+          "expected_bytes": 133
+        },
+        {
+          "group": "32512",
+          "id": 5,
+          "size": [48, 48],
+          "source_match": true,
+          "bytes": 151,
+          "expected_bytes": 151
+        },
+        {
+          "group": "32512",
+          "id": 6,
+          "size": [64, 64],
+          "source_match": true,
+          "bytes": 170,
+          "expected_bytes": 170
+        },
+        {
+          "group": "32512",
+          "id": 7,
+          "size": [128, 128],
+          "source_match": true,
+          "bytes": 319,
+          "expected_bytes": 319
+        },
+        {
+          "group": "32512",
+          "id": 8,
+          "size": [256, 256],
+          "source_match": true,
+          "bytes": 684,
+          "expected_bytes": 684
+        }
+      ]
+    },
+    {
+      "file": "src-tauri/target/release/bundle/nsis/RaceLab_1.1.0_x64-setup.exe",
+      "sha256": "59c9a0b192a9d1d7f7c13555ddc38b817f0164a293f4838879089b813b04e445",
+      "frames": [
+        {
+          "group": "103",
+          "id": 8,
+          "size": [16, 16],
+          "source_match": true,
+          "bytes": 104,
+          "expected_bytes": 104
+        },
+        {
+          "group": "103",
+          "id": 7,
+          "size": [20, 20],
+          "source_match": true,
+          "bytes": 111,
+          "expected_bytes": 111
+        },
+        {
+          "group": "103",
+          "id": 6,
+          "size": [24, 24],
+          "source_match": true,
+          "bytes": 117,
+          "expected_bytes": 117
+        },
+        {
+          "group": "103",
+          "id": 5,
+          "size": [32, 32],
+          "source_match": true,
+          "bytes": 133,
+          "expected_bytes": 133
+        },
+        {
+          "group": "103",
+          "id": 4,
+          "size": [48, 48],
+          "source_match": true,
+          "bytes": 151,
+          "expected_bytes": 151
+        },
+        {
+          "group": "103",
+          "id": 3,
+          "size": [64, 64],
+          "source_match": true,
+          "bytes": 170,
+          "expected_bytes": 170
+        },
+        {
+          "group": "103",
+          "id": 2,
+          "size": [128, 128],
+          "source_match": true,
+          "bytes": 319,
+          "expected_bytes": 319
+        },
+        {
+          "group": "103",
+          "id": 1,
+          "size": [256, 256],
+          "source_match": true,
+          "bytes": 684,
+          "expected_bytes": 684
+        }
+      ]
+    }
+  ],
+  "build": {
+    "frontend": "passed",
+    "review_typescript": "passed",
+    "format_check": "passed",
+    "nsis": "passed"
+  },
+  "preliminary_frontend": {
+    "passed": 499,
+    "failed": 1,
+    "reason": "20-second browser render timeout for F1 Sessions 960x640 while compilation was also running; complete serial rerun passed with unchanged checks and timeouts"
+  },
+  "release_gates": [
+    "Review and commit the shared candidate before tagging",
+    "Choose the next release version/tag deliberately; v1.1.0 already exists",
+    "F1 real-game Phase D acceptance pending; release default remains disabled",
+    "Existing overlay live-game acceptance pending"
+  ]
+}

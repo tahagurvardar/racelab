@@ -24,6 +24,16 @@ const FILES = walk();
 const CSS = FILES.filter((file) => file.endsWith(".css"));
 const COMPONENTS = FILES.filter((file) => /\.tsx?$/.test(file));
 
+test("the Geist license is included in the packaged public assets unchanged", () => {
+  const source = read("assets/fonts/OFL.txt");
+  const packaged = fs.readFileSync(
+    new URL("../public/licenses/Geist-OFL.txt", import.meta.url),
+    "utf8",
+  );
+  assert.equal(packaged, source);
+  assert.match(packaged, /SIL OPEN FONT LICENSE Version 1\.1/);
+});
+
 test("the old single stylesheet is gone and the token file exists", () => {
   assert.ok(!FILES.includes("styles.css"));
   assert.ok(CSS.includes(TOKENS));

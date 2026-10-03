@@ -2,14 +2,23 @@
 // review backend. Fixtures are layout evidence, never claimed as a live game.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { startBrowser } from "../tests/support/browser.mjs";
 import { press } from "../tests/support/keyboard.mjs";
 
 const integration = process.argv.includes("--integration");
-const directory = new URL(
-  integration ? "../docs/design/integration/" : "../docs/design/validation/",
-  import.meta.url,
-);
+const output = process.argv
+  .find((arg) => arg.startsWith("--output="))
+  ?.slice(9);
+const directory = output
+  ? pathToFileURL(resolve(output) + "/")
+  : new URL(
+      integration
+        ? "../docs/design/integration/"
+        : "../docs/design/validation/",
+      import.meta.url,
+    );
 await fs.mkdir(directory, { recursive: true });
 const env = await startBrowser();
 if (env.skip) throw new Error(env.skip);

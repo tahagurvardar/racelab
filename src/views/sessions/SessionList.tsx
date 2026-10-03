@@ -186,10 +186,21 @@ export function SessionList({
     const option = options.current.get(selectedId);
     if (!option) return;
     const box = option.closest(".session-listbox");
-    if (box instanceof HTMLElement) reveal(box, option);
     const workspace = option.closest(".workspace");
-    if (workspace instanceof HTMLElement) reveal(workspace, option);
-  }, [selectedId]);
+    const keepVisible = () => {
+      if (box instanceof HTMLElement) reveal(box, option);
+      if (workspace instanceof HTMLElement) reveal(workspace, option);
+    };
+    keepVisible();
+    // Detail loading or font/layout changes can resize the list after the
+    // selection effect. Observe dimensions, without following recorder ticks
+    // or forcing a scroll when the row is already visible.
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(keepVisible);
+    observer.observe(option);
+    if (box instanceof HTMLElement) observer.observe(box);
+    return () => observer.disconnect();
+  }, [selectedId, days]);
 
   function choose(id: string, focus: boolean) {
     controller.select(id);

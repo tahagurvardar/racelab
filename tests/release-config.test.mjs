@@ -82,6 +82,13 @@ test("every bundled icon exists on disk", () => {
   }
 });
 
+test("Windows installer and uninstaller use the approved application ICO", () => {
+  const nsis = TAURI.bundle.windows.nsis;
+  assert.equal(nsis.installerIcon, "icons/icon.ico");
+  assert.equal(nsis.uninstallerIcon, nsis.installerIcon);
+  assert.ok(TAURI.bundle.icon.includes(nsis.installerIcon));
+});
+
 test("the brand is final: one mark, and the packaged icons share its geometry", () => {
   const brand = read("src", "components", "brand", "Brand.tsx");
   // No direction switch is left in the product.
@@ -323,7 +330,7 @@ test("no private capture, recording or backup is present in the repository", () 
   const offenders = [];
   for (const file of walk(ROOT)) {
     const relativePath = relative(ROOT, file);
-    const isCapture = /\.(rlcap|rlframes)$/.test(file);
+    const isCapture = /\.(rlcap|rlframes|rlf1)$/.test(file);
     const isSummary = file.endsWith(".summary.json");
     if ((isCapture || isSummary) && !relativePath.startsWith(allowed)) {
       offenders.push(relativePath);
@@ -355,6 +362,8 @@ test("the repository ignores private captures and recordings by default", () => 
   const ignore = read(".gitignore");
   for (const rule of [
     "*.rlcap",
+    "*.rlframes",
+    "*.rlf1",
     "*.summary.json",
     "src-tauri/target/",
     "dist/",
