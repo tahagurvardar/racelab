@@ -15,7 +15,7 @@ export function f1RecordingPresentation(state?: F1RecorderState): {
     };
   }
   if (state == null || state.available === false || state.status == null) {
-    return { value: "F1 25 recording unavailable", tone: "neutral" };
+    return { value: "F1 25 recorder status unavailable", tone: "neutral" };
   }
   const status = state.status;
   if (status.last_error) {

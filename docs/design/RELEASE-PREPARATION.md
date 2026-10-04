@@ -1,5 +1,10 @@
 # RaceLab release preparation — 2026-10-04
 
+Historical 1.1.0 candidate report. Superseded by
+[v2.0.0 stable validation](../V2.0.0-RELEASE-VALIDATION.md): F1 and Overlay
+live-game acceptance passed and F1 is enabled by default in production.
+The version and pending-gate statements below describe that earlier candidate.
+
 This pass prepares the existing shared tree for release. It introduces no
 product feature, redesign, version bump, backend contract change or networking
 workaround. Continuous telemetry traces and reference-lap comparison remain

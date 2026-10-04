@@ -15,6 +15,25 @@ use racelab_lib::{
 use scratch::Scratch;
 use std::fs;
 
+#[test]
+fn stable_release_enables_f1_live_and_recording_by_default() {
+    // Run this in release mode too: debug assertions must not mask the gate.
+    assert!(racelab_lib::f1_evidence::enabled_by_default());
+}
+
+#[cfg(not(debug_assertions))]
+#[test]
+fn packaged_f1_is_enabled_without_development_fixture_capture() {
+    let scratch = Scratch::new("release-f1-gate");
+    let service = racelab_lib::f1_evidence::F1EvidenceService::from_environment(
+        scratch.join("dev-f1-fixtures"),
+    )
+    .unwrap();
+    assert!(service.enabled());
+    assert!(!service.capture_enabled());
+    assert!(!scratch.join("dev-f1-fixtures").exists());
+}
+
 // ------------------------------------------------------ fatal startup errors
 
 /// `startup_error::report` ends the process, so it is never called from a test.

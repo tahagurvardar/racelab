@@ -662,6 +662,12 @@ fn real_interrupted_recordings_recover_their_frames() {
                 fs::copy(file.path(), target.join(file.file_name())).unwrap();
             }
         }
+        // Finished recovery records are intentionally not rescanned. Reset
+        // only the scratch copy so this test also exercises real recordings
+        // that the installed app has already recovered. Never edit the source.
+        let mut pending = manifest.clone();
+        pending.recovery = None;
+        session_format::write_manifest_atomically(&target, &pending).unwrap();
         copied.push((manifest.session_id, manifest.frame_count));
     }
     assert!(

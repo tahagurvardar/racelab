@@ -1,0 +1,455 @@
+{
+  "date": "2026-10-04",
+  "version": "2.0.0",
+  "base_commit": "8d21fa4",
+  "branch": "feature/v2.0-f1-adapter",
+  "release_gate": {
+    "f1_enabled_in_release": true,
+    "live_game_acceptance": "passed, confirmed by release owner",
+    "fixture_capture_in_release": false
+  },
+  "rust": {
+    "normal": {
+      "passed": 389,
+      "failed": 0,
+      "ignored": 5
+    },
+    "release_production": {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0,
+      "capture_environment_override_tested": true
+    },
+    "real_recovery": {
+      "passed": 1,
+      "failed": 0,
+      "scratch_copies_scanned": 14,
+      "truncated": 14,
+      "damaged": 0,
+      "unreadable": 0
+    },
+    "remaining_opt_in_checks_not_rerun": 4,
+    "fmt": "passed",
+    "clippy": "passed with warnings denied"
+  },
+  "frontend": {
+    "passed": 500,
+    "failed": 0,
+    "skipped": 0,
+    "serial": true,
+    "app_typescript": "passed",
+    "review_typescript": "passed",
+    "prettier": "passed",
+    "production_build": "passed",
+    "preliminary": {
+      "passed": 499,
+      "failed": 1,
+      "reason": "browser render timeout during build contention"
+    }
+  },
+  "design_icon_release_checks": {
+    "passed": 38,
+    "failed": 0,
+    "subset_of_frontend": true
+  },
+  "screenshots": {
+    "passed": 69,
+    "sizes": [
+      [960, 640],
+      [1280, 720],
+      [1920, 1080]
+    ],
+    "console_errors": 0,
+    "document_overflows": 0
+  },
+  "packaging": {
+    "locked_assets_unchanged": 23,
+    "fonts": [
+      {
+        "font": "Geist",
+        "asset": "Geist-DPGgOCY9.woff2",
+        "sha256": "2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1"
+      },
+      {
+        "font": "GeistMono",
+        "asset": "GeistMono-Vc9u_qg9.woff2",
+        "sha256": "afaacc4c5fbba89d2ebf7a02dc4070208540874592a5504d57175782fe893101"
+      }
+    ],
+    "license_sha256": "c683bfbcc7e087f5d37a54ef628f10387c451a83ddc459b151403a164ac46c90",
+    "artifacts": [
+      {
+        "file": "src-tauri/target/release/racelab.exe",
+        "bytes": 11587584,
+        "sha256": "cb87a5aace28434edce2ed8d437da7f36acd1b76f203a99cd52688a1e596456b",
+        "icons": [
+          {
+            "group": 32512,
+            "frames": [
+              {
+                "width": 16,
+                "height": 16,
+                "source_match": true
+              },
+              {
+                "width": 20,
+                "height": 20,
+                "source_match": true
+              },
+              {
+                "width": 24,
+                "height": 24,
+                "source_match": true
+              },
+              {
+                "width": 32,
+                "height": 32,
+                "source_match": true
+              },
+              {
+                "width": 48,
+                "height": 48,
+                "source_match": true
+              },
+              {
+                "width": 64,
+                "height": 64,
+                "source_match": true
+              },
+              {
+                "width": 128,
+                "height": 128,
+                "source_match": true
+              },
+              {
+                "width": 256,
+                "height": 256,
+                "source_match": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "file": "src-tauri/target/release/bundle/nsis/RaceLab_2.0.0_x64-setup.exe",
+        "bytes": 2709343,
+        "sha256": "d2eec0eb2619221be5bcc2ad2195e1e0f59142a0b3d764ec5f96d80a68339851",
+        "icons": [
+          {
+            "group": 103,
+            "frames": [
+              {
+                "width": 16,
+                "height": 16,
+                "source_match": true
+              },
+              {
+                "width": 20,
+                "height": 20,
+                "source_match": true
+              },
+              {
+                "width": 24,
+                "height": 24,
+                "source_match": true
+              },
+              {
+                "width": 32,
+                "height": 32,
+                "source_match": true
+              },
+              {
+                "width": 48,
+                "height": 48,
+                "source_match": true
+              },
+              {
+                "width": 64,
+                "height": 64,
+                "source_match": true
+              },
+              {
+                "width": 128,
+                "height": 128,
+                "source_match": true
+              },
+              {
+                "width": 256,
+                "height": 256,
+                "source_match": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "overlay_entry_packaged": true,
+    "review_harness_not_packaged": true,
+    "installed_executable": {
+      "file": "%LOCALAPPDATA%/RaceLab/racelab.exe",
+      "bytes": 11587584,
+      "sha256": "d4282c6783888888edfc3556956e9fc5255e0b2ca3fe5e6fd0e0e855699c72b4",
+      "icons": [
+        {
+          "group": 32512,
+          "frames": [
+            {
+              "width": 16,
+              "height": 16,
+              "source_match": true
+            },
+            {
+              "width": 20,
+              "height": 20,
+              "source_match": true
+            },
+            {
+              "width": 24,
+              "height": 24,
+              "source_match": true
+            },
+            {
+              "width": 32,
+              "height": 32,
+              "source_match": true
+            },
+            {
+              "width": 48,
+              "height": 48,
+              "source_match": true
+            },
+            {
+              "width": 64,
+              "height": 64,
+              "source_match": true
+            },
+            {
+              "width": 128,
+              "height": 128,
+              "source_match": true
+            },
+            {
+              "width": 256,
+              "height": 256,
+              "source_match": true
+            }
+          ]
+        }
+      ],
+      "matches_build_except_nsis_marker": true,
+      "bundle_marker": "NSS"
+    },
+    "uninstaller": {
+      "file": "%LOCALAPPDATA%/RaceLab/uninstall.exe",
+      "bytes": 67326,
+      "sha256": "a6a1d8a180cf14210f01bd59ea52b40854c7a90e11d70808b1fe4f99d97e7f5f",
+      "icons": [
+        {
+          "group": 103,
+          "frames": [
+            {
+              "width": 16,
+              "height": 16,
+              "source_match": true
+            },
+            {
+              "width": 20,
+              "height": 20,
+              "source_match": true
+            },
+            {
+              "width": 24,
+              "height": 24,
+              "source_match": true
+            },
+            {
+              "width": 32,
+              "height": 32,
+              "source_match": true
+            },
+            {
+              "width": 48,
+              "height": 48,
+              "source_match": true
+            },
+            {
+              "width": 64,
+              "height": 64,
+              "source_match": true
+            },
+            {
+              "width": 128,
+              "height": 128,
+              "source_match": true
+            },
+            {
+              "width": 256,
+              "height": 256,
+              "source_match": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "installed_runtime": {
+    "f1_environment_override": false,
+    "window_created": true,
+    "version": "2.0.0",
+    "development_capture_override": false,
+    "ports": [
+      {
+        "LocalAddress": "127.0.0.1",
+        "LocalPort": 20777
+      },
+      {
+        "LocalAddress": "127.0.0.1",
+        "LocalPort": 20440
+      }
+    ],
+    "window_title": "RaceLab"
+  },
+  "persisted_files": {
+    "changed": 0,
+    "files_checked": 123,
+    "unchanged": 123
+  },
+  "real_catalogue": {
+    "fh6": 47,
+    "f1": 5,
+    "unreadable": 0,
+    "f1_lap_files": 5,
+    "f1_events": 9
+  },
+  "regressions": {
+    "fh6": "passed",
+    "f1_live": "passed",
+    "f1_recording": "passed",
+    "mixed_game_sessions": "passed",
+    "recorder_ownership": "passed",
+    "overlay_v1": "passed, implementation unchanged",
+    "settings": "passed",
+    "diagnostics": "passed"
+  },
+  "commit_recommendation": "release: RaceLab v2.0.0 stable",
+  "ready_to_tag_and_publish_after_release_commit": true,
+  "commit_created": false,
+  "tag_created": false,
+  "future_work": [
+    "advanced analysis",
+    "continuous telemetry traces",
+    "reference-lap comparison"
+  ],
+  "git": {
+    "modified": 19,
+    "untracked": 5,
+    "staged": 2,
+    "files": [
+      "README.md",
+      "docs/ROADMAP.md",
+      "docs/V0.2-VALIDATION.md",
+      "docs/V2.0-OVERLAY-V1.md",
+      "docs/V2.0-PHASE-D-F1-RECORDING.md",
+      "docs/design/RELEASE-PREPARATION.md",
+      "package.json",
+      "src-tauri/Cargo.lock",
+      "src-tauri/Cargo.toml",
+      "src-tauri/src/f1_evidence.rs",
+      "src-tauri/src/f1_recorder.rs",
+      "src-tauri/src/lib.rs",
+      "src-tauri/tauri.conf.json",
+      "src-tauri/tests/production.rs",
+      "src-tauri/tests/session_recovery.rs",
+      "src/app-version.ts",
+      "src/telemetry/f1-recording.ts",
+      "tests/f1-sessions.test.mjs",
+      "tests/release-config.test.mjs",
+      "LICENSE",
+      "docs/V2.0.0-RELEASE-NOTES.md",
+      "docs/V2.0.0-RELEASE-VALIDATION.md",
+      "docs/v2.0.0-release/results.json",
+      "docs/v2.0.0-release/screenshots.json"
+    ],
+    "add_or_update": [
+      "README.md",
+      "docs/ROADMAP.md",
+      "docs/V0.2-VALIDATION.md",
+      "docs/V2.0-OVERLAY-V1.md",
+      "docs/V2.0-PHASE-D-F1-RECORDING.md",
+      "docs/design/RELEASE-PREPARATION.md",
+      "package.json",
+      "src-tauri/Cargo.lock",
+      "src-tauri/Cargo.toml",
+      "src-tauri/src/f1_evidence.rs",
+      "src-tauri/src/f1_recorder.rs",
+      "src-tauri/src/lib.rs",
+      "src-tauri/tauri.conf.json",
+      "src-tauri/tests/production.rs",
+      "src-tauri/tests/session_recovery.rs",
+      "src/app-version.ts",
+      "src/telemetry/f1-recording.ts",
+      "tests/f1-sessions.test.mjs",
+      "tests/release-config.test.mjs",
+      "LICENSE",
+      "docs/V2.0.0-RELEASE-NOTES.md",
+      "docs/V2.0.0-RELEASE-VALIDATION.md",
+      "docs/v2.0.0-release/results.json",
+      "docs/v2.0.0-release/screenshots.json"
+    ],
+    "head_unchanged": true,
+    "tag_exists": false,
+    "staged_deletions_count": 2
+  },
+  "final_source_audit": {
+    "files": 294,
+    "unchanged": 293,
+    "test_only_scratch_recovery_correction": "src-tauri/tests/session_recovery.rs",
+    "product_sources_unchanged": true
+  },
+  "application_finalization_git_snapshot": {
+    "modified": 18,
+    "untracked": 4,
+    "staged": 0,
+    "files": [
+      "README.md",
+      "docs/ROADMAP.md",
+      "docs/V2.0-OVERLAY-V1.md",
+      "docs/V2.0-PHASE-D-F1-RECORDING.md",
+      "docs/design/RELEASE-PREPARATION.md",
+      "package.json",
+      "src-tauri/Cargo.lock",
+      "src-tauri/Cargo.toml",
+      "src-tauri/src/f1_evidence.rs",
+      "src-tauri/src/f1_recorder.rs",
+      "src-tauri/src/lib.rs",
+      "src-tauri/tauri.conf.json",
+      "src-tauri/tests/production.rs",
+      "src-tauri/tests/session_recovery.rs",
+      "src/app-version.ts",
+      "src/telemetry/f1-recording.ts",
+      "tests/f1-sessions.test.mjs",
+      "tests/release-config.test.mjs",
+      "docs/V2.0.0-RELEASE-NOTES.md",
+      "docs/V2.0.0-RELEASE-VALIDATION.md",
+      "docs/v2.0.0-release/results.json",
+      "docs/v2.0.0-release/screenshots.json"
+    ],
+    "head_unchanged": true,
+    "tag_exists": false
+  },
+  "repository_presentation": {
+    "readme": "product-focused",
+    "license": "MIT; Copyright (c) 2026 tahagurvardar",
+    "local_instruction_files_preserved": true,
+    "local_instruction_files_untracked": true,
+    "committed_ignore_unchanged": true,
+    "product_files_checked": 306,
+    "product_files_changed": 0,
+    "github_description_updated": true,
+    "github_topics_updated": true,
+    "github_visibility_unchanged": true,
+    "github_default_branch_unchanged": true,
+    "public_text_matches_remaining": 0,
+    "binary_provenance_matches_retained": 2
+  }
+}
