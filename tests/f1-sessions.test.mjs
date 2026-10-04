@@ -195,7 +195,7 @@ test("F1 recording write and status-read failures expose exact reasons using exi
   );
   assert.deepEqual(
     f1RecordingPresentation({ status: null, available: false, error: null }),
-    { value: "F1 25 recording unavailable", tone: "neutral" },
+    { value: "F1 25 recorder status unavailable", tone: "neutral" },
   );
 });
 

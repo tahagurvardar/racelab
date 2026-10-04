@@ -33,8 +33,7 @@
 //! than `silence_ms` is a grace state; silence reaching `grace_ms` ends the
 //! recording as `telemetry_lost`. RaceLab closing ends it as
 //! `racelab_shutdown`, which is `interrupted`, never a normal finish. These
-//! timings are F1-specific defaults that have not been checked against the
-//! game: MANUAL ACCEPTANCE PENDING.
+//! timings are the F1-specific defaults accepted in-game for v2.0.0.
 //!
 //! **Laps.** Session History is the authority for completed laps. Lap Data
 //! contributes a provisional record only for a lap History has not

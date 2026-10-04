@@ -296,8 +296,8 @@ fn get_setup_state(
 }
 
 /// F1 25 Phase A evidence: header values, counts, sizes and rates. Never
-/// payload bytes. `enabled: false` in a release build unless
-/// `RACELAB_F1_EVIDENCE=1`.
+/// payload bytes. Enabled by default in v2.0.0 release builds; the existing
+/// `RACELAB_F1_EVIDENCE=0` explicit disable remains available.
 /// F1 25 for the product Live view: decoded player values with per-family
 /// freshness. Polled several times a second, so it carries no counters.
 #[tauri::command]

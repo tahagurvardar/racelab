@@ -26,12 +26,9 @@ test("the application version is identical in every file that declares one", () 
   assert.equal(PACKAGE.version, cargoVersion);
 });
 
-test("the version is 1.1.0, and only a deliberate decision moves it again", () => {
-  // Each version is a release decision, not a side effect of an edit: 1.1.0
-  // was taken after the final independent V1.1 audit and the packaged-build
-  // release gate passed. This test is the thing that has to be changed on
-  // purpose the next time that decision is made.
-  assert.equal(PACKAGE.version, "1.1.0");
+test("the stable release version is 2.0.0", () => {
+  // Deliberate release decision after F1 25 and Overlay live-game acceptance.
+  assert.equal(PACKAGE.version, "2.0.0");
 });
 
 // --------------------------------------------------------------- packaging

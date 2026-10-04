@@ -28,14 +28,14 @@ pub const DETECTION_WINDOW: Duration = Duration::from_secs(2);
 const RATE_WINDOW: Duration = Duration::from_secs(1);
 /// `1`/`true` enables F1 25 support (listener, Live and recording), `0`/
 /// `false` disables it. Unset, it follows `F1_ENABLED_IN_RELEASE` in a
-/// release build and is on in a debug build, so an installed build does not
-/// claim port 20777 from another F1 tool the user already runs.
+/// release build and is on in a debug build. The existing explicit disable
+/// remains available if another F1 tool needs port 20777.
 pub const ENABLE_ENV: &str = "RACELAB_F1_EVIDENCE";
 /// **The F1 25 release switch.** The one place that decides whether a release
-/// build supports F1 25 by default. Phase D ships recording behind it; the
-/// release stage decides when it flips. Recording has no switch of its own:
+/// build supports F1 25 by default. Live-game acceptance passed for v2.0.0.
+/// Recording has no switch of its own:
 /// it runs exactly when the F1 25 listener does.
-pub const F1_ENABLED_IN_RELEASE: bool = false;
+pub const F1_ENABLED_IN_RELEASE: bool = true;
 
 /// Whether this build supports F1 25 when `RACELAB_F1_EVIDENCE` is unset.
 pub const fn enabled_by_default() -> bool {
