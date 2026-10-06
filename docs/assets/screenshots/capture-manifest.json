@@ -1,0 +1,60 @@
+{
+  "applicationVersion": "2.0.0",
+  "harness": "review/shell.html",
+  "fixtureClock": "2026-10-07T12:00:00Z",
+  "captures": [
+    {
+      "file": "f1-telemetry.png",
+      "viewport": [1280, 720],
+      "scenario": "f1-live&f1=driving",
+      "sessions": "multi-game",
+      "section": "Live",
+      "tab": null,
+      "state": "existing review fixture",
+      "errors": [],
+      "sha256": "2fa94df465fd352169ff6c0eee80e3f9102cd04e0362617307aa023cfea536c5"
+    },
+    {
+      "file": "session-history.png",
+      "viewport": [1280, 720],
+      "scenario": "idle",
+      "sessions": "multi-game",
+      "section": "Sessions",
+      "tab": null,
+      "state": "existing review fixture",
+      "errors": [],
+      "sha256": "75ffe2e0d86c67613c1dc679d01b223f00928df20b6680ec3fbf06e93c625cec"
+    },
+    {
+      "file": "f1-lap-detail.png",
+      "viewport": [1280, 720],
+      "scenario": "idle",
+      "sessions": "multi-game",
+      "section": "Sessions",
+      "tab": "Laps",
+      "state": "existing review fixture",
+      "errors": [],
+      "sha256": "985a430368a28b9c9d8728c6f60e929a798713edc844ce5a2e51c017c8529fdb"
+    },
+    {
+      "file": "forza-telemetry.png",
+      "viewport": [1280, 720],
+      "scenario": "live",
+      "sessions": "multi-game",
+      "section": "Live",
+      "tab": null,
+      "state": "existing review fixture",
+      "errors": [],
+      "sha256": "931f959956549275e18794029674d5d8ca8f74f04b24cc301647067b9607a058"
+    },
+    {
+      "file": "f1-overlay.png",
+      "viewport": [440, 210],
+      "scenario": "f1-live&f1=driving",
+      "state": "standalone existing overlay review fixture",
+      "errors": [],
+      "sha256": "4d6c953ff42750fbfc9ee969423c5b4db1ade01381c621b9882f919be5384491"
+    }
+  ],
+  "caveat": "Production components with existing review fixtures; no game was running. F1 live values replay checked-in decoded captures; sessions and Forza review values are illustrative fixtures."
+}
