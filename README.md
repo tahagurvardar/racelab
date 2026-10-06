@@ -29,7 +29,7 @@ Open it, enable telemetry in your game, and drive. Recordings stay on your PC.
 Download the Windows x64 installer from
 [Releases](https://github.com/tahagurvardar/racelab/releases) and run it.
 For v2.0.0, the installer is `RaceLab_2.0.0_x64-setup.exe`.
-Its download will appear there when v2.0.0 is published.
+The v2.0.0 installer is available on the release page.
 
 Installation is per-user and does not require administrator privileges.
 The installer sets up WebView2 if needed. You do not need Node.js, Rust or
