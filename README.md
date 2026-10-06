@@ -6,6 +6,32 @@ F1 25 and Forza Horizon 6.
 RaceLab keeps live driving data and recorded sessions in one desktop app.
 Open it, enable telemetry in your game, and drive. Recordings stay on your PC.
 
+## Screenshots
+
+These are v2.0.0 components captured through the existing development review
+harness, **not a live game session**. F1 telemetry replays checked-in decoded
+capture values; Forza telemetry and session records are illustrative fixtures.
+No private recordings or machine data are used.
+
+| F1 telemetry fixture                                                               | Forza telemetry fixture                                                 |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![F1 telemetry fixture](docs/assets/screenshots/f1-telemetry.png)                  | ![Forza telemetry fixture](docs/assets/screenshots/forza-telemetry.png) |
+| Mixed-game session history fixture                                                 | F1 lap detail fixture                                                   |
+| ![Mixed-game session history fixture](docs/assets/screenshots/session-history.png) | ![F1 lap detail fixture](docs/assets/screenshots/f1-lap-detail.png)     |
+
+<details>
+<summary>Standalone F1 overlay fixture</summary>
+
+![Standalone F1 overlay fixture](docs/assets/screenshots/f1-overlay.png)
+
+The actual overlay component is shown at its native 440×210 size with replayed
+fixture values. It is not composited over a game and does not establish native
+click-through or live-game acceptance.
+
+</details>
+
+[Capture provenance and reproduction](docs/assets/screenshots/README.md).
+
 ## Features
 
 - **Live telemetry:** game-specific views for vehicle data, driver inputs,
