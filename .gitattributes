@@ -1,0 +1,12 @@
+# Text is stored with LF in the repository and checked out with LF on every
+# platform, independent of the machine's core.autocrlf setting.
+* text=auto eol=lf
+
+# Binary formats: never converted. Fixture digests in manifest.json files
+# depend on these bytes staying exact.
+*.bin binary
+*.rlcap binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
