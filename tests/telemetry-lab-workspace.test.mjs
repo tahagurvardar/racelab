@@ -592,3 +592,72 @@ test("a lap whose samples cannot be read is never analysis ready", async () => {
     "Current lap 2: The lap's samples are not loaded.",
   );
 });
+
+// M5: distance-aligned comparison of speed, throttle, brake and steering.
+
+const COMPARED = ["speed", "throttle", "brake", "steering"];
+const differenceReadouts = () =>
+  $$(".lab-chart .lab-readout.slot-difference").map(
+    (readout) =>
+      readout.closest(".lab-chart").className.match(/chart-(\w+)/)[1],
+  );
+
+test("two qualified laps are compared on distance: speed, throttle, brake, steering", async () => {
+  await openLab({ detail: confirmedDetail() });
+  await click($(".session-lab-open"));
+  await settle();
+  assert.deepEqual(differenceReadouts(), COMPARED);
+  for (const id of COMPARED) {
+    assert.match(text(`.chart-${id} .slot-difference`), /^(0|[+−]\d+)$/, id);
+  }
+  const rows = $$(".lab-comparison tbody tr");
+  assert.deepEqual(
+    rows.map((row) => row.dataset.channel),
+    COMPARED,
+  );
+  for (const row of rows) {
+    const cells = [...row.querySelectorAll("td")].map((td) => td.textContent);
+    assert.ok(
+      cells.every((cell) => cell !== "—"),
+      row.dataset.channel,
+    );
+  }
+  assert.equal($$(".lab-comparison .lab-issues li").length, 0);
+  // The largest difference moves the shared cursor there.
+  const jump = rows[0].querySelector(".lab-comparison-jump");
+  await click(jump);
+  const km = jump.querySelector(".lab-comparison-at").textContent;
+  assert.equal($(".chart-speed .lab-plot").getAttribute("aria-valuetext"), km);
+  // M6 is not here: the delta panel still draws no line.
+  assert.match(
+    text(".chart-delta .lab-plot-message"),
+    /Time delta is not computed yet/,
+  );
+  assert.equal($(".chart-delta .lab-series"), null);
+});
+
+test("a lap the gate refuses is not compared, and the card says why", async () => {
+  // Lap 2 is provisional (Lap Data only).
+  await lab();
+  assert.deepEqual(differenceReadouts(), []);
+  assert.equal($(".lab-comparison table"), null);
+  assert.match(
+    text(".lab-comparison .lab-empty"),
+    /^Current lap 2: Provisional/,
+  );
+});
+
+test("Time sync overlays laps but compares nothing", async () => {
+  await openLab({ detail: confirmedDetail() });
+  await click($(".session-lab-open"));
+  await settle();
+  await click($$(".lab-sync button").find((b) => /Time/.test(b.textContent)));
+  await settle();
+  assert.deepEqual(differenceReadouts(), []);
+  assert.match(text(".lab-comparison .lab-empty"), /Distance sync/);
+  await click(
+    $$(".lab-sync button").find((b) => /Distance/.test(b.textContent)),
+  );
+  await settle();
+  assert.deepEqual(differenceReadouts(), COMPARED);
+});

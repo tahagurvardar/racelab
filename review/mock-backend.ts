@@ -533,6 +533,22 @@ for (const detail of reviewF1Sessions) {
     detail.events_total = 0;
     detail.result = null;
   }
+  // ?laps=confirmed (SYNTHETIC): every lap as if Session History confirmed
+  // it valid, so the M5 comparison of two qualified laps can be reviewed.
+  if (new URLSearchParams(location.search).get("laps") === "confirmed") {
+    for (const lap of detail.laps?.laps ?? []) {
+      Object.assign(lap, {
+        source: "session_history",
+        sector3_ms:
+          lap.lap_time_ms - (lap.sector1_ms ?? 0) - (lap.sector2_ms ?? 0),
+        valid_bit_flags: 15,
+        lap_valid: true,
+        sector1_valid: true,
+        sector2_valid: true,
+        sector3_valid: true,
+      });
+    }
+  }
   if (sessionMode === "f1-long") {
     detail.labels.track = {
       raw: 127,

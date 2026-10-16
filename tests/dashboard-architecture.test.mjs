@@ -85,9 +85,18 @@ const LAB = [
   "views/lab/LabTrackViewport.tsx",
   "views/lab/LabCharts.tsx",
   "views/lab/LabCompareColumn.tsx",
+  "views/lab/LabLapData.tsx",
+  "views/lab/LabComparison.tsx",
   "views/lab/parts.tsx",
 ];
-const LAB_DATA = ["telemetry-lab.ts", "lab-controller.ts", "hooks/use-lab.ts"];
+// The Lab's plain-TypeScript models: no frames, no Tauri.
+const LAB_MODELS = [
+  "telemetry-lab.ts",
+  "lab-controller.ts",
+  "lap-quality.ts",
+  "lap-comparison.ts",
+];
+const LAB_DATA = [...LAB_MODELS, "hooks/use-lab.ts"];
 const PRODUCT_VIEWS = [
   ...LIVE_TABS,
   ...LIVE_COMPONENTS,
@@ -292,14 +301,14 @@ test("Telemetry Lab reads only session facts and bounded lap traces", () => {
   // M3: replay frames come from one injected clock. requestAnimationFrame
   // appears in the hook that provides it and nowhere else in the Lab, so the
   // controller stays testable with a hand-driven clock.
-  for (const file of [...LAB, "telemetry-lab.ts", "lab-controller.ts"]) {
+  for (const file of [...LAB, ...LAB_MODELS]) {
     assert.ok(
       !/\b(request|cancel)AnimationFrame\b/.test(code(file)),
       `${file} drives frames itself`,
     );
   }
   assert.match(code("hooks/use-lab.ts"), /requestAnimationFrame/);
-  for (const file of [...LAB, "telemetry-lab.ts", "lab-controller.ts"]) {
+  for (const file of [...LAB, ...LAB_MODELS]) {
     assert.ok(!/@tauri-apps\/api/.test(code(file)), file);
   }
 });

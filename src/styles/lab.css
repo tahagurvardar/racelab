@@ -557,6 +557,28 @@
   font-weight: var(--weight-medium);
 }
 
+/* M5: the comparison card reuses the lap data table; its largest
+   difference is a button that moves the cursor there. */
+.lab-comparison-jump {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lab-comparison-jump:hover,
+.lab-comparison-jump:focus-visible {
+  color: var(--lab-value-cool);
+}
+.lab-comparison-at {
+  color: var(--text-3);
+  font-size: var(--type-micro);
+}
+
 .lab-back {
   display: flex;
   align-items: center;
@@ -1296,6 +1318,10 @@
 }
 .lab-readout.slot-delta {
   color: var(--ch-delta);
+}
+/* M5: current minus reference at the cursor. */
+.lab-readout.slot-difference {
+  color: var(--text-2);
 }
 .lab-chart-unit {
   min-width: 3ch;

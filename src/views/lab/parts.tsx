@@ -6,7 +6,12 @@ import {
   sharedXDomain,
   type LabSessionInfo,
 } from "../../telemetry-lab.ts";
-import { assessLap, type LapQuality } from "../../lap-quality.ts";
+import {
+  assessLap,
+  comparisonReadiness,
+  type LapQuality,
+} from "../../lap-quality.ts";
+import { compareLaps, type LapComparison } from "../../lap-comparison.ts";
 
 /// A raised Lab panel. `tone` tints it for the reference lap or the delta.
 export function LabPanel({
@@ -89,6 +94,53 @@ export function useLapQuality(
     const record = records?.find((item) => item.lap_number === lap) ?? null;
     return assessLap(lap, record, trace, length);
   }, [lap, trace, records, length]);
+}
+
+/// M5: the two laps compared on distance, or why they are not. Every view
+/// that shows the comparison reads the same result: it is computed once per
+/// pair of traces, axis and gate, not once per chart.
+let comparisonCache: {
+  axis: string;
+  current: unknown;
+  reference: unknown;
+  ready: boolean;
+  reason: string | undefined;
+  result: LapComparison;
+} | null = null;
+
+export function useLapComparison(controller: LabController): LapComparison {
+  const axis = useLab(controller, (state) => state.axis);
+  const current = useLab(controller, (state) => state.current.trace);
+  const reference = useLab(controller, (state) => state.reference.trace);
+  const currentQuality = useLapQuality(controller, "current");
+  const referenceQuality = useLapQuality(controller, "reference");
+  const readiness = useMemo(
+    () => comparisonReadiness(currentQuality, referenceQuality),
+    [currentQuality, referenceQuality],
+  );
+  return useMemo(() => {
+    const cached = comparisonCache;
+    if (
+      cached != null &&
+      cached.axis === axis &&
+      cached.current === current &&
+      cached.reference === reference &&
+      cached.ready === readiness.ready &&
+      cached.reason === readiness.reasons[0]
+    ) {
+      return cached.result;
+    }
+    const result = compareLaps({ axis, current, reference, readiness });
+    comparisonCache = {
+      axis,
+      current,
+      reference,
+      ready: readiness.ready,
+      reason: readiness.reasons[0],
+      result,
+    };
+    return result;
+  }, [axis, current, reference, readiness]);
 }
 
 /// The x range every chart, the viewport and the cursor share.

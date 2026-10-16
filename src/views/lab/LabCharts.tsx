@@ -20,8 +20,20 @@ import {
   type TraceChannelId,
 } from "../../telemetry-lab.ts";
 import { Icon } from "../../components/shell/Icon";
-import { cursorText, useLabDomain, useLapQuality } from "./parts";
+import {
+  cursorText,
+  useLabDomain,
+  useLapComparison,
+  useLapQuality,
+} from "./parts";
 import { comparisonReadiness } from "../../lap-quality.ts";
+import {
+  differenceAt,
+  DIFFERENCE_UNITS,
+  formatDifference,
+  isCompareChannel,
+  type CompareChannel,
+} from "../../lap-comparison.ts";
 
 /// The chart stack: delta first, then every recorded channel, each on the
 /// same x axis and the same cursor. Current is solid blue, reference dotted
@@ -358,7 +370,36 @@ function Readout({
           {value(reference)}
         </span>
       ) : null}
+      {isCompareChannel(id) ? (
+        <DifferenceReadout controller={controller} id={id} />
+      ) : null}
     </>
+  );
+}
+
+/// M5: current minus reference at the cursor, on Distance sync between two
+/// qualified laps only. Absent otherwise, never a guess.
+function DifferenceReadout({
+  controller,
+  id,
+}: {
+  controller: LabController;
+  id: CompareChannel;
+}) {
+  const comparison = useLapComparison(controller);
+  const cursor = useLab(controller, (state) => state.cursor);
+  const current = useLab(controller, (state) => state.current.trace);
+  const reference = useLab(controller, (state) => state.reference.trace);
+  if (!comparison.available) return null;
+  const difference = differenceAt(comparison, current, reference, id, cursor);
+  return (
+    <span
+      className={`lab-readout slot-difference${difference == null ? " is-unavailable" : ""}`}
+      aria-label={`Current minus reference, ${DIFFERENCE_UNITS[id]}`}
+      title={`Current minus reference, ${DIFFERENCE_UNITS[id]}`}
+    >
+      {formatDifference(id, difference)}
+    </span>
   );
 }
 
