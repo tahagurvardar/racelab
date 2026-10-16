@@ -524,8 +524,22 @@ impl F1EvidenceService {
     }
 
     pub fn status(&self) -> F1EvidenceStatus {
-        let transport = self.listener.snapshot();
+        self.status_between(|| {})
+    }
+
+    /// `status`, with `between` run in the gap between its two reads. Tests
+    /// use it to land a datagram in that gap deterministically.
+    fn status_between(&self, between: impl FnOnce()) -> F1EvidenceStatus {
+        // Evidence first, transport second. The ingress thread records each
+        // datagram in the transport counters before it hands it to the
+        // evidence sink, under two separate locks. Reading in the opposite
+        // order means any datagram the evidence has counted was already in
+        // the transport counters, which only grow, so every snapshot keeps
+        // transport >= evidence. Read the other way round, a datagram landing
+        // between the reads produced an impossible transport < evidence.
         let (evidence, live) = self.sink.read();
+        between();
+        let transport = self.listener.snapshot();
         F1EvidenceStatus {
             enabled: self.enabled,
             configured_port: self.port,
@@ -544,6 +558,72 @@ impl F1EvidenceService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A datagram landing between `status`'s two reads must never produce a
+    /// snapshot claiming evidence counted more datagrams than the transport
+    /// received. Deterministic: the datagram is sent inside the gap, and the
+    /// gap is held open until both counters have taken it.
+    #[test]
+    fn a_datagram_between_the_two_reads_never_breaks_transport_at_least_evidence() {
+        use crate::ingress::LISTEN_ADDRESS;
+        use std::net::UdpSocket;
+        let service = F1EvidenceService::new(true, 0);
+        service.start().unwrap();
+        let port = service.status().bound_port.unwrap();
+        let sender = UdpSocket::bind((LISTEN_ADDRESS, 0)).unwrap();
+        for round in 1..=5_u64 {
+            let snapshot = service.status_between(|| {
+                sender.send_to(&[1, 2, 3], (LISTEN_ADDRESS, port)).unwrap();
+                // Hold the gap until the ingress thread has recorded the
+                // datagram in both counters.
+                let deadline = Instant::now() + Duration::from_secs(3);
+                while service.status().evidence.datagrams < round {
+                    assert!(Instant::now() < deadline, "datagram {round} never arrived");
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            });
+            assert!(
+                snapshot.transport_datagrams >= snapshot.evidence.datagrams,
+                "round {round}: transport {} < evidence {}",
+                snapshot.transport_datagrams,
+                snapshot.evidence.datagrams,
+            );
+        }
+        service.stop().unwrap();
+    }
+
+    /// The same invariant under free-running traffic: every snapshot taken
+    /// while datagrams stream in keeps transport >= evidence.
+    #[test]
+    fn status_snapshots_keep_transport_at_least_evidence_under_traffic() {
+        use crate::ingress::LISTEN_ADDRESS;
+        use std::net::UdpSocket;
+        let service = F1EvidenceService::new(true, 0);
+        service.start().unwrap();
+        let port = service.status().bound_port.unwrap();
+        let sending = std::sync::atomic::AtomicBool::new(true);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let sender = UdpSocket::bind((LISTEN_ADDRESS, 0)).unwrap();
+                for _ in 0..2000 {
+                    sender.send_to(&[1, 2, 3], (LISTEN_ADDRESS, port)).unwrap();
+                }
+                sending.store(false, std::sync::atomic::Ordering::Release);
+            });
+            let mut checked = 0_u64;
+            while sending.load(std::sync::atomic::Ordering::Acquire) || checked < 100 {
+                let snapshot = service.status();
+                assert!(
+                    snapshot.transport_datagrams >= snapshot.evidence.datagrams,
+                    "transport {} < evidence {}",
+                    snapshot.transport_datagrams,
+                    snapshot.evidence.datagrams,
+                );
+                checked += 1;
+            }
+        });
+        service.stop().unwrap();
+    }
 
     fn datagram(id: u8, size: usize) -> Vec<u8> {
         let mut bytes = vec![0; size];
