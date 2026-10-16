@@ -153,10 +153,10 @@ test("what RaceLab does not record is stated, never drawn or filled in", async (
   );
   assert.equal(text(".lab-hud-value.is-unavailable"), "—");
   assert.match(text(".lab-minimap"), /No track outline/);
-  // Delta: a full panel and no line.
+  // Delta: a full panel and, for a provisional lap, no line.
   assert.equal(text(".chart-delta .lab-readout"), "—");
   assert.equal($(".chart-delta .lab-series"), null);
-  assert.match(text(".chart-delta"), /Time delta is not computed yet/);
+  assert.match(text(".chart-delta"), /Delta time unavailable/);
   // Tyres and fuel: structure only; not a single number.
   for (const tyre of $$(".lab-tyre")) {
     assert.ok(!/\d/.test(tyre.textContent.replace(/^[FR][LR]/, "")));
@@ -494,7 +494,7 @@ test("each lap states its timing source, validity and what its samples allow", a
   assert.ok(!findings().some((f) => f.startsWith("Reference:")));
   // The delta panel names the first reason and draws nothing.
   const message = $(".chart-delta .lab-plot-message");
-  assert.equal(message.dataset.ready, "false");
+  assert.equal($(".chart-delta").dataset.available, "false");
   assert.match(message.textContent, /Current lap 2: Provisional/);
   assert.equal($(".chart-delta .lab-series"), null);
 });
@@ -517,10 +517,10 @@ test("lap records that disagree with their samples are reported, not trimmed", a
       "Current: Recorded lap time reaches 101100 ms, past the 92456 ms the lap record states.",
     ),
   );
-  assert.equal($(".chart-delta .lab-plot-message").dataset.ready, "false");
+  assert.equal($(".chart-delta").dataset.available, "false");
 });
 
-test("two confirmed, fully covered laps qualify for alignment, and no delta is drawn", async () => {
+test("two confirmed, fully covered laps qualify, and their delta is drawn", async () => {
   await openLab({ detail: confirmedDetail() });
   await click($(".session-lab-open"));
   await settle();
@@ -529,12 +529,12 @@ test("two confirmed, fully covered laps qualify for alignment, and no delta is d
     ["Analysis ready", "Analysis ready"],
   );
   assert.deepEqual(findings(), []);
-  const message = $(".chart-delta .lab-plot-message");
-  assert.equal(message.dataset.ready, "true");
-  assert.match(message.textContent, /Both laps qualify for distance alignment/);
-  assert.match(message.textContent, /Time delta is not computed yet/);
-  assert.equal(text(".chart-delta .lab-readout"), "—");
-  assert.equal($(".chart-delta .lab-series"), null);
+  assert.equal($(".chart-delta").dataset.available, "true");
+  assert.equal($(".chart-delta .lab-plot-message"), null);
+  assert.ok(
+    $(".chart-delta .lab-series.slot-delta").getAttribute("d").length > 100,
+  );
+  assert.match(text(".chart-delta .lab-readout"), /^([+−]\d\.\d{3}|0\.000)$/);
   // The same lap twice is not a comparison.
   const select = $("#lab-lap-reference");
   await act(async () => {
@@ -542,8 +542,12 @@ test("two confirmed, fully covered laps qualify for alignment, and no delta is d
     select.dispatchEvent(new window.Event("change", { bubbles: true }));
   });
   await settle();
-  assert.equal(message.dataset.ready, "false");
-  assert.match(message.textContent, /Current and reference are the same lap/);
+  assert.equal($(".chart-delta").dataset.available, "false");
+  assert.equal($(".chart-delta .lab-series"), null);
+  assert.match(
+    text(".chart-delta .lab-plot-message"),
+    /Current and reference are the same lap/,
+  );
 });
 
 test("lap data follows the axis and an empty reference slot", async () => {
@@ -628,12 +632,8 @@ test("two qualified laps are compared on distance: speed, throttle, brake, steer
   await click(jump);
   const km = jump.querySelector(".lab-comparison-at").textContent;
   assert.equal($(".chart-speed .lab-plot").getAttribute("aria-valuetext"), km);
-  // M6 is not here: the delta panel still draws no line.
-  assert.match(
-    text(".chart-delta .lab-plot-message"),
-    /Time delta is not computed yet/,
-  );
-  assert.equal($(".chart-delta .lab-series"), null);
+  // M6 draws the delta beside it.
+  assert.notEqual($(".chart-delta .lab-series.slot-delta"), null);
 });
 
 test("a lap the gate refuses is not compared, and the card says why", async () => {
@@ -660,4 +660,45 @@ test("Time sync overlays laps but compares nothing", async () => {
   );
   await settle();
   assert.deepEqual(differenceReadouts(), COMPARED);
+});
+
+// M6: distance-aligned delta time from each lap's recorded lap time.
+
+test("the delta follows the shared cursor and ends at the lap-time gap", async () => {
+  await openLab({ detail: confirmedDetail() });
+  await click($(".session-lab-open"));
+  await settle();
+  // Review laps: lap 2 (current) 1:41.162, lap 1 (reference) 1:40.781.
+  const summary = text(".lab-comparison-delta");
+  const final = Number(
+    summary.match(/Delta time ([+−]\d\.\d{3}) s/)[1].replace("−", "-"),
+  );
+  assert.ok(Math.abs(final - 0.381) <= 0.2, summary);
+  // The largest delta moves the cursor; the readout then shows that value.
+  const jump = $(".lab-comparison-delta .lab-comparison-jump");
+  await click(jump);
+  const [, value, km] = jump.textContent.match(/^(\S+) s at (.+)$/);
+  assert.equal($(".chart-delta .lab-plot").getAttribute("aria-valuetext"), km);
+  assert.equal(text(".chart-delta .lab-readout"), value);
+  assert.match(
+    $(".chart-delta .lab-readout").getAttribute("aria-label"),
+    /current (slower|faster|level)/,
+  );
+});
+
+test("Time sync and a refused lap give a reason, never a delta", async () => {
+  await openLab({ detail: confirmedDetail() });
+  await click($(".session-lab-open"));
+  await settle();
+  await click($$(".lab-sync button").find((b) => /Time/.test(b.textContent)));
+  await settle();
+  assert.equal($(".chart-delta .lab-series"), null);
+  assert.match(text(".chart-delta .lab-plot-message"), /Distance sync/);
+  assert.equal(text(".chart-delta .lab-readout"), "—");
+  // Back on distance the delta returns; replay keeps working with it.
+  await click(
+    $$(".lab-sync button").find((b) => /Distance/.test(b.textContent)),
+  );
+  await settle();
+  assert.notEqual($(".chart-delta .lab-series.slot-delta"), null);
 });

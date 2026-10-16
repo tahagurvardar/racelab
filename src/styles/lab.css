@@ -574,6 +574,22 @@
 .lab-comparison-jump:focus-visible {
   color: var(--lab-value-cool);
 }
+.lab-comparison-jump.is-inline {
+  display: inline;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.lab-comparison-delta {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-label);
+  line-height: var(--leading-snug);
+}
+.lab-comparison-delta strong {
+  color: var(--ch-delta);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+}
 .lab-comparison-at {
   color: var(--text-3);
   font-size: var(--type-micro);
@@ -1350,8 +1366,11 @@
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
 }
+/* The labels sit beside the plot alone, not the x-axis row under it
+   (.lab-xaxis: 22px plus its margin), so each label meets its gridline. */
 .lab-yaxis {
   position: relative;
+  margin-bottom: calc(22px + var(--sp-1));
 }
 .lab-ytick {
   position: absolute;
@@ -1363,6 +1382,10 @@
 }
 .lab-ytick::after {
   content: " —";
+}
+/* M6: signed delta seconds keep their tick on the same line. */
+.chart-delta .lab-ytick {
+  white-space: nowrap;
 }
 .lab-plot-column {
   display: flex;
@@ -1406,6 +1429,10 @@
 .lab-series.slot-reference {
   stroke: var(--ch-reference);
   stroke-dasharray: 2 3;
+}
+/* M6: the time delta, above zero where the current lap is slower. */
+.lab-series.slot-delta {
+  stroke: var(--ch-delta);
 }
 .lab-cursor {
   position: absolute;

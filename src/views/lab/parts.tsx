@@ -11,7 +11,12 @@ import {
   comparisonReadiness,
   type LapQuality,
 } from "../../lap-quality.ts";
-import { compareLaps, type LapComparison } from "../../lap-comparison.ts";
+import {
+  compareLaps,
+  type ComparisonInput,
+  type LapComparison,
+} from "../../lap-comparison.ts";
+import { lapDelta, type LapDelta } from "../../lap-delta.ts";
 
 /// A raised Lab panel. `tone` tints it for the reference lap or the delta.
 export function LabPanel({
@@ -96,19 +101,8 @@ export function useLapQuality(
   }, [lap, trace, records, length]);
 }
 
-/// M5: the two laps compared on distance, or why they are not. Every view
-/// that shows the comparison reads the same result: it is computed once per
-/// pair of traces, axis and gate, not once per chart.
-let comparisonCache: {
-  axis: string;
-  current: unknown;
-  reference: unknown;
-  ready: boolean;
-  reason: string | undefined;
-  result: LapComparison;
-} | null = null;
-
-export function useLapComparison(controller: LabController): LapComparison {
+/// M5 and M6 read the same input: the axis, both traces and M4's gate.
+function useComparisonInput(controller: LabController): ComparisonInput {
   const axis = useLab(controller, (state) => state.axis);
   const current = useLab(controller, (state) => state.current.trace);
   const reference = useLab(controller, (state) => state.reference.trace);
@@ -118,29 +112,45 @@ export function useLapComparison(controller: LabController): LapComparison {
     () => comparisonReadiness(currentQuality, referenceQuality),
     [currentQuality, referenceQuality],
   );
-  return useMemo(() => {
-    const cached = comparisonCache;
-    if (
-      cached != null &&
-      cached.axis === axis &&
-      cached.current === current &&
-      cached.reference === reference &&
-      cached.ready === readiness.ready &&
-      cached.reason === readiness.reasons[0]
-    ) {
-      return cached.result;
+  return useMemo(
+    () => ({ axis, current, reference, readiness }),
+    [axis, current, reference, readiness],
+  );
+}
+
+/// One result shared by every view that shows it: computed once per pair of
+/// traces, axis and gate outcome, not once per chart.
+function sharedResult<T>(compute: (input: ComparisonInput) => T) {
+  let cache: { key: unknown[]; result: T } | null = null;
+  return (input: ComparisonInput): T => {
+    const key = [
+      input.axis,
+      input.current,
+      input.reference,
+      input.readiness.ready,
+      input.readiness.reasons[0],
+    ];
+    if (cache == null || key.some((part, i) => part !== cache!.key[i])) {
+      cache = { key, result: compute(input) };
     }
-    const result = compareLaps({ axis, current, reference, readiness });
-    comparisonCache = {
-      axis,
-      current,
-      reference,
-      ready: readiness.ready,
-      reason: readiness.reasons[0],
-      result,
-    };
-    return result;
-  }, [axis, current, reference, readiness]);
+    return cache.result;
+  };
+}
+
+const sharedComparison = sharedResult(compareLaps);
+const sharedDelta = sharedResult(lapDelta);
+
+/// M5: the two laps compared on distance, or why they are not.
+export function useLapComparison(controller: LabController): LapComparison {
+  const input = useComparisonInput(controller);
+  return useMemo(() => sharedComparison(input), [input]);
+}
+
+/// M6: the current lap's time delta to the reference on distance, or why
+/// the recordings cannot give one.
+export function useLapDelta(controller: LabController): LapDelta {
+  const input = useComparisonInput(controller);
+  return useMemo(() => sharedDelta(input), [input]);
 }
 
 /// The x range every chart, the viewport and the cursor share.

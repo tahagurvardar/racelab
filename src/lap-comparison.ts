@@ -133,13 +133,14 @@ export function compareLaps({
     available: false,
     reason,
   });
+  // What keeps the laps apart comes before how they are viewed.
+  if (!readiness.ready) {
+    return none(readiness.reasons[0] ?? "These laps cannot be compared.");
+  }
   if (axis !== "distance") {
     return none(
       "Laps are compared on Distance sync. Time sync overlays each lap on its own clock.",
     );
-  }
-  if (!readiness.ready) {
-    return none(readiness.reasons[0] ?? "These laps cannot be compared.");
   }
   if (current == null || reference == null) {
     return none("Both laps' samples are needed.");

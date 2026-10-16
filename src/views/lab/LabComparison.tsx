@@ -5,7 +5,8 @@ import {
   formatDifference,
 } from "../../lap-comparison.ts";
 import { CHANNEL_TITLES } from "../../telemetry-lab.ts";
-import { cursorText, LabEmpty, useLapComparison } from "./parts";
+import { formatDelta } from "../../lap-delta.ts";
+import { cursorText, LabEmpty, useLapComparison, useLapDelta } from "./parts";
 
 /// M5: the current lap against the reference at the same point of the
 /// circuit — the mean difference over the distance both laps recorded, and
@@ -74,6 +75,7 @@ export function ComparisonCard({ controller }: { controller: LabController }) {
               })}
             </tbody>
           </table>
+          <DeltaSummary controller={controller} />
           <p className="lab-quiet">
             Current minus reference at the same lap distance, over{" "}
             {cursorText(comparison.x0, "distance")}–
@@ -95,5 +97,34 @@ export function ComparisonCard({ controller }: { controller: LabController }) {
         <LabEmpty>{comparison.reason}</LabEmpty>
       )}
     </section>
+  );
+}
+
+/// M6: where the time delta ends and its largest value, or why there is
+/// none. Positive is the current lap behind.
+function DeltaSummary({ controller }: { controller: LabController }) {
+  const delta = useLapDelta(controller);
+  if (!delta.available) {
+    return (
+      <p className="lab-comparison-delta is-unavailable">
+        Delta time: {delta.reason}
+      </p>
+    );
+  }
+  const { final, largest } = delta;
+  return (
+    <p className="lab-comparison-delta">
+      Delta time <strong>{formatDelta(final.ms)} s</strong> at{" "}
+      {cursorText(final.x, "distance")}, largest{" "}
+      <button
+        type="button"
+        className="lab-comparison-jump is-inline"
+        aria-label={`Largest delta ${formatDelta(largest.ms)} s at ${cursorText(largest.x, "distance")}. Move the cursor there.`}
+        onClick={() => controller.setCursor(largest.x)}
+      >
+        {formatDelta(largest.ms)} s at {cursorText(largest.x, "distance")}
+      </button>
+      .
+    </p>
   );
 }

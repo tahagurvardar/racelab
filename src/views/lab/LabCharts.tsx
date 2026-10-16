@@ -24,9 +24,14 @@ import {
   cursorText,
   useLabDomain,
   useLapComparison,
-  useLapQuality,
+  useLapDelta,
 } from "./parts";
-import { comparisonReadiness } from "../../lap-quality.ts";
+import {
+  deltaAt,
+  deltaPath,
+  deltaRange,
+  formatDelta,
+} from "../../lap-delta.ts";
 import {
   differenceAt,
   DIFFERENCE_UNITS,
@@ -403,21 +408,39 @@ function DifferenceReadout({
   );
 }
 
-/// The delta panel, complete but deliberately empty: a time delta needs both
-/// laps aligned on distance and checked against Session History, which is a
-/// later milestone. No line is drawn until then. Since M4 it states whether
-/// the chosen laps would qualify (`comparisonReadiness`, the M5/M6 gate).
+/// M6: the current lap's time delta to the reference at the same lap
+/// distance, from each lap's recorded lap time. Above zero the current lap
+/// is behind (slower), below it ahead. Where the recordings cannot give a
+/// delta the panel says why and draws nothing; on Time sync, and for laps
+/// M4 does not qualify, there is no delta at all.
 function DeltaPanel({ controller }: { controller: LabController }) {
   const axis = useLab(controller, (state) => state.axis);
   const collapsed = useLab(controller, (state) => !!state.collapsed.delta);
   const domain = useLabDomain(controller);
-  const current = useLapQuality(controller, "current");
-  const reference = useLapQuality(controller, "reference");
-  const readiness = comparisonReadiness(current, reference);
+  const delta = useLapDelta(controller);
+  const range = deltaRange(delta);
+  // The range is whole tenths of a second.
+  const seconds = (range / 1000).toFixed(1);
+  const path = useMemo(
+    () =>
+      deltaPath(delta, domain, {
+        width: PLOT_WIDTH,
+        height: PLOT_HEIGHT.delta,
+      }),
+    [delta, domain],
+  );
+  const yLabels = delta.available
+    ? [
+        { value: range, label: `+${seconds}`, top: 0 },
+        { value: 0, label: "0", top: 50 },
+        { value: -range, label: `−${seconds}`, top: 100 },
+      ]
+    : [{ value: 0, label: "0", top: 50 }];
   return (
     <section
       className={`lab-panel tone-delta lab-chart chart-delta${collapsed ? " is-collapsed" : ""}`}
       aria-labelledby="lab-chart-delta"
+      data-available={delta.available}
     >
       <PanelHeader
         controller={controller}
@@ -425,7 +448,7 @@ function DeltaPanel({ controller }: { controller: LabController }) {
         title="Delta"
         tone="delta"
       >
-        <span className="lab-readout slot-delta is-unavailable">—</span>
+        <DeltaReadout controller={controller} />
         <span className="lab-chart-unit">s</span>
       </PanelHeader>
       {collapsed ? null : (
@@ -436,24 +459,41 @@ function DeltaPanel({ controller }: { controller: LabController }) {
           domain={domain}
           axis={axis}
           height={PLOT_HEIGHT.delta}
-          yLabels={[{ value: 0, label: "0", top: 50 }]}
+          yLabels={yLabels}
           overlay={
-            <p
-              className="lab-plot-message is-quiet"
-              data-ready={readiness.ready}
-            >
-              Time delta is not computed yet
-              <span>
-                {readiness.ready
-                  ? "Both laps qualify for distance alignment"
-                  : readiness.reasons[0]}
-              </span>
-            </p>
+            delta.available ? null : (
+              <p className="lab-plot-message is-quiet">
+                Delta time unavailable
+                <span>{delta.reason}</span>
+              </p>
+            )
           }
         >
-          {null}
+          {delta.available ? (
+            <path className="lab-series slot-delta" d={path} />
+          ) : null}
         </PlotFrame>
       )}
     </section>
+  );
+}
+
+/// Current minus reference elapsed time at the cursor, in seconds.
+function DeltaReadout({ controller }: { controller: LabController }) {
+  const delta = useLapDelta(controller);
+  const cursor = useLab(controller, (state) => state.cursor);
+  const ms = deltaAt(delta, cursor);
+  const label =
+    ms == null
+      ? "Delta unavailable"
+      : `Delta ${formatDelta(ms)} s, current ${ms > 0 ? "slower" : ms < 0 ? "faster" : "level"}`;
+  return (
+    <span
+      className={`lab-readout slot-delta${ms == null ? " is-unavailable" : ""}`}
+      aria-label={label}
+      title="Current minus reference lap time at the same distance"
+    >
+      {formatDelta(ms)}
+    </span>
   );
 }
