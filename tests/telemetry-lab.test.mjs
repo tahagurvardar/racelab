@@ -83,8 +83,8 @@ test("laps come from the session's own lap records, flags included", () => {
   assert.deepEqual(
     laps.map((lap) => [lap.label, lap.time, lap.best, lap.provisional]),
     [
-      ["Lap 1", "1:31.234", true, false],
-      ["Lap 2", "1:32.456", false, true],
+      ["Lap 1", "1:40.781", true, false],
+      ["Lap 2", "1:41.162", false, true],
     ],
   );
   assert.deepEqual(labLaps(null), []);
@@ -126,7 +126,7 @@ test("session facts are the recorded ones, and names are never invented", () => 
   assert.equal(info.raceNumber, "#44");
   // Participant names are never stored: the driver is described, not named.
   assert.equal(info.driver, "Player");
-  assert.equal(info.sessionTime, "3:02");
+  assert.equal(info.sessionTime, "3:24");
   const empty = f1Detail();
   empty.session.f1_25.context_latest = null;
   empty.session.f1_25.context_at_start = null;

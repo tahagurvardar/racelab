@@ -6,6 +6,7 @@ import {
   sharedXDomain,
   type LabSessionInfo,
 } from "../../telemetry-lab.ts";
+import { assessLap, type LapQuality } from "../../lap-quality.ts";
 
 /// A raised Lab panel. `tone` tints it for the reference lap or the delta.
 export function LabPanel({
@@ -69,6 +70,25 @@ export function useSessionInfo(
 ): LabSessionInfo | null {
   const detail = useLab(controller, (state) => state.detail);
   return useMemo(() => (detail ? labSession(detail) : null), [detail]);
+}
+
+/// M4: what the slot's lap record and its loaded samples establish. Null
+/// when no lap is chosen. Recomputed only when the record, the trace or the
+/// circuit length changes.
+export function useLapQuality(
+  controller: LabController,
+  slot: LapSlot,
+): LapQuality | null {
+  const lap = useLab(controller, (state) => state[slot].lap);
+  const trace = useLab(controller, (state) => state[slot].trace);
+  const records = useLab(controller, (state) => state.detail?.laps?.laps);
+  const info = useSessionInfo(controller);
+  const length = info?.trackLengthM ?? null;
+  return useMemo(() => {
+    if (lap == null) return null;
+    const record = records?.find((item) => item.lap_number === lap) ?? null;
+    return assessLap(lap, record, trace, length);
+  }, [lap, trace, records, length]);
 }
 
 /// The x range every chart, the viewport and the cursor share.

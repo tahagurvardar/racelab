@@ -20,7 +20,8 @@ import {
   type TraceChannelId,
 } from "../../telemetry-lab.ts";
 import { Icon } from "../../components/shell/Icon";
-import { cursorText, useLabDomain } from "./parts";
+import { cursorText, useLabDomain, useLapQuality } from "./parts";
+import { comparisonReadiness } from "../../lap-quality.ts";
 
 /// The chart stack: delta first, then every recorded channel, each on the
 /// same x axis and the same cursor. Current is solid blue, reference dotted
@@ -363,11 +364,15 @@ function Readout({
 
 /// The delta panel, complete but deliberately empty: a time delta needs both
 /// laps aligned on distance and checked against Session History, which is a
-/// later milestone. No line is drawn until then.
+/// later milestone. No line is drawn until then. Since M4 it states whether
+/// the chosen laps would qualify (`comparisonReadiness`, the M5/M6 gate).
 function DeltaPanel({ controller }: { controller: LabController }) {
   const axis = useLab(controller, (state) => state.axis);
   const collapsed = useLab(controller, (state) => !!state.collapsed.delta);
   const domain = useLabDomain(controller);
+  const current = useLapQuality(controller, "current");
+  const reference = useLapQuality(controller, "reference");
+  const readiness = comparisonReadiness(current, reference);
   return (
     <section
       className={`lab-panel tone-delta lab-chart chart-delta${collapsed ? " is-collapsed" : ""}`}
@@ -392,9 +397,16 @@ function DeltaPanel({ controller }: { controller: LabController }) {
           height={PLOT_HEIGHT.delta}
           yLabels={[{ value: 0, label: "0", top: 50 }]}
           overlay={
-            <p className="lab-plot-message is-quiet">
+            <p
+              className="lab-plot-message is-quiet"
+              data-ready={readiness.ready}
+            >
               Time delta is not computed yet
-              <span>Needs both laps aligned on distance</span>
+              <span>
+                {readiness.ready
+                  ? "Both laps qualify for distance alignment"
+                  : readiness.reasons[0]}
+              </span>
             </p>
           }
         >

@@ -3,6 +3,7 @@ import type { LabController, LapSlot } from "../../lab-controller.ts";
 import type { LabLap } from "../../telemetry-lab.ts";
 import { Icon } from "../../components/shell/Icon";
 import { useSessionInfo } from "./parts";
+import { LapBadges, LapDataCard } from "./LabLapData";
 
 /// The left column: what the session was, and which two laps are compared.
 /// Every fact comes from the session's own record; a fact RaceLab does not
@@ -87,6 +88,7 @@ export function LabSessionColumn({
       </dl>
 
       <AnalysisLaps controller={controller} />
+      <LapDataCard controller={controller} />
 
       <button type="button" className="lab-back" onClick={onClose}>
         <Icon name="arrow-left" />
@@ -137,7 +139,9 @@ function AnalysisLaps({ controller }: { controller: LabController }) {
     <div className="lab-card lab-laps">
       <p className="lab-column-label lab-laps-title">Analysis laps</p>
       <LapPicker controller={controller} slot="current" laps={laps} />
+      <LapBadges controller={controller} slot="current" />
       <LapPicker controller={controller} slot="reference" laps={laps} />
+      <LapBadges controller={controller} slot="reference" />
       {laps.length === 0 ? (
         <p className="lab-note">This session recorded no completed lap.</p>
       ) : null}

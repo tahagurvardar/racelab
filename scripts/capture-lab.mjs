@@ -177,7 +177,59 @@ try {
       lapAdvance,
       wallAdvance: Math.round(wallAdvance),
     };
-    results.push({ width, height, entry, lab, playing, replay, ...facts });
+
+    // M4 lap analysis: each lap's badges and the Lap data card, scrolled
+    // into view, must fit their column without clipping.
+    const lapData = await env.page.evaluate(`(() => {
+      const card = document.querySelector('.lab-lapdata');
+      card.scrollIntoView({ block: 'center' });
+      const table = card.querySelector('.lab-lapdata-table');
+      const session = document.querySelector('.lab-session');
+      const box = card.getBoundingClientRect();
+      const badges = [...document.querySelectorAll('.lab-lap-badges')];
+      return {
+        badges: badges.map(b => [...b.children].map(c => c.textContent)),
+        badgesFit: badges.every(b => b.scrollWidth <= b.clientWidth + 1),
+        // Each lap's badges sit under that lap's picker, one pill high.
+        badgesPlaced: ['current', 'reference'].every(slot => {
+          const picker = document.querySelector('.lab-lap-picker.slot-' + slot)?.getBoundingClientRect();
+          const line = document.querySelector('.lab-lap-badges.slot-' + slot);
+          if (!picker || !line) return false;
+          const box = line.getBoundingClientRect();
+          return Math.abs(box.left - picker.left) <= 1 && box.top >= picker.bottom - 1
+            && [...line.children].every(c => c.getBoundingClientRect().height <= 24);
+        }),
+        // The table must end inside the card's padding, and the column must
+        // not scroll sideways.
+        tableFits: table.getBoundingClientRect().right <= box.right - parseFloat(getComputedStyle(card).paddingRight) + 1
+          && session.scrollWidth <= session.clientWidth + 1,
+        card: { left: Math.round(box.left), width: Math.round(box.width), height: Math.round(box.height) },
+        findings: [...card.querySelectorAll('.lab-issues li')].map(li => li.textContent),
+        delta: document.querySelector('.chart-delta .lab-plot-message span')?.textContent,
+        documentWidth: document.scrollingElement.scrollWidth,
+        errors: window.labErrors,
+      };
+    })()`);
+    await wait(200);
+    const lapdata = await capture("telemetry-lab-lapdata", width, height);
+    await env.page.evaluate("document.scrollingElement.scrollTo(0, 0)");
+    assert.equal(lapData.badges.length, 2, `${width}: lap badges missing`);
+    assert.ok(lapData.badgesFit, `${width}: lap badges clipped`);
+    assert.ok(lapData.badgesPlaced, `${width}: lap badges misplaced`);
+    assert.ok(lapData.tableFits, `${width}: lap data table overflows`);
+    assert.equal(lapData.documentWidth, width, `${width}: overflow (M4)`);
+    assert.deepEqual(lapData.errors, [], `${width}: errors (M4)`);
+    results.push({
+      width,
+      height,
+      entry,
+      lab,
+      playing,
+      lapdata,
+      replay,
+      lapData,
+      ...facts,
+    });
     console.log(`Captured ${lab}, ${playing}`, JSON.stringify(replay));
   }
   await fs.writeFile(

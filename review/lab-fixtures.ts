@@ -63,6 +63,19 @@ function gearFor(speed: number): number {
   return Math.min(8, gear);
 }
 
+/// Where the synthetic laps of `syntheticTrace` cross the line and the two
+/// sector boundaries (1700 m, 3900 m) on the 5891 m review circuit, in ms of
+/// lap time, interpolated between their 10 Hz samples. The F1 review
+/// fixture's lap records state these; `tests/review-fixtures.test.mjs`
+/// recomputes them from the samples.
+export const SYNTHETIC_LAPS: Record<
+  number,
+  { lapTimeMs: number; sector1Ms: number; sector2Ms: number }
+> = {
+  1: { lapTimeMs: 100_781, sector1Ms: 30_413, sector2Ms: 38_070 },
+  2: { lapTimeMs: 101_162, sector1Ms: 30_423, sector2Ms: 38_254 },
+};
+
 /// One synthetic lap at 10 Hz. `pace` scales corner speeds a little, so
 /// two laps differ the way two real laps would, without claiming to be real.
 function lap(trackLength: number, pace: number): Sample[] {

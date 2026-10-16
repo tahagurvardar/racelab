@@ -387,18 +387,18 @@ test("F1 detail has factual Summary, Laps, Events and Data; keyboard switches ta
   assert.match($("[role=tabpanel]").textContent, /Finishing position2/);
   assert.match(
     $("[role=tabpanel]").textContent,
-    /Best lap \(classification\)1:31\.234/,
+    /Best lap \(classification\)1:40\.781/,
   );
   await focus($("#session-tab-summary"));
   await press("ArrowRight");
   assert.equal(document.activeElement.id, "session-tab-laps");
   assert.equal($$("[data-lap]").length, 2);
-  assert.match($('[data-lap="1"]').textContent, /1:31\.234/);
+  assert.match($('[data-lap="1"]').textContent, /1:40\.781/);
   assert.match($('[data-lap="2"]').textContent, /Lap Data \(provisional\)/);
   await press("ArrowRight");
   assert.equal($$("[data-code]").length, 2);
   assert.match($('[data-code="FTLP"]').textContent, /Fastest lap.*you/);
-  assert.match($('[data-code="FTLP"]').textContent, /you · 91\.234 s/);
+  assert.match($('[data-code="FTLP"]').textContent, /you · 100\.781 s/);
   await press("End");
   assert.equal(document.activeElement.id, "session-tab-data");
   assert.match($("[role=tabpanel]").textContent, /10 Hz/);

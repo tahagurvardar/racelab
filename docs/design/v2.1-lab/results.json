@@ -5,15 +5,16 @@
     "entry": "sessions-f1-entry-1920x1080.png",
     "lab": "telemetry-lab-1920x1080.png",
     "playing": "telemetry-lab-playing-1920x1080.png",
+    "lapdata": "telemetry-lab-lapdata-1920x1080.png",
     "replay": {
       "first": {
         "label": "Pause",
-        "clock": "0:38.408 / 1:41.100",
+        "clock": "0:38.419 / 1:41.100",
         "cursors": [
           "2.23 km"
         ],
         "lines": [
-          "37.876%"
+          "37.8893%"
         ],
         "hud": "2.23 km",
         "gauges": [
@@ -21,27 +22,56 @@
           "263"
         ],
         "errors": [],
-        "now": 6668.200000000186
+        "now": 5359
       },
       "second": {
         "label": "Pause",
-        "clock": "0:38.909 / 1:41.100",
+        "clock": "0:38.954 / 1:41.100",
         "cursors": [
           "2.27 km"
         ],
         "lines": [
-          "38.5012%"
+          "38.557%"
         ],
         "hud": "2.27 km",
         "gauges": [
-          "266",
+          "267",
           "266"
         ],
         "errors": [],
-        "now": 7173.5
+        "now": 5914.5
       },
-      "lapAdvance": 501,
-      "wallAdvance": 505
+      "lapAdvance": 535,
+      "wallAdvance": 556
+    },
+    "lapData": {
+      "badges": [
+        [
+          "Provisional",
+          "Validity unknown",
+          "Replay only"
+        ],
+        [
+          "History",
+          "Valid",
+          "Analysis ready"
+        ]
+      ],
+      "badgesFit": true,
+      "badgesPlaced": true,
+      "tableFits": true,
+      "card": {
+        "left": 72,
+        "width": 320,
+        "height": 433
+      },
+      "findings": [
+        "Current: Provisional: from Lap Data; Session History never confirmed this lap.",
+        "Current: The lap's validity is not recorded."
+      ],
+      "delta": "Current lap 2: Provisional: from Lap Data; Session History never confirmed this lap.",
+      "documentWidth": 1920,
+      "errors": []
     },
     "errors": [],
     "documentWidth": 1920,
@@ -77,15 +107,16 @@
     "entry": "sessions-f1-entry-1280x720.png",
     "lab": "telemetry-lab-1280x720.png",
     "playing": "telemetry-lab-playing-1280x720.png",
+    "lapdata": "telemetry-lab-lapdata-1280x720.png",
     "replay": {
       "first": {
         "label": "Pause",
-        "clock": "0:38.440 / 1:41.100",
+        "clock": "0:38.406 / 1:41.100",
         "cursors": [
           "2.23 km"
         ],
         "lines": [
-          "37.9155%"
+          "37.8731%"
         ],
         "hud": "2.23 km",
         "gauges": [
@@ -93,27 +124,56 @@
           "263"
         ],
         "errors": [],
-        "now": 3095.5999999996275
+        "now": 2869.5
       },
       "second": {
         "label": "Pause",
-        "clock": "0:38.983 / 1:41.100",
+        "clock": "0:38.939 / 1:41.100",
         "cursors": [
           "2.27 km"
         ],
         "lines": [
-          "38.5933%"
+          "38.5388%"
         ],
         "hud": "2.27 km",
         "gauges": [
-          "267",
+          "266",
           "266"
         ],
         "errors": [],
-        "now": 3647.399999999441
+        "now": 3410.699999999255
       },
-      "lapAdvance": 543,
-      "wallAdvance": 552
+      "lapAdvance": 533,
+      "wallAdvance": 541
+    },
+    "lapData": {
+      "badges": [
+        [
+          "Provisional",
+          "Validity unknown",
+          "Replay only"
+        ],
+        [
+          "History",
+          "Valid",
+          "Analysis ready"
+        ]
+      ],
+      "badgesFit": true,
+      "badgesPlaced": true,
+      "tableFits": true,
+      "card": {
+        "left": 72,
+        "width": 214,
+        "height": 506
+      },
+      "findings": [
+        "Current: Provisional: from Lap Data; Session History never confirmed this lap.",
+        "Current: The lap's validity is not recorded."
+      ],
+      "delta": "Current lap 2: Provisional: from Lap Data; Session History never confirmed this lap.",
+      "documentWidth": 1280,
+      "errors": []
     },
     "errors": [],
     "documentWidth": 1280,
@@ -149,15 +209,16 @@
     "entry": "sessions-f1-entry-960x640.png",
     "lab": "telemetry-lab-960x640.png",
     "playing": "telemetry-lab-playing-960x640.png",
+    "lapdata": "telemetry-lab-lapdata-960x640.png",
     "replay": {
       "first": {
         "label": "Pause",
-        "clock": "0:38.443 / 1:41.100",
+        "clock": "0:38.434 / 1:41.100",
         "cursors": [
           "2.23 km"
         ],
         "lines": [
-          "37.9198%"
+          "37.9079%"
         ],
         "hud": "2.23 km",
         "gauges": [
@@ -165,16 +226,16 @@
           "263"
         ],
         "errors": [],
-        "now": 3366.399999999441
+        "now": 3222.599999997765
       },
       "second": {
         "label": "Pause",
-        "clock": "0:38.983 / 1:41.100",
+        "clock": "0:38.979 / 1:41.100",
         "cursors": [
           "2.27 km"
         ],
         "lines": [
-          "38.5938%"
+          "38.5887%"
         ],
         "hud": "2.27 km",
         "gauges": [
@@ -182,10 +243,39 @@
           "266"
         ],
         "errors": [],
-        "now": 3893.5999999996275
+        "now": 3751.599999997765
       },
-      "lapAdvance": 540,
-      "wallAdvance": 527
+      "lapAdvance": 545,
+      "wallAdvance": 529
+    },
+    "lapData": {
+      "badges": [
+        [
+          "Provisional",
+          "Validity unknown",
+          "Replay only"
+        ],
+        [
+          "History",
+          "Valid",
+          "Analysis ready"
+        ]
+      ],
+      "badgesFit": true,
+      "badgesPlaced": true,
+      "tableFits": true,
+      "card": {
+        "left": 72,
+        "width": 862,
+        "height": 390
+      },
+      "findings": [
+        "Current: Provisional: from Lap Data; Session History never confirmed this lap.",
+        "Current: The lap's validity is not recorded."
+      ],
+      "delta": "Current lap 2: Provisional: from Lap Data; Session History never confirmed this lap.",
+      "documentWidth": 960,
+      "errors": []
     },
     "errors": [],
     "documentWidth": 960,
@@ -194,7 +284,7 @@
     "session": {
       "left": 56,
       "width": 894,
-      "height": 649
+      "height": 1086
     },
     "center": {
       "left": 56,

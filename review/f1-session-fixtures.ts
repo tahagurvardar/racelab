@@ -1,5 +1,13 @@
 // Deterministic, synthetic Phase D UI fixtures. These are layout examples,
 // never captured telemetry or evidence of acceptance in the game.
+//
+// The lap records state what the synthetic laps of `review/lab-fixtures.ts`
+// actually do on a 5891 m circuit: each lap time is the moment that lap's
+// samples cross the line, and each sector ends where the trace reaches
+// 1700 m and 3900 m. Lap 2 is a provisional Lap Data record, which carries
+// no S3 (`LapRecordV1::sector3_ms` is Session History only).
+// `tests/review-fixtures.test.mjs` keeps the two files in step.
+import { SYNTHETIC_LAPS } from "./lab-fixtures.ts";
 import type { F1SessionDetail, F1RecorderStatus } from "../src/f1-sessions.ts";
 
 export function f1Detail(id = "f1-review-race"): F1SessionDetail {
@@ -13,7 +21,7 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
         game: "f1_25",
         status: "completed",
         started_at_unix_ms: started,
-        ended_at_unix_ms: started + 182_000,
+        ended_at_unix_ms: started + 204_000,
         completion_reason: "final_classification",
         game_session_identity: {
           kind: "f1_session_uid",
@@ -31,13 +39,13 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
           game_major_version: 1,
           game_minor_version: 12,
         },
-        duration_ms: 182_000,
+        duration_ms: 204_000,
         sample_rate_hz: 10,
         sample_schema_version: 1,
         context_at_start: null,
         context_latest: {
-          received_unix_ms: started + 180_000,
-          session_time: 180,
+          received_unix_ms: started + 202_000,
+          session_time: 202,
           weather: 0,
           track_temperature_c: 32,
           air_temperature_c: 21,
@@ -47,7 +55,7 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
           track_id: 7,
           formula: 0,
           session_time_left_s: 0,
-          session_duration_s: 182,
+          session_duration_s: 204,
           pit_speed_limit_kmh: 80,
           game_paused: 0,
           is_spectating: 0,
@@ -84,11 +92,11 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
             packet_id: 11,
             observed_updates: 3,
             first_received_unix_ms: started,
-            last_received_unix_ms: started + 180_000,
+            last_received_unix_ms: started + 202_000,
           },
         ],
         integrity: {
-          sample_count: 1820,
+          sample_count: 2040,
           idle_ticks: 0,
           late_ticks: 0,
           events_stored: 2,
@@ -127,22 +135,31 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
         { lap_index: 0, position: 3 },
         { lap_index: 1, position: 2 },
       ],
-      laps: [1, 2].map((number) => ({
-        lap_number: number,
-        source: number === 1 ? "session_history" : "lap_data",
-        lap_time_ms: number === 1 ? 91_234 : 92_456,
-        sector1_ms: 30_000,
-        sector2_ms: 31_000,
-        sector3_ms: number === 1 ? 30_234 : 31_456,
-        valid_bit_flags: number === 1 ? 15 : null,
-        lap_valid: number === 1 ? true : null,
-        sector1_valid: number === 1 ? true : null,
-        sector2_valid: number === 1 ? true : null,
-        sector3_valid: number === 1 ? true : null,
-        position_at_start: 3,
-        position_at_end: 2,
-        recorded_at_monotonic_ms: number * 91_000,
-      })),
+      laps: [1, 2].map((number) => {
+        const lap = SYNTHETIC_LAPS[number];
+        const history = number === 1;
+        return {
+          lap_number: number,
+          source: history ? "session_history" : "lap_data",
+          lap_time_ms: lap.lapTimeMs,
+          sector1_ms: lap.sector1Ms,
+          sector2_ms: lap.sector2Ms,
+          sector3_ms: history
+            ? lap.lapTimeMs - lap.sector1Ms - lap.sector2Ms
+            : null,
+          valid_bit_flags: history ? 15 : null,
+          lap_valid: history ? true : null,
+          sector1_valid: history ? true : null,
+          sector2_valid: history ? true : null,
+          sector3_valid: history ? true : null,
+          position_at_start: 3,
+          position_at_end: 2,
+          recorded_at_monotonic_ms:
+            number === 1
+              ? lap.lapTimeMs
+              : SYNTHETIC_LAPS[1].lapTimeMs + lap.lapTimeMs,
+        };
+      }),
     },
     tyres: {
       schema_version: 1,
@@ -153,7 +170,7 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
     stints: [{ stint, actual_label: "C5", visual_label: "Soft" }],
     result: {
       schema_version: 1,
-      received_unix_ms: started + 182_000,
+      received_unix_ms: started + 204_000,
       num_cars: 22,
       player: {
         position: 2,
@@ -163,8 +180,8 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
         num_pit_stops: 0,
         result_status: 3,
         result_reason: 0,
-        best_lap_time_ms: 91_234,
-        total_race_time_s: 183.69,
+        best_lap_time_ms: SYNTHETIC_LAPS[1].lapTimeMs,
+        total_race_time_s: 201.943,
         penalties_time_s: 0,
         num_penalties: 0,
         num_tyre_stints: 1,
@@ -182,10 +199,14 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
       },
       {
         sequence: 2,
-        monotonic_ms: 91_234,
-        session_time: 91.234,
+        monotonic_ms: SYNTHETIC_LAPS[1].lapTimeMs,
+        session_time: SYNTHETIC_LAPS[1].lapTimeMs / 1000,
         code: "FTLP",
-        details: { kind: "fastest_lap", vehicle_idx: 0, lap_time_s: 91.234 },
+        details: {
+          kind: "fastest_lap",
+          vehicle_idx: 0,
+          lap_time_s: SYNTHETIC_LAPS[1].lapTimeMs / 1000,
+        },
         vehicles: [{ index: 0, is_player: true }],
       },
     ],
@@ -193,6 +214,20 @@ export function f1Detail(id = "f1-review-race"): F1SessionDetail {
     events_not_shown: 0,
     unreadable_files: [],
   };
+}
+
+/// The same session with lap records that disagree with their laps'
+/// samples: times and sectors from a different, shorter lap. Kept so the Lab's
+/// mismatch findings stay tested; the normal fixture is consistent.
+export function f1DetailInconsistent(id = "f1-review-race"): F1SessionDetail {
+  const detail = f1Detail(id);
+  for (const lap of detail.laps!.laps) {
+    lap.lap_time_ms = lap.lap_number === 1 ? 91_234 : 92_456;
+    lap.sector1_ms = 30_000;
+    lap.sector2_ms = 31_000;
+    if (lap.source === "session_history") lap.sector3_ms = 30_234;
+  }
+  return detail;
 }
 
 export function f1Recorder(recording = false): F1RecorderStatus {

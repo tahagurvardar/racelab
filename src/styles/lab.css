@@ -442,6 +442,121 @@
   cursor: pointer;
 }
 
+/* M4: a lap's provenance and what its samples allow, under its picker. */
+.lab-lap-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: calc(-1 * var(--sp-1)) 0 var(--sp-1);
+}
+.lab-badge {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--lab-panel-edge);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font-size: var(--type-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lab-badge.tone-ok {
+  border-color: var(--ok-border);
+  color: var(--status-ok);
+}
+.lab-badge.tone-warn {
+  border-color: var(--warn-border);
+  color: var(--warn-text);
+}
+.lab-badge.tone-bad {
+  border-color: var(--bad-border);
+  color: var(--bad-text);
+}
+
+/* M4: lap and sector timing beside measured coverage, current vs reference. */
+.lab-lapdata {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  container: lab-lapdata / inline-size;
+}
+.lab-lapdata-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-label);
+  font-variant-numeric: tabular-nums;
+}
+.lab-lapdata-table th,
+.lab-lapdata-table td {
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--lab-panel-edge);
+  text-align: right;
+  white-space: nowrap;
+}
+.lab-lapdata-table th[scope="row"] {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+  letter-spacing: var(--tracking-label);
+  text-align: left;
+  text-transform: uppercase;
+}
+.lab-lapdata-table thead th {
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.lab-lapdata-table thead th.slot-current {
+  color: var(--lab-value-cool);
+}
+.lab-lapdata-table thead th.slot-reference {
+  color: var(--ch-reference);
+}
+.lab-lapdata-table td {
+  padding-left: var(--sp-3);
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+.lab-lapdata-table .is-invalid {
+  color: var(--bad-text);
+  text-decoration: line-through;
+}
+/* The 1280 px session column leaves the card about 180 px: labels wrap and
+   the figures tighten, so both laps stay side by side without clipping. */
+@container lab-lapdata (max-width: 240px) {
+  .lab-lapdata-table {
+    font-size: var(--type-micro);
+  }
+  .lab-lapdata-table th[scope="row"] {
+    padding-right: var(--sp-1);
+    letter-spacing: 0;
+    white-space: normal;
+  }
+  .lab-lapdata-table td {
+    padding-left: var(--sp-1);
+  }
+}
+.lab-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  font-size: var(--type-label);
+  line-height: var(--leading-snug);
+  list-style: none;
+}
+.lab-issues li {
+  padding-left: var(--sp-2);
+  border-left: 2px solid var(--lab-panel-edge);
+  color: var(--text-2);
+}
+.lab-issues li.tone-warn {
+  border-left-color: var(--warn-border);
+}
+.lab-issues strong {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+
 .lab-back {
   display: flex;
   align-items: center;
@@ -1710,6 +1825,7 @@
   .lab-session > .inline-alert,
   .lab-session > .lab-car,
   .lab-session > .lab-laps,
+  .lab-session > .lab-lapdata,
   .lab-session > .lab-back {
     grid-column: 1 / -1;
   }
@@ -1725,6 +1841,21 @@
   .lab-laps-title,
   .lab-laps .lab-note {
     grid-column: 1 / -1;
+  }
+  /* Each lap's badges stay under its own picker. */
+  .lab-laps > .slot-current {
+    grid-column: 1;
+  }
+  .lab-laps > .slot-reference {
+    grid-column: 2;
+  }
+  .lab-laps > .lab-lap-picker {
+    grid-row: 2;
+  }
+  .lab-laps > .lab-lap-badges {
+    grid-row: 3;
+    align-content: flex-start;
+    margin-top: 0;
   }
   .lab-compare-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
