@@ -47,7 +47,9 @@ click-through or live-game acceptance.
 - **F1 Telemetry Lab:** open a completed F1 25 session and compare two laps
   on shared distance or time axes: speed, RPM, throttle, brake, steering and
   gear, with synchronized replay. Each lap states its timing source, validity
-  and whether its samples support reliable distance-aligned analysis.
+  and whether its samples support reliable distance-aligned analysis. Two
+  qualifying laps are compared at the same lap distance (speed, throttle,
+  brake, steering) with a delta time measured from their recorded lap times.
   Verified with synthetic fixtures and automated tests, not yet with a real
   F1 25 recording.
 - **F1 overlay:** a compact in-game display that does not take keyboard focus
@@ -60,7 +62,7 @@ click-through or live-game acceptance.
 
 Download the Windows x64 installer from
 [Releases](https://github.com/tahagurvardar/racelab/releases) and run it.
-For v2.1.0, the installer is `RaceLab_2.1.0_x64-setup.exe`.
+For v2.2.0, the installer is `RaceLab_2.2.0_x64-setup.exe`.
 
 Installation is per-user and does not require administrator privileges.
 The installer sets up WebView2 if needed. You do not need Node.js, Rust or
@@ -161,9 +163,9 @@ recorder.
 
 ## Roadmap
 
-Future work includes lap delta time, deeper lap comparison and a track map.
-These are not available in v2.1.0.
-See the [roadmap](docs/ROADMAP.md) and [v2.1.0 release notes](docs/V2.1.0-RELEASE-NOTES.md).
+Future work includes a track map and tyre and fuel detail in the Telemetry
+Lab. These are not available in v2.2.0.
+See the [roadmap](docs/ROADMAP.md) and [v2.2.0 release notes](docs/V2.2.0-RELEASE-NOTES.md).
 
 ## License
 

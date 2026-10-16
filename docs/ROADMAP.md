@@ -1,5 +1,15 @@
 # RaceLab roadmap
 
+## V2.2.0 — Lap comparison and delta time
+
+The F1 Telemetry Lab compares two qualifying laps at the same lap distance
+for speed, throttle, brake and steering (M5), and draws a delta time measured
+from each lap's recorded lap time and lap distance, never estimated from
+speed or bridged across a gap (M6). Both run on Distance sync only, between
+laps the M4 quality checks accept. Verified with synthetic fixtures and
+automated tests; not yet validated against a real F1 25 recording. A track
+map is not part of this release; RaceLab records no world position for F1.
+
 ## V2.1.0 — F1 Telemetry Lab
 
 A read-only workspace for completed F1 25 sessions: bounded, downsampled lap

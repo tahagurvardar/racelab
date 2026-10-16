@@ -26,9 +26,10 @@ test("the application version is identical in every file that declares one", () 
   assert.equal(PACKAGE.version, cargoVersion);
 });
 
-test("the stable release version is 2.1.0", () => {
-  // Deliberate release decision: v2.1 adds the F1 Telemetry Lab (M1-M4).
-  assert.equal(PACKAGE.version, "2.1.0");
+test("the stable release version is 2.2.0", () => {
+  // Deliberate release decision: v2.2 adds lap comparison (M5) and recorded
+  // delta time (M6) to the F1 Telemetry Lab.
+  assert.equal(PACKAGE.version, "2.2.0");
 });
 
 // --------------------------------------------------------------- packaging
