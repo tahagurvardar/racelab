@@ -93,6 +93,9 @@ function lap(trackLength: number, pace: number): Sample[] {
         brake: Math.round(brake * 1000) / 1000,
         steering: Math.round(steeringAt(distance) * 1000) / 1000,
         gear,
+        // The lap clock and distance this sample was generated at.
+        lap_time: timeMs,
+        lap_distance: Math.round(distance * 100) / 100,
       },
     });
     distance += (next / 3.6) * 0.1;
@@ -112,6 +115,8 @@ const CHANNEL_UNITS: Record<
   brake: "ratio_0_1",
   steering: "ratio_-1_1",
   gear: "gear",
+  lap_time: "milliseconds",
+  lap_distance: "metres",
 };
 
 /// Buckets samples exactly as `session_trace.rs` does: integer ticks

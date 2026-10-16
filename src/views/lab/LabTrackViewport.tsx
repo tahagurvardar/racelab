@@ -4,6 +4,8 @@ import type { LabController, LapSlot } from "../../lab-controller.ts";
 import {
   formatChannel,
   gearText,
+  lapClock,
+  PLAYBACK_RATES,
   seriesPath,
   valueAt,
   type SessionTrace,
@@ -273,22 +275,66 @@ function ToolButton({
 const LATER = "arrives in a later milestone";
 const NO_POSITION = "needs recorded car positions";
 
+/// Replay controls (M3): play/pause, rate, the lap clock at the cursor and a
+/// scrubber over the lap. They drive the one shared cursor; every chart,
+/// gauge and chip follows it.
 function ControlBar({ controller }: { controller: LabController }) {
-  const axis = useLab(controller, (state) => state.axis);
+  // Subscribed so the replay map is rebuilt when the lap or axis changes.
+  useLab(controller, (state) => state.current.trace);
+  useLab(controller, (state) => state.axis);
   const cursor = useLab(controller, (state) => state.cursor);
+  const playback = useLab(controller, (state) => state.playback);
+  const replay = controller.playback();
+  const lapMs =
+    replay.available && cursor != null ? replay.toTime(cursor) : null;
+  const status = playback.playing
+    ? `Playing at ${playback.rate}×`
+    : playback.ended
+      ? "Replay ended"
+      : "Paused";
   return (
     <div className="lab-controls" role="toolbar" aria-label="Playback">
-      <ToolButton icon="play" label="Play" disabledReason={LATER} />
-      <button
-        type="button"
-        className="lab-speed"
-        disabled
-        title={`Playback speed ${LATER}`}
-      >
-        1x
-      </button>
-      <span className="lab-controls-time" aria-label="Cursor">
-        {cursorText(cursor, axis)}
+      <ToolButton
+        icon={playback.playing ? "pause" : "play"}
+        label={playback.playing ? "Pause" : "Play"}
+        onClick={() => controller.togglePlay()}
+        disabledReason={replay.available ? undefined : replay.reason}
+      />
+      <div className="lab-rates" role="radiogroup" aria-label="Playback speed">
+        {PLAYBACK_RATES.map((rate) => (
+          <button
+            key={rate}
+            type="button"
+            role="radio"
+            aria-checked={playback.rate === rate}
+            className={playback.rate === rate ? "is-active" : undefined}
+            onClick={() => controller.setRate(rate)}
+          >
+            {rate}×
+          </button>
+        ))}
+      </div>
+      <span className="lab-controls-time" aria-label="Lap time at the cursor">
+        {lapClock(lapMs)}
+        <span className="lab-controls-total">
+          {" / "}
+          {replay.available ? lapClock(replay.endMs) : "—"}
+        </span>
+      </span>
+      <input
+        className="lab-scrub"
+        type="range"
+        aria-label="Replay position"
+        min={replay.available ? replay.startMs : 0}
+        max={replay.available ? replay.endMs : 1}
+        step={10}
+        value={lapMs ?? (replay.available ? replay.startMs : 0)}
+        aria-valuetext={lapClock(lapMs)}
+        disabled={!replay.available}
+        onChange={(event) => controller.seekTime(Number(event.target.value))}
+      />
+      <span className="visually-hidden" aria-live="polite">
+        {status}
       </span>
       <span className="lab-controls-divider" aria-hidden="true" />
       <ToolButton icon="map" label="Track map" disabledReason={NO_POSITION} />

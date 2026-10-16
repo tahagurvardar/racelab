@@ -32,7 +32,13 @@ export default function TelemetryLabWorkspace({
 }) {
   const controller = useLabController(sessionId);
   return (
-    <div className="telemetry-lab" data-session={sessionId}>
+    <div
+      className="telemetry-lab"
+      data-session={sessionId}
+      onKeyDown={
+        controller ? (event) => replayKey(controller, event) : undefined
+      }
+    >
       {controller ? (
         <LabBody controller={controller} onClose={onClose} />
       ) : null}
@@ -42,6 +48,29 @@ export default function TelemetryLabWorkspace({
 
 /// Until it is resized, the track view follows the window (lab.css), at
 /// about the share of the column the reference gives it.
+/// Replay keys anywhere in the Lab: Space plays or pauses, [ and ] step the
+/// rate. A control that owns the key keeps it — Space on a button presses
+/// that button, and nothing fires while typing or choosing in a list.
+function replayKey(
+  controller: LabController,
+  event: KeyboardEvent<HTMLElement>,
+) {
+  if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey)
+    return;
+  const target = event.target as HTMLElement;
+  const typing = target.closest("input, select, textarea, [contenteditable]");
+  if (event.key === " ") {
+    if (typing || target.closest("button, a")) return;
+    controller.togglePlay();
+  } else if (event.key === "[" || event.key === "]") {
+    if (typing) return;
+    controller.stepRate(event.key === "]" ? 1 : -1);
+  } else {
+    return;
+  }
+  event.preventDefault();
+}
+
 const VIEWPORT = { min: 260, max: 720, step: 24 };
 
 function LabBody({

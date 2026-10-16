@@ -111,8 +111,74 @@ try {
     assert.ok(facts.rail.startsWith("56px"), `${width}: sidebar not folded`);
     assert.notEqual(facts.speed, "—", `${width}: gauge has no reading`);
     const lab = await capture("telemetry-lab", width, height);
-    results.push({ width, height, entry, lab, ...facts });
-    console.log(`Captured ${lab}`, JSON.stringify(facts));
+
+    // M3 replay in a real browser: every view must read the same cursor at
+    // the same moment, and the cursor must move while playing.
+    const SYNC = `(() => {
+      const plots = [...document.querySelectorAll('.lab-plot')];
+      const lines = [...document.querySelectorAll('.lab-cursor')].map(e => e.style.left);
+      return {
+        label: document.querySelector('.lab-controls .lab-tool')?.getAttribute('aria-label'),
+        clock: document.querySelector('.lab-controls-time')?.textContent,
+        cursors: [...new Set(plots.map(p => p.getAttribute('aria-valuetext')))],
+        lines: [...new Set(lines)],
+        hud: document.querySelector('.lab-hud-value:not(.is-unavailable)')?.textContent,
+        gauges: [...document.querySelectorAll('.lab-gauge-speed')].map(e => e.textContent),
+        errors: window.labErrors,
+        now: performance.now(),
+      };
+    })()`;
+    // "1:02.345 / …" -> milliseconds of lap time.
+    const lapMs = (clock) => {
+      const [minutes, rest] = clock.split(" / ")[0].split(":");
+      return Number(minutes) * 60_000 + Math.round(Number(rest) * 1000);
+    };
+    await env.page.evaluate(
+      "document.querySelector('.lab-controls .lab-tool').click()",
+    );
+    await wait(700);
+    const first = await env.page.evaluate(SYNC);
+    await wait(500);
+    const second = await env.page.evaluate(SYNC);
+    const playing = await capture("telemetry-lab-playing", width, height);
+    await env.page.evaluate(
+      "document.querySelector('.lab-controls .lab-tool').click()",
+    );
+    for (const sample of [first, second]) {
+      assert.equal(sample.label, "Pause", `${width}: not playing`);
+      // One cursor: every plot announces the same position, and every
+      // cursor line sits at the same place.
+      assert.equal(sample.cursors.length, 1, `${width}: plots disagree`);
+      assert.equal(sample.lines.length, 1, `${width}: cursor lines disagree`);
+      assert.equal(sample.hud, sample.cursors[0], `${width}: HUD disagrees`);
+      assert.ok(
+        sample.gauges.every((speed) => /^\d+$/.test(speed)),
+        `${width}: a gauge has no reading while playing`,
+      );
+      assert.deepEqual(sample.errors, [], `${width}: errors while playing`);
+    }
+    assert.notEqual(first.clock, second.clock, `${width}: replay did not move`);
+    // At 1x, lap time advances with the page's own clock. The displayed
+    // clock is the last painted frame, so allow a few frames of skew.
+    const lapAdvance = lapMs(second.clock) - lapMs(first.clock);
+    const wallAdvance = second.now - first.now;
+    assert.ok(
+      Math.abs(lapAdvance - wallAdvance) <= 80,
+      `${width}: 1x drifted: lap ${lapAdvance} ms over ${Math.round(wallAdvance)} ms`,
+    );
+    assert.notEqual(
+      first.cursors[0],
+      second.cursors[0],
+      `${width}: cursor still`,
+    );
+    const replay = {
+      first,
+      second,
+      lapAdvance,
+      wallAdvance: Math.round(wallAdvance),
+    };
+    results.push({ width, height, entry, lab, playing, replay, ...facts });
+    console.log(`Captured ${lab}, ${playing}`, JSON.stringify(replay));
   }
   await fs.writeFile(
     new URL("results.json", directory),

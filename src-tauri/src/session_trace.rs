@@ -1,7 +1,8 @@
-//! Bounded, read-only channel traces of recorded sessions (v2.1 M1, M2.0).
+//! Bounded, read-only channel traces of recorded sessions (v2.1 M1, M2.0,
+//! M3.0).
 //!
 //! The first and only path by which recorded telemetry reaches the frontend.
-//! It is deliberately narrow: a fixed allowlist of six canonical channels,
+//! It is deliberately narrow: a fixed allowlist of eight channels,
 //! reduced in the backend to at most `MAX_BUCKETS` min/max buckets. A frame, a
 //! sample, `sourceSpecific`, a packet byte, a vehicle identifier or a game
 //! session UID is never part of a trace.
@@ -70,7 +71,7 @@ pub const MAX_GAPS: usize = 512;
 /// (`session_summary::MAX_SAMPLE_GAP_MS`).
 pub const GAP_THRESHOLD_MS: u64 = 1000;
 /// Upper bound on a serialized trace. Structural, not checked at runtime:
-/// six channels × `MAX_BUCKETS` × (three `f32`s and two counts) plus
+/// eight channels × `MAX_BUCKETS` × (three `f32`s and two counts) plus
 /// `MAX_GAPS` gaps stays below it (`tests/session_trace.rs` measures the
 /// worst case).
 pub const MAX_RESPONSE_BYTES: usize = 1 << 20;
@@ -86,16 +87,25 @@ pub enum TraceChannel {
     Brake,
     Steering,
     Gear,
+    /// M3: F1 25 Lap Data `current_lap_time_ms`, as recorded. Carried by a
+    /// sample only when that sample holds a Lap Data reading; never carried
+    /// over from an earlier one. FH6 records no established lap time.
+    LapTime,
+    /// M3: F1 25 Lap Data `lap_distance_m`, as recorded, under the same
+    /// rule. Negative before the start line is first crossed.
+    LapDistance,
 }
 
 impl TraceChannel {
-    pub const ALL: [TraceChannel; 6] = [
+    pub const ALL: [TraceChannel; 8] = [
         TraceChannel::Speed,
         TraceChannel::Rpm,
         TraceChannel::Throttle,
         TraceChannel::Brake,
         TraceChannel::Steering,
         TraceChannel::Gear,
+        TraceChannel::LapTime,
+        TraceChannel::LapDistance,
     ];
 
     fn index(self) -> usize {
@@ -112,6 +122,8 @@ impl TraceChannel {
             (TraceChannel::Throttle | TraceChannel::Brake, _) => TraceUnit::Ratio0To1,
             (TraceChannel::Steering, _) => TraceUnit::RatioMinus1To1,
             (TraceChannel::Gear, _) => TraceUnit::Gear,
+            (TraceChannel::LapTime, _) => TraceUnit::Milliseconds,
+            (TraceChannel::LapDistance, _) => TraceUnit::Metres,
         }
     }
 }
@@ -131,6 +143,11 @@ pub enum TraceUnit {
     /// A gear number: -1 reverse, 0 neutral, 1.. forward. F1 25's raw value;
     /// for FH6 the canonical gear, which its adapter leaves unavailable.
     Gear,
+    /// Lap time. A lap's u32 milliseconds are exact in f32 up to 2^24 ms
+    /// (about 4.6 hours), far beyond any lap.
+    Milliseconds,
+    /// Lap distance.
+    Metres,
 }
 
 /// The x axis a request asks for.
@@ -392,7 +409,7 @@ impl TraceRequest {
 struct Record {
     monotonic_ms: u64,
     lap: Option<LapPosition>,
-    values: [Option<f32>; 6],
+    values: [Option<f32>; 8],
 }
 
 #[derive(Clone, Copy)]
@@ -437,6 +454,9 @@ impl TraceSource for Fh6Source {
                     frame.controls.brake,
                     frame.controls.steering,
                     gear_number(frame.gear),
+                    // FH6 lap time and distance are not canonical: never read.
+                    None,
+                    None,
                 ],
             }
         }))
@@ -472,7 +492,7 @@ impl TraceSource for F1Source {
         self.last_monotonic_ms = sample.monotonic_ms;
         // Only Car Telemetry carries these channels. A sample without it had
         // no new Car Telemetry packet, so every channel is missing there.
-        let values = match sample.telemetry {
+        let telemetry = match sample.telemetry {
             Some(t) => [
                 Some(f32::from(t.speed_kmh)),
                 Some(f32::from(t.engine_rpm)),
@@ -483,6 +503,20 @@ impl TraceSource for F1Source {
             ],
             None => [None; 6],
         };
+        // Lap time and distance come from this sample's own Lap Data
+        // reading, or are missing. A non-finite distance stays as read and is
+        // counted as non-finite by the reduction, never repaired.
+        let [speed, rpm, throttle, brake, steering, gear] = telemetry;
+        let values = [
+            speed,
+            rpm,
+            throttle,
+            brake,
+            steering,
+            gear,
+            sample.lap.map(|lap| lap.current_lap_time_ms as f32),
+            sample.lap.map(|lap| lap.lap_distance_m),
+        ];
         Ok(Some(Record {
             monotonic_ms: sample.monotonic_ms,
             lap: sample.lap.map(|lap| LapPosition {

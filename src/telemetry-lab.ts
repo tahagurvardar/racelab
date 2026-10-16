@@ -19,7 +19,9 @@ export type TraceChannelId =
   | "throttle"
   | "brake"
   | "steering"
-  | "gear";
+  | "gear"
+  | "lap_time"
+  | "lap_distance";
 
 export type TraceAxisId = "time" | "distance";
 
@@ -29,7 +31,9 @@ export type TraceUnit =
   | "revolutions_per_minute"
   | "ratio_0_1"
   | "ratio_-1_1"
-  | "gear";
+  | "gear"
+  | "milliseconds"
+  | "metres";
 
 export interface TraceChannel {
   channel: TraceChannelId;
@@ -107,6 +111,10 @@ export const LAB_CHANNELS: TraceChannelId[] = [
   "brake",
   "steering",
   "gear",
+  // M3: the recorded lap time and distance, which pair the two axes for
+  // playback. Never drawn as charts.
+  "lap_time",
+  "lap_distance",
 ];
 
 /// About one bucket per 10 Hz sample of a two-minute lap: the lap is drawn
@@ -428,6 +436,9 @@ export function yDomain(
       return { y0: 0, y1: niceCeiling(peak(traces, id), 1000, 1000) };
     case "speed":
       return { y0: 0, y1: niceCeiling(peak(traces, id), 50, 100) };
+    case "lap_time":
+    case "lap_distance":
+      return { y0: 0, y1: niceCeiling(peak(traces, id), 1000, 1000) };
   }
 }
 
@@ -525,7 +536,21 @@ export function formatChannel(
       return steeringText(value);
     case "gear":
       return gearText(value);
+    case "lap_time":
+      return lapClock(value);
+    case "lap_distance":
+      return `${Math.round(value)} m`;
   }
+}
+
+/// Lap milliseconds as "1:32.456". Negative never occurs on a lap clock and
+/// stays unavailable rather than becoming a time.
+export function lapClock(ms: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return UNAVAILABLE;
+  const whole = Math.round(ms);
+  const minutes = Math.floor(whole / 60_000);
+  const seconds = Math.floor((whole % 60_000) / 1000);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(whole % 1000).padStart(3, "0")}`;
 }
 
 export function gearText(value: number | null): string {
@@ -552,6 +577,8 @@ export const CHANNEL_TITLES: Record<TraceChannelId, string> = {
   brake: "Brake",
   steering: "Steering",
   gear: "Gear",
+  lap_time: "Lap time",
+  lap_distance: "Lap distance",
 };
 
 export const CHANNEL_UNITS: Record<TraceChannelId, string> = {
@@ -561,6 +588,8 @@ export const CHANNEL_UNITS: Record<TraceChannelId, string> = {
   brake: "%",
   steering: "lock",
   gear: "",
+  lap_time: "ms",
+  lap_distance: "m",
 };
 
 /// What a trace says about its own trustworthiness, as short notes.
@@ -586,4 +615,125 @@ export function traceNotes(trace: SessionTrace | null): string[] {
     notes.push("The recording ended without its end marker.");
   }
   return notes;
+}
+
+// ---------------------------------------------------------------- playback
+
+export const PLAYBACK_RATES = [0.5, 1, 2, 4] as const;
+export type PlaybackRate = (typeof PLAYBACK_RATES)[number];
+
+/// How a lap plays: on its own lap clock, mapped onto the chart axis.
+export type PlaybackMap =
+  | {
+      available: true;
+      /// The lap clock the playback runs over, in milliseconds.
+      startMs: number;
+      endMs: number;
+      /// Lap time to axis position, and back. Linear between recorded pairs.
+      toX(ms: number): number;
+      toTime(x: number): number;
+    }
+  | { available: false; reason: string };
+
+interface Pair {
+  x: number;
+  t: number;
+}
+
+/// Linear interpolation over pairs sorted by `key`, clamped at both ends.
+function interpolate(
+  pairs: Pair[],
+  key: "x" | "t",
+  value: number,
+  other: "x" | "t",
+): number {
+  if (value <= pairs[0][key]) return pairs[0][other];
+  const last = pairs[pairs.length - 1];
+  if (value >= last[key]) return last[other];
+  let low = 0;
+  let high = pairs.length - 1;
+  while (high - low > 1) {
+    const middle = (low + high) >> 1;
+    if (pairs[middle][key] <= value) low = middle;
+    else high = middle;
+  }
+  const a = pairs[low];
+  const b = pairs[high];
+  const span = b[key] - a[key];
+  const fraction = span > 0 ? (value - a[key]) / span : 0;
+  return a[other] + fraction * (b[other] - a[other]);
+}
+
+/// The playback map for the current lap. On Time sync the axis is the lap
+/// clock itself. On Distance sync it is built from recorded pairs only:
+/// each bucket whose last lap time and last lap distance come from the same
+/// Lap Data reading. A lap that runs backwards, or whose time does not rise
+/// with its distance, is not played on distance; nothing is estimated.
+export function playbackMap(
+  trace: SessionTrace | null,
+  axis: TraceAxisId,
+): PlaybackMap {
+  const none = (reason: string): PlaybackMap => ({ available: false, reason });
+  if (trace == null || trace.axis.records === 0) {
+    return none("There is no current lap to play.");
+  }
+  if (axis === "time") {
+    const { start, end } = trace.axis;
+    if (!(end > start)) return none("This lap is too short to play.");
+    const clamp = (value: number) => Math.min(end, Math.max(start, value));
+    return {
+      available: true,
+      startMs: start,
+      endMs: end,
+      toX: clamp,
+      toTime: clamp,
+    };
+  }
+  if (trace.axis.reversals > 0) {
+    return none(
+      "This lap runs backwards (a flashback or reversing), so its distance does not map to one time. Time sync plays it.",
+    );
+  }
+  const time = channelOf(trace, "lap_time");
+  const distance = channelOf(trace, "lap_distance");
+  if (time == null || distance == null) {
+    return none("This trace carries no recorded lap time and distance.");
+  }
+  const pairs: Pair[] = [];
+  for (let index = 0; index < trace.axis.bucket_count; index += 1) {
+    const t = time.last[index];
+    const x = distance.last[index];
+    // Same number of readings in the bucket: both lasts are one reading.
+    if (
+      t == null ||
+      x == null ||
+      time.samples[index] === 0 ||
+      time.samples[index] !== distance.samples[index]
+    ) {
+      continue;
+    }
+    pairs.push({ x, t });
+  }
+  if (pairs.length < 2) {
+    return none("Too few recorded lap time readings to play this lap.");
+  }
+  for (let index = 1; index < pairs.length; index += 1) {
+    if (
+      !(
+        pairs[index].t > pairs[index - 1].t &&
+        pairs[index].x >= pairs[index - 1].x
+      )
+    ) {
+      return none(
+        "This lap's recorded time does not rise with its distance. Time sync plays it.",
+      );
+    }
+  }
+  return {
+    available: true,
+    startMs: pairs[0].t,
+    endMs: pairs[pairs.length - 1].t,
+    toX: (ms) => interpolate(pairs, "t", ms, "x"),
+    toTime: (x) => interpolate(pairs, "x", x, "t"),
+  };
 }

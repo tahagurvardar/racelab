@@ -7,6 +7,9 @@ import {
   gearText,
   labLaps,
   labSession,
+  lapClock,
+  PLAYBACK_RATES,
+  playbackMap,
   seriesPath,
   sharedXDomain,
   steeringText,
@@ -388,4 +391,277 @@ test("the keyboard cursor moves in hundredths of the axis and stops at its ends"
   lab.cursorTo("end");
   lab.stepCursor(10);
   assert.equal(lab.store.get().cursor, 5891);
+});
+
+// ------------------------------------------------------------- M3 replay
+
+/// A lap on the distance axis: one bucket per point, 10 m wide, each with a
+/// recorded lap time and distance. `t(i)` gives each point's lap time.
+function replayTrace({
+  points = 101,
+  width = 10,
+  t = (i) => i * 100,
+  reversals = 0,
+  axis = "distance",
+} = {}) {
+  const indices = [...Array(points).keys()];
+  const xs = indices.map((i) => i * width);
+  const ts = indices.map(t);
+  const channel = (id, values) => ({
+    channel: id,
+    unit: id,
+    min: values,
+    max: values,
+    last: values,
+    samples: values.map((v) => (v == null ? 0 : 1)),
+    missing: values.map((v) => (v == null ? 1 : 0)),
+    total_samples: values.filter((v) => v != null).length,
+    total_missing: values.filter((v) => v == null).length,
+    total_non_finite: 0,
+  });
+  const onTime = axis === "time";
+  return {
+    ...trace(indices.map(() => 200)),
+    axis: {
+      kind: onTime ? "lap_time" : "lap_distance",
+      unit: onTime ? "ms" : "m",
+      origin: onTime ? "lap_start" : "start_finish_line",
+      start: onTime ? ts[0] : 0,
+      end: onTime ? ts[ts.length - 1] : xs[xs.length - 1],
+      records: points,
+      bucket_width: onTime ? ts[1] - ts[0] : width,
+      bucket_count: points,
+      max_interval_ms: 100,
+      reversals,
+    },
+    bucket_records: indices.map(() => 1),
+    channels: [
+      channel(
+        "speed",
+        indices.map(() => 200),
+      ),
+      channel("lap_time", ts),
+      channel("lap_distance", xs),
+    ],
+  };
+}
+
+test("on Time sync the replay runs on the lap clock itself", () => {
+  const map = playbackMap(replayTrace({ axis: "time" }), "time");
+  assert.equal(map.available, true);
+  assert.deepEqual([map.startMs, map.endMs], [0, 10_000]);
+  assert.equal(map.toX(2500), 2500);
+  assert.equal(map.toX(99_999), 10_000);
+  assert.equal(map.toTime(-5), 0);
+});
+
+test("on Distance sync the replay maps recorded lap time to distance", () => {
+  const map = playbackMap(replayTrace(), "distance");
+  assert.equal(map.available, true);
+  assert.deepEqual([map.startMs, map.endMs], [0, 10_000]);
+  // Recorded pairs, and linear between them.
+  assert.equal(map.toX(2000), 200);
+  assert.equal(map.toX(2050), 205);
+  assert.equal(map.toTime(205), 2050);
+  // Clamped at the lap's ends, never extrapolated.
+  assert.equal(map.toX(-1), 0);
+  assert.equal(map.toX(20_000), 1000);
+});
+
+test("a lap that cannot map distance to time is not replayed on distance", () => {
+  assert.equal(playbackMap(null, "distance").available, false);
+  const flashback = playbackMap(replayTrace({ reversals: 1 }), "distance");
+  assert.equal(flashback.available, false);
+  assert.match(flashback.reason, /runs backwards/);
+  // Time that stops rising with distance is not interpolated through.
+  const stuck = playbackMap(
+    replayTrace({ t: (i) => (i < 50 ? i * 100 : 4900) }),
+    "distance",
+  );
+  assert.equal(stuck.available, false);
+  assert.match(stuck.reason, /does not rise/);
+  // Too few recorded pairs.
+  const sparse = replayTrace({ points: 3 });
+  sparse.channels[1].last = [0, null, null];
+  sparse.channels[1].samples = [1, 0, 0];
+  assert.equal(playbackMap(sparse, "distance").available, false);
+  // A bucket whose time and distance come from different readings is
+  // skipped, not paired.
+  const mismatched = replayTrace({ points: 5 });
+  mismatched.channels[1].samples = [1, 2, 1, 1, 1];
+  mismatched.channels[1].last = [0, 999_999, 200, 300, 400];
+  const map = playbackMap(mismatched, "distance");
+  assert.equal(map.available, true);
+  assert.equal(map.toTime(15), 150);
+});
+
+/// A hand-driven frame source: frames run only when the test advances time.
+function fakeClock() {
+  let now = 1000;
+  let handle = 0;
+  const frames = new Map();
+  return {
+    now: () => now,
+    frame(callback) {
+      handle += 1;
+      frames.set(handle, callback);
+      return handle;
+    },
+    cancel(id) {
+      frames.delete(id);
+    },
+    advance(ms) {
+      now += ms;
+      const due = [...frames.values()];
+      frames.clear();
+      for (const callback of due) callback();
+    },
+    pending: () => frames.size,
+  };
+}
+
+async function replayLab(options = {}) {
+  const clock = fakeClock();
+  const lab = createLabController(
+    "f1-review-race",
+    {
+      f1Session: async () => f1Detail(),
+      trace: async (sessionId, lap, axis) =>
+        replayTrace({ ...options, axis, t: options.t }),
+    },
+    clock,
+  );
+  lab.start();
+  await flush();
+  await flush();
+  return { lab, clock, state: () => lab.store.get() };
+}
+
+test("play moves the shared cursor along the lap at the chosen rate", async () => {
+  const { lab, clock, state } = await replayLab();
+  assert.equal(state().cursor, 0);
+  lab.play();
+  assert.equal(state().playback.playing, true);
+  clock.advance(2000);
+  assert.equal(state().cursor, 200);
+  clock.advance(1000);
+  assert.equal(state().cursor, 300);
+  // Rate changes keep the time already played at its old rate.
+  lab.setRate(4);
+  clock.advance(500);
+  assert.equal(state().cursor, 500);
+  lab.setRate(0.5);
+  clock.advance(1000);
+  assert.equal(state().cursor, 550);
+  // Frames that arrive late do not make the replay drift.
+  clock.advance(17);
+  clock.advance(33);
+  assert.equal(state().cursor, 552.5);
+});
+
+test("pause stops the replay where it is and holds no frame", async () => {
+  const { lab, clock, state } = await replayLab();
+  lab.play();
+  clock.advance(1000);
+  lab.pause();
+  assert.equal(state().playback.playing, false);
+  assert.equal(clock.pending(), 0);
+  clock.advance(5000);
+  assert.equal(state().cursor, 100);
+  // Play resumes from the cursor.
+  lab.togglePlay();
+  clock.advance(1000);
+  assert.equal(state().cursor, 200);
+});
+
+test("seeking while playing continues the replay from the new place", async () => {
+  const { lab, clock, state } = await replayLab();
+  lab.play();
+  clock.advance(1000);
+  lab.setCursor(700);
+  clock.advance(1000);
+  assert.equal(state().cursor, 800);
+  lab.seekTime(2000);
+  assert.equal(state().cursor, 200);
+  clock.advance(500);
+  assert.equal(state().cursor, 250);
+  // Seeks clamp to the lap.
+  lab.seekTime(-50);
+  assert.equal(state().cursor, 0);
+  assert.equal(state().playback.playing, true);
+});
+
+test("the replay stops at the end of the lap and plays again from the start", async () => {
+  const { lab, clock, state } = await replayLab();
+  lab.setRate(4);
+  lab.play();
+  clock.advance(2000);
+  clock.advance(1000);
+  assert.equal(state().cursor, 1000);
+  assert.equal(state().playback.playing, false);
+  assert.equal(state().playback.ended, true);
+  assert.equal(clock.pending(), 0);
+  lab.play();
+  assert.equal(state().cursor, 0);
+  assert.equal(state().playback.ended, false);
+  clock.advance(250);
+  assert.equal(state().cursor, 100);
+});
+
+test("changing lap or axis pauses; closing the Lab cancels its frame", async () => {
+  const { lab, clock, state } = await replayLab();
+  lab.play();
+  clock.advance(500);
+  lab.setLap("reference", null);
+  assert.equal(state().playback.playing, false);
+  assert.equal(clock.pending(), 0);
+  lab.play();
+  lab.setAxis("time");
+  assert.equal(state().playback.playing, false);
+  assert.equal(clock.pending(), 0);
+  await flush();
+  lab.play();
+  assert.equal(clock.pending(), 1);
+  lab.dispose();
+  assert.equal(clock.pending(), 0);
+  const before = state().cursor;
+  clock.advance(1000);
+  assert.equal(state().cursor, before);
+});
+
+test("a lap that cannot be replayed is never played", async () => {
+  const { lab, clock, state } = await replayLab({ reversals: 1 });
+  assert.equal(lab.playback().available, false);
+  lab.play();
+  assert.equal(state().playback.playing, false);
+  assert.equal(clock.pending(), 0);
+  // Without a clock there is nothing to drive a replay either.
+  const quiet = createLabController("f1-review-race", {
+    f1Session: async () => f1Detail(),
+    trace: async () => replayTrace(),
+  });
+  quiet.start();
+  await flush();
+  await flush();
+  quiet.play();
+  assert.equal(quiet.store.get().playback.playing, false);
+});
+
+test("the rate steps through 0.5×, 1×, 2× and 4× and stops at either end", async () => {
+  const { lab, state } = await replayLab();
+  assert.equal(state().playback.rate, 1);
+  lab.stepRate(1);
+  lab.stepRate(1);
+  lab.stepRate(1);
+  assert.equal(state().playback.rate, 4);
+  for (const _ of [1, 2, 3, 4, 5]) lab.stepRate(-1);
+  assert.equal(state().playback.rate, 0.5);
+  assert.deepEqual([...PLAYBACK_RATES], [0.5, 1, 2, 4]);
+});
+
+test("lap clock text reads like a lap time", () => {
+  assert.equal(lapClock(92_456), "1:32.456");
+  assert.equal(lapClock(0), "0:00.000");
+  assert.equal(lapClock(-1), "—");
+  assert.equal(lapClock(null), "—");
 });

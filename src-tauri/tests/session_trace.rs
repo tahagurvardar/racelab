@@ -1020,12 +1020,21 @@ fn requests_outside_the_allowlist_or_the_bounds_are_refused() {
         "position",
         "sourceSpecific",
         "fuel",
-        "lap_distance",
+        "total_distance",
         "SPEED",
     ] {
         assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_err());
     }
-    for name in ["speed", "rpm", "throttle", "brake", "steering", "gear"] {
+    for name in [
+        "speed",
+        "rpm",
+        "throttle",
+        "brake",
+        "steering",
+        "gear",
+        "lap_time",
+        "lap_distance",
+    ] {
         assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_ok());
     }
 }
@@ -1492,4 +1501,113 @@ fn a_session_trace_is_unchanged_by_the_lap_scope_feature() {
         channel(&trace, TraceChannel::Speed).max,
         vec![Some(100.0), Some(110.0), Some(120.0)]
     );
+}
+
+// --------------------------------------------- M3.0: lap time and distance
+
+#[test]
+fn lap_time_and_distance_come_only_from_each_samples_own_lap_data() {
+    let root = Scratch::new("trace-lap-channels");
+    f1_laps(
+        &root,
+        "f1-lap-channels",
+        &[
+            (0, Some((2, 0, 0.0)), drive(100)),
+            (100, Some((2, 100, 2.8)), drive(101)),
+            // Car Telemetry without Lap Data: time and distance are missing
+            // here, never carried over from the previous reading.
+            (200, None, drive(102)),
+            (300, Some((2, 300, 8.4)), drive(103)),
+            // Lap Data without Car Telemetry: the lap channels are present.
+            (400, Some((2, 400, 11.2)), None),
+        ],
+    );
+    let session = session_trace(&root, "f1-lap-channels", &request(5)).unwrap();
+    let time = channel(&session, TraceChannel::LapTime);
+    let distance = channel(&session, TraceChannel::LapDistance);
+    assert_eq!(time.unit, TraceUnit::Milliseconds);
+    assert_eq!(distance.unit, TraceUnit::Metres);
+    assert_eq!(
+        time.last,
+        vec![Some(0.0), Some(100.0), None, Some(300.0), Some(400.0)]
+    );
+    assert_eq!(time.missing, vec![0, 0, 1, 0, 0]);
+    assert_eq!(
+        distance.last,
+        vec![Some(0.0), Some(2.8), None, Some(8.4), Some(11.2)]
+    );
+    // The telemetry channel keeps its own availability.
+    assert_eq!(
+        channel(&session, TraceChannel::Speed).missing,
+        vec![0, 0, 0, 0, 1]
+    );
+
+    // On the lap's own distance axis each bucket's lap time is the time at
+    // that distance: the pairing playback needs, read, never computed.
+    let lap = session_trace(
+        &root,
+        "f1-lap-channels",
+        &lap_request(2, TraceAxis::Distance, 1000),
+    )
+    .unwrap();
+    let time = channel(&lap, TraceChannel::LapTime);
+    let pairs: Vec<_> = time
+        .last
+        .iter()
+        .enumerate()
+        .filter_map(|(bucket, value)| {
+            value.map(|ms| (lap.axis.start + bucket as f64 * lap.axis.bucket_width, ms))
+        })
+        .collect();
+    assert_eq!(pairs.len(), 4);
+    assert!(pairs.windows(2).all(|pair| pair[0].1 < pair[1].1));
+    assert_eq!(pairs.last().unwrap().1, 400.0);
+}
+
+#[test]
+fn a_non_finite_lap_distance_is_counted_and_never_repaired() {
+    let root = Scratch::new("trace-lap-nan");
+    f1_laps(
+        &root,
+        "f1-lap-nan",
+        &[
+            (0, Some((1, 0, 0.0)), drive(100)),
+            (100, Some((1, 100, f32::NAN)), drive(100)),
+            (200, Some((1, 200, 5.6)), drive(100)),
+        ],
+    );
+    let session = session_trace(&root, "f1-lap-nan", &request(3)).unwrap();
+    let distance = channel(&session, TraceChannel::LapDistance);
+    assert_eq!(distance.last, vec![Some(0.0), None, Some(5.6)]);
+    assert_eq!(distance.total_non_finite, 1);
+    // A sample without a usable distance is not on the distance axis at all.
+    let lap = session_trace(
+        &root,
+        "f1-lap-nan",
+        &lap_request(1, TraceAxis::Distance, 10),
+    )
+    .unwrap();
+    assert_eq!(lap.axis.records, 2);
+}
+
+#[test]
+fn fh6_never_reports_a_lap_time_or_distance() {
+    let root = Scratch::new("trace-fh6-lap-channels");
+    fh6_simple(&root, "fh6-lc", &[(0, full(1.0, 1.0, 0.0, 0.0, 0.0))]);
+    let trace = session_trace(&root, "fh6-lc", &all_channels()).unwrap();
+    for id in [TraceChannel::LapTime, TraceChannel::LapDistance] {
+        let lap = channel(&trace, id);
+        assert_eq!((lap.total_samples, lap.total_missing), (0, 1), "{id:?}");
+    }
+}
+
+#[test]
+fn the_lap_channels_are_allowlisted_by_name() {
+    for name in ["lap_time", "lap_distance"] {
+        assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_ok());
+    }
+    for name in ["lapTime", "total_distance", "lap_number", "position"] {
+        assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_err());
+    }
+    assert_eq!(TraceChannel::ALL.len(), 8);
 }

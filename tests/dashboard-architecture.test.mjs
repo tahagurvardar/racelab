@@ -289,6 +289,16 @@ test("Telemetry Lab reads only session facts and bounded lap traces", () => {
   }
   // Only the hook talks to the backend.
   assert.match(code("hooks/use-lab.ts"), /"get_session_trace"/);
+  // M3: replay frames come from one injected clock. requestAnimationFrame
+  // appears in the hook that provides it and nowhere else in the Lab, so the
+  // controller stays testable with a hand-driven clock.
+  for (const file of [...LAB, "telemetry-lab.ts", "lab-controller.ts"]) {
+    assert.ok(
+      !/\b(request|cancel)AnimationFrame\b/.test(code(file)),
+      `${file} drives frames itself`,
+    );
+  }
+  assert.match(code("hooks/use-lab.ts"), /requestAnimationFrame/);
   for (const file of [...LAB, "telemetry-lab.ts", "lab-controller.ts"]) {
     assert.ok(!/@tauri-apps\/api/.test(code(file)), file);
   }

@@ -1038,24 +1038,51 @@
 .lab-tool[aria-disabled="true"]:hover {
   background: transparent;
 }
-button.lab-speed {
-  min-width: 36px;
-  border: 0;
-  padding: var(--sp-1) var(--sp-2);
+/* Replay rate: 0.5x, 1x, 2x, 4x as one segmented control. */
+.lab-rates {
+  display: flex;
+  padding: 2px;
   border-radius: var(--lab-radius-sm);
-  background: var(--lab-panel-top);
-  color: var(--text-disabled);
-  font-size: var(--type-small);
-  text-align: center;
-  cursor: not-allowed;
+  background: var(--lab-viewport);
+}
+.lab-rates button {
+  min-width: 34px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--type-label);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.lab-rates button:hover {
+  color: var(--text);
+}
+.lab-rates button.is-active {
+  background: var(--ch-current-soft);
+  color: var(--lab-value-cool);
 }
 .lab-controls-time {
-  min-width: 96px;
+  min-width: 132px;
   padding: 0 var(--sp-2);
   color: var(--lab-value-cool);
   font-family: var(--font-mono);
   font-size: var(--type-small);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.lab-controls-total {
+  color: var(--text-3);
+}
+/* The scrubber: a thin track over the lap, the thumb in the lap's blue. */
+.lab-scrub {
+  width: clamp(80px, 14cqi, 180px);
+  accent-color: var(--ch-current);
+  cursor: pointer;
+}
+.lab-scrub:disabled {
+  cursor: not-allowed;
 }
 .lab-controls-divider {
   width: 1px;
@@ -1605,6 +1632,10 @@ button.lab-speed {
 /* A narrow track view: the HUD takes the map card's corner, so it never
    collides with the title. */
 @container lab-viewport (max-width: 760px) {
+  .lab-scrub,
+  .lab-controls .lab-tool[aria-disabled="true"]:not(:first-child) {
+    display: none;
+  }
   .lab-hud {
     right: var(--sp-5);
     left: auto;

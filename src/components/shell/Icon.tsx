@@ -11,6 +11,7 @@ export type IconName =
   | "chevron-down"
   // v2.1 Telemetry Lab.
   | "play"
+  | "pause"
   | "reset"
   | "refresh"
   | "arrow-left"
@@ -46,6 +47,7 @@ const PATHS: Record<IconName, string[]> = {
   diagnostics: ["M1.75 8h2.5l1.75-4.5 3 9 1.75-4.5h3.5"],
   "chevron-down": ["M4.5 6.5 8 10l3.5-3.5"],
   play: ["M5 3.5v9l7-4.5z"],
+  pause: ["M5.5 3.5v9", "M10.5 3.5v9"],
   // Back to the start of the lap.
   reset: ["M3.5 3.5v9", "M12.5 3.5 6 8l6.5 4.5z"],
   refresh: ["M13 8a5 5 0 1 1-1.46-3.54", "M13 3v2.5h-2.5"],

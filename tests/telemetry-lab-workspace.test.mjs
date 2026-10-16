@@ -98,6 +98,8 @@ test("a completed F1 session opens in Telemetry Lab, which folds the sidebar", a
     "brake",
     "steering",
     "gear",
+    "lap_time",
+    "lap_distance",
   ]);
   assert.ok(traceCalls[0].buckets <= 2000);
 });
@@ -167,10 +169,14 @@ test("what RaceLab does not record is stated, never drawn or filled in", async (
     /—/,
   );
   assert.ok(!/°(?!C)/.test(text(".lab-compare")));
-  // The playback controls that do not work yet say so.
+  // The controls that do not work yet say so; replay itself works (M3).
+  assert.equal(
+    $('.lab-tool[aria-label="Full screen"]').getAttribute("aria-disabled"),
+    "true",
+  );
   assert.equal(
     $('.lab-tool[aria-label="Play"]').getAttribute("aria-disabled"),
-    "true",
+    null,
   );
 });
 
@@ -194,7 +200,9 @@ test("the gauges and readouts read both laps at the shared cursor", async () => 
     $(".chart-rpm .lab-plot").getAttribute("aria-valuetext"),
     "0.59 km",
   );
-  assert.equal(text(".lab-controls-time"), "0.59 km");
+  // The HUD reads the cursor on the axis; the replay clock reads lap time.
+  assert.equal(text(".lab-hud-value:not(.is-unavailable)"), "0.59 km");
+  assert.match(text(".lab-controls-time"), /^0:\d\d\.\d{3} \/ /);
 });
 
 test("without a reference lap its half stays, empty and explained", async () => {
@@ -298,4 +306,122 @@ test("the Lab names its recording and keeps the live status marked as live", asy
   await click($(".lab-back"));
   assert.equal($(".topbar-analysis"), null);
   assert.equal($(".topbar").dataset.analysis, undefined);
+});
+
+// ------------------------------------------------------------- M3 replay
+
+/// Lets the app's real frame clock run (jsdom's requestAnimationFrame).
+async function play(ms) {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+
+const playButton = () =>
+  $('.lab-tool[aria-label="Play"], .lab-tool[aria-label="Pause"]');
+
+async function lab() {
+  await openLab();
+  await click($(".session-lab-open"));
+  await settle();
+}
+
+test("Play moves every view along the lap, and Pause holds it", async () => {
+  await lab();
+  const start = text(".lab-controls-time");
+  assert.match(start, /^0:00\.000 \/ \d:\d\d\.\d{3}$/);
+  const before = {
+    plot: $(".chart-speed .lab-plot").getAttribute("aria-valuetext"),
+    hud: text(".lab-hud-value:not(.is-unavailable)"),
+  };
+  await click(playButton());
+  assert.equal(playButton().getAttribute("aria-label"), "Pause");
+  assert.match(text('[aria-live="polite"]'), /Playing at 1×/);
+  await play(250);
+  // The one cursor moved, and with it every chart, the HUD and the clock.
+  const plot = $(".chart-speed .lab-plot").getAttribute("aria-valuetext");
+  assert.notEqual(plot, before.plot);
+  assert.equal($(".chart-rpm .lab-plot").getAttribute("aria-valuetext"), plot);
+  assert.notEqual(text(".lab-hud-value:not(.is-unavailable)"), before.hud);
+  assert.notEqual(text(".lab-controls-time"), start);
+  await click(playButton());
+  assert.equal(playButton().getAttribute("aria-label"), "Play");
+  assert.match(text('[aria-live="polite"]'), /Paused/);
+  const held = text(".lab-controls-time");
+  await play(150);
+  assert.equal(text(".lab-controls-time"), held);
+});
+
+test("seeking with the scrubber moves the cursor, the charts and the gauges", async () => {
+  await lab();
+  const scrub = $(".lab-scrub");
+  assert.equal(scrub.getAttribute("aria-label"), "Replay position");
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    ).set.call(scrub, "30000");
+    scrub.dispatchEvent(new window.Event("input", { bubbles: true }));
+  });
+  assert.match(text(".lab-controls-time"), /^0:30\.000/);
+  const plot = $(".chart-speed .lab-plot").getAttribute("aria-valuetext");
+  assert.notEqual(plot, "0.00 km");
+  // Both gauges read their own lap at the same distance.
+  for (const speed of $$(".lab-gauge-speed")) {
+    assert.match(speed.textContent, /^\d+$/);
+  }
+});
+
+test("rate is a radio group, and [ and ] step it from anywhere in the Lab", async () => {
+  await lab();
+  const checked = () =>
+    $$(".lab-rates [role=radio]")
+      .filter((radio) => radio.getAttribute("aria-checked") === "true")
+      .map((radio) => radio.textContent);
+  assert.deepEqual(
+    $$(".lab-rates [role=radio]").map((radio) => radio.textContent),
+    ["0.5×", "1×", "2×", "4×"],
+  );
+  assert.deepEqual(checked(), ["1×"]);
+  await click($$(".lab-rates [role=radio]")[2]);
+  assert.deepEqual(checked(), ["2×"]);
+  const plot = $(".chart-speed .lab-plot");
+  await focus(plot);
+  await press("]");
+  assert.deepEqual(checked(), ["4×"]);
+  await press("[");
+  await press("[");
+  assert.deepEqual(checked(), ["1×"]);
+});
+
+test("Space plays and pauses, but never on top of a focused control", async () => {
+  await lab();
+  await focus($(".chart-speed .lab-plot"));
+  await press(" ");
+  assert.equal(playButton().getAttribute("aria-label"), "Pause");
+  await press(" ");
+  assert.equal(playButton().getAttribute("aria-label"), "Play");
+  // On a button, Space is that button's own key.
+  await focus($(".lab-back"));
+  await press(" ");
+  assert.equal(playButton().getAttribute("aria-label"), "Play");
+  // In a list, it chooses; it never plays.
+  await focus($("#lab-lap-reference"));
+  await press(" ");
+  assert.equal(playButton().getAttribute("aria-label"), "Play");
+});
+
+test("changing the axis pauses, and leaving the Lab stops the replay", async () => {
+  await lab();
+  await click(playButton());
+  await play(80);
+  await click($$(".lab-sync button").find((b) => /Time/.test(b.textContent)));
+  await settle();
+  assert.equal(playButton().getAttribute("aria-label"), "Play");
+  await click(playButton());
+  await play(50);
+  await click($(".lab-back"));
+  // No frame lands on the closed Lab.
+  await play(120);
+  assert.equal($(".telemetry-lab"), null);
 });

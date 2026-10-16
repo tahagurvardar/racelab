@@ -4,6 +4,45 @@
     "height": 1080,
     "entry": "sessions-f1-entry-1920x1080.png",
     "lab": "telemetry-lab-1920x1080.png",
+    "playing": "telemetry-lab-playing-1920x1080.png",
+    "replay": {
+      "first": {
+        "label": "Pause",
+        "clock": "0:38.408 / 1:41.100",
+        "cursors": [
+          "2.23 km"
+        ],
+        "lines": [
+          "37.876%"
+        ],
+        "hud": "2.23 km",
+        "gauges": [
+          "263",
+          "263"
+        ],
+        "errors": [],
+        "now": 6668.200000000186
+      },
+      "second": {
+        "label": "Pause",
+        "clock": "0:38.909 / 1:41.100",
+        "cursors": [
+          "2.27 km"
+        ],
+        "lines": [
+          "38.5012%"
+        ],
+        "hud": "2.27 km",
+        "gauges": [
+          "266",
+          "266"
+        ],
+        "errors": [],
+        "now": 7173.5
+      },
+      "lapAdvance": 501,
+      "wallAdvance": 505
+    },
     "errors": [],
     "documentWidth": 1920,
     "rail": "56px 1864px",
@@ -29,7 +68,7 @@
       "height": 518
     },
     "speed": "259",
-    "cursor": "2.18 km",
+    "cursor": "0:37.695 / 1:41.100",
     "title": "lab-title"
   },
   {
@@ -37,6 +76,45 @@
     "height": 720,
     "entry": "sessions-f1-entry-1280x720.png",
     "lab": "telemetry-lab-1280x720.png",
+    "playing": "telemetry-lab-playing-1280x720.png",
+    "replay": {
+      "first": {
+        "label": "Pause",
+        "clock": "0:38.440 / 1:41.100",
+        "cursors": [
+          "2.23 km"
+        ],
+        "lines": [
+          "37.9155%"
+        ],
+        "hud": "2.23 km",
+        "gauges": [
+          "263",
+          "263"
+        ],
+        "errors": [],
+        "now": 3095.5999999996275
+      },
+      "second": {
+        "label": "Pause",
+        "clock": "0:38.983 / 1:41.100",
+        "cursors": [
+          "2.27 km"
+        ],
+        "lines": [
+          "38.5933%"
+        ],
+        "hud": "2.27 km",
+        "gauges": [
+          "267",
+          "266"
+        ],
+        "errors": [],
+        "now": 3647.399999999441
+      },
+      "lapAdvance": 543,
+      "wallAdvance": 552
+    },
     "errors": [],
     "documentWidth": 1280,
     "rail": "56px 1224px",
@@ -62,7 +140,7 @@
       "height": 346
     },
     "speed": "259",
-    "cursor": "2.18 km",
+    "cursor": "0:37.695 / 1:41.100",
     "title": "lab-title"
   },
   {
@@ -70,6 +148,45 @@
     "height": 640,
     "entry": "sessions-f1-entry-960x640.png",
     "lab": "telemetry-lab-960x640.png",
+    "playing": "telemetry-lab-playing-960x640.png",
+    "replay": {
+      "first": {
+        "label": "Pause",
+        "clock": "0:38.443 / 1:41.100",
+        "cursors": [
+          "2.23 km"
+        ],
+        "lines": [
+          "37.9198%"
+        ],
+        "hud": "2.23 km",
+        "gauges": [
+          "263",
+          "263"
+        ],
+        "errors": [],
+        "now": 3366.399999999441
+      },
+      "second": {
+        "label": "Pause",
+        "clock": "0:38.983 / 1:41.100",
+        "cursors": [
+          "2.27 km"
+        ],
+        "lines": [
+          "38.5938%"
+        ],
+        "hud": "2.27 km",
+        "gauges": [
+          "267",
+          "266"
+        ],
+        "errors": [],
+        "now": 3893.5999999996275
+      },
+      "lapAdvance": 540,
+      "wallAdvance": 527
+    },
     "errors": [],
     "documentWidth": 960,
     "rail": "56px 904px",
@@ -95,7 +212,7 @@
       "height": 307
     },
     "speed": "259",
-    "cursor": "2.18 km",
+    "cursor": "0:37.695 / 1:41.100",
     "title": "lab-title"
   }
 ]

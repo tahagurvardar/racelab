@@ -36,7 +36,11 @@ export function LabCharts({ controller }: { controller: LabController }) {
   );
 }
 
-const CHART_ORDER: TraceChannelId[] = [
+/// The charted channels. Lap time and distance pair the axes; they are
+/// never drawn.
+type ChartChannel = Exclude<TraceChannelId, "lap_time" | "lap_distance">;
+
+const CHART_ORDER: ChartChannel[] = [
   "speed",
   "rpm",
   "throttle",
@@ -48,7 +52,7 @@ const CHART_ORDER: TraceChannelId[] = [
 /// Plot heights in CSS pixels, after the reference: speed dominates, the
 /// delta strip and RPM follow, the inputs are compact. lab.css sets the same
 /// heights, so the SVG is never stretched vertically.
-const PLOT_HEIGHT: Record<TraceChannelId | "delta", number> = {
+const PLOT_HEIGHT: Record<ChartChannel | "delta", number> = {
   delta: 104,
   speed: 236,
   rpm: 150,
@@ -258,7 +262,7 @@ const TracePanel = memo(function TracePanel({
   id,
 }: {
   controller: LabController;
-  id: TraceChannelId;
+  id: ChartChannel;
 }) {
   const current = useLab(controller, (state) => state.current);
   const reference = useLab(controller, (state) => state.reference);

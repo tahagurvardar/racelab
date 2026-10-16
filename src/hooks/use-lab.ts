@@ -4,6 +4,7 @@ import type { F1SessionDetail } from "../f1-sessions.ts";
 import {
   createLabController,
   type LabBackend,
+  type LabClock,
   type LabController,
   type LabState,
 } from "../lab-controller.ts";
@@ -29,23 +30,38 @@ export const invokeLabBackend: LabBackend = {
     }),
 };
 
+/// The replay's clock in the app: the display's own frames. The only place
+/// the Lab touches `requestAnimationFrame`; tests inject a hand-driven clock.
+export const frameClock: LabClock = {
+  now: () => performance.now(),
+  frame: (callback) => requestAnimationFrame(callback),
+  cancel: (handle) => cancelAnimationFrame(handle),
+};
+
 /// One controller per mounted Lab, created inside the effect so a remount
 /// never shares a disposed controller, and disposed on unmount so no reply
-/// lands after the Lab is gone.
+/// or replay frame lands after the Lab is gone. A hidden window pauses the
+/// replay rather than letting it run unseen.
 export function useLabController(
   sessionId: string,
   backend: LabBackend = invokeLabBackend,
+  clock: LabClock = frameClock,
 ): LabController | null {
   const [controller, setController] = useState<LabController | null>(null);
   useEffect(() => {
-    const created = createLabController(sessionId, backend);
+    const created = createLabController(sessionId, backend, clock);
     setController(created);
     created.start();
+    const onVisibility = () => {
+      if (document.hidden) created.pause();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       created.dispose();
       setController(null);
     };
-  }, [sessionId, backend]);
+  }, [sessionId, backend, clock]);
   return controller;
 }
 
