@@ -26,9 +26,9 @@ test("the application version is identical in every file that declares one", () 
   assert.equal(PACKAGE.version, cargoVersion);
 });
 
-test("the stable release version is 2.0.0", () => {
-  // Deliberate release decision after F1 25 and Overlay live-game acceptance.
-  assert.equal(PACKAGE.version, "2.0.0");
+test("the stable release version is 2.1.0", () => {
+  // Deliberate release decision: v2.1 adds the F1 Telemetry Lab (M1-M4).
+  assert.equal(PACKAGE.version, "2.1.0");
 });
 
 // --------------------------------------------------------------- packaging

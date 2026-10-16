@@ -1,5 +1,14 @@
 # RaceLab roadmap
 
+## V2.1.0 — F1 Telemetry Lab
+
+A read-only workspace for completed F1 25 sessions: bounded, downsampled lap
+traces (M1), the Lab workspace (M2), synchronized replay (M3) and per-lap
+timing provenance and sample-quality validation (M4). Verified with synthetic
+fixtures and automated tests; not yet validated against a real F1 25
+recording. Lap delta time (M6), further comparison work (M5) and a track map
+are not part of this release; RaceLab records no world position for F1.
+
 ## V2.0.0 — Stable multi-game release
 
 Production F1 25 Live and automatic recording, persisted lap/event/session data,

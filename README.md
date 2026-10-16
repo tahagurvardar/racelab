@@ -44,6 +44,12 @@ click-through or live-game acceptance.
   context, including tyre and car-state data where available.
 - **Forza Horizon 6:** live telemetry, automatic recording, persisted sessions
   and the existing session summaries and driving-event analysis.
+- **F1 Telemetry Lab:** open a completed F1 25 session and compare two laps
+  on shared distance or time axes: speed, RPM, throttle, brake, steering and
+  gear, with synchronized replay. Each lap states its timing source, validity
+  and whether its samples support reliable distance-aligned analysis.
+  Verified with synthetic fixtures and automated tests, not yet with a real
+  F1 25 recording.
 - **F1 overlay:** a compact in-game display that does not take keyboard focus
   during gameplay. Position, scale and opacity are adjustable in Settings.
   The overlay currently supports F1 25.
@@ -54,8 +60,7 @@ click-through or live-game acceptance.
 
 Download the Windows x64 installer from
 [Releases](https://github.com/tahagurvardar/racelab/releases) and run it.
-For v2.0.0, the installer is `RaceLab_2.0.0_x64-setup.exe`.
-The v2.0.0 installer is available on the release page.
+For v2.1.0, the installer is `RaceLab_2.1.0_x64-setup.exe`.
 
 Installation is per-user and does not require administrator privileges.
 The installer sets up WebView2 if needed. You do not need Node.js, Rust or
@@ -156,9 +161,9 @@ recorder.
 
 ## Roadmap
 
-Future work includes advanced analysis, continuous telemetry traces and
-reference-lap comparison. These are not available in v2.0.0.
-See the [roadmap](docs/ROADMAP.md) and [v2.0.0 release notes](docs/V2.0.0-RELEASE-NOTES.md).
+Future work includes lap delta time, deeper lap comparison and a track map.
+These are not available in v2.1.0.
+See the [roadmap](docs/ROADMAP.md) and [v2.1.0 release notes](docs/V2.1.0-RELEASE-NOTES.md).
 
 ## License
 
