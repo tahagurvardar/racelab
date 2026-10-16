@@ -1,7 +1,7 @@
-//! Bounded, read-only channel traces of recorded sessions (v2.1 M1).
+//! Bounded, read-only channel traces of recorded sessions (v2.1 M1, M2.0).
 //!
 //! The first and only path by which recorded telemetry reaches the frontend.
-//! It is deliberately narrow: a fixed allowlist of five canonical channels,
+//! It is deliberately narrow: a fixed allowlist of six canonical channels,
 //! reduced in the backend to at most `MAX_BUCKETS` min/max buckets. A frame, a
 //! sample, `sourceSpecific`, a packet byte, a vehicle identifier or a game
 //! session UID is never part of a trace.
@@ -9,10 +9,24 @@
 //! Both games are read through their existing streaming readers
 //! (`session_format::FrameStreamReader`, `f1_session::SampleStreamReader`),
 //! which hold one record at a time. A trace makes two passes over the stream:
-//! the first establishes the exact time span and checks the whole stream reads
-//! cleanly, the second fills the buckets. Peak memory is therefore one record
-//! plus `channels × buckets` accumulators plus at most `MAX_GAPS` gap entries,
-//! whatever the length of the recording.
+//! the first establishes the exact axis range and checks the whole stream
+//! reads cleanly, the second fills the buckets. Peak memory is therefore one
+//! record plus `channels × buckets` accumulators plus at most `MAX_GAPS` gap
+//! entries, whatever the length of the recording.
+//!
+//! A trace covers the whole session on its monotonic clock (the M1 default),
+//! or one F1 25 lap (M2.0) on that lap's own time or distance:
+//!
+//! - **Session time** — milliseconds from the first readable record.
+//! - **Lap time** — the game's `current_lap_time_ms`, from the lap start.
+//! - **Lap distance** — the game's `lap_distance_m`, from the start/finish
+//!   line. It can be negative before the line is first crossed.
+//!
+//! A sample belongs to a lap only when it carries a Lap Data reading for that
+//! lap; a sample without Lap Data is never attributed by guesswork, and the
+//! ones that fall inside a lap's span are counted. A lap axis that runs
+//! backwards (a flashback, or reversing) is reported as `reversals`, never
+//! smoothed over.
 //!
 //! Rules, in the same spirit as the session summary and the analysis:
 //!
@@ -22,16 +36,17 @@
 //!   channel states its unit. Presentation conversion belongs to
 //!   `src/telemetry/formatting.ts`.
 //! - **Gaps are reported, not bridged.** An interval between two consecutive
-//!   records longer than `GAP_THRESHOLD_MS` is listed, so a chart can break its
-//!   line there instead of joining across it.
+//!   records longer than `GAP_THRESHOLD_MS` on the monotonic clock is listed,
+//!   so a chart can break its line there instead of joining across it.
 //! - **Damage is not repaired.** A stream that stops part-way through its last
 //!   record yields its intact prefix and says so; damage in the middle of a
 //!   stream yields no trace at all.
-//! - **Completed sessions only** in this milestone. A session still recording
-//!   or interrupted is refused with its own error kind.
+//! - **Completed sessions only.** A session still recording or interrupted is
+//!   refused with its own error kind.
 use crate::{
     f1_session::{self, SampleStreamReader, SessionGame},
     session_format::{self, FrameStreamReader, SessionStatus},
+    telemetry::Gear,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -41,7 +56,9 @@ use std::{
     path::Path,
 };
 
-pub const TRACE_SCHEMA_VERSION: u32 = 1;
+/// 2 since M2.0: the time block became a general axis block, lap scope and
+/// the gear channel were added, and buckets carry their last value.
+pub const TRACE_SCHEMA_VERSION: u32 = 2;
 /// Hard upper bound on buckets per channel.
 pub const MAX_BUCKETS: u32 = 2000;
 pub const DEFAULT_BUCKETS: u32 = 1000;
@@ -53,8 +70,8 @@ pub const MAX_GAPS: usize = 512;
 /// (`session_summary::MAX_SAMPLE_GAP_MS`).
 pub const GAP_THRESHOLD_MS: u64 = 1000;
 /// Upper bound on a serialized trace. Structural, not checked at runtime:
-/// five channels × `MAX_BUCKETS` × (two `f32`s and two counts) plus
-/// `MAX_GAPS` gaps stays well below it (`tests/session_trace.rs` measures the
+/// six channels × `MAX_BUCKETS` × (three `f32`s and two counts) plus
+/// `MAX_GAPS` gaps stays below it (`tests/session_trace.rs` measures the
 /// worst case).
 pub const MAX_RESPONSE_BYTES: usize = 1 << 20;
 
@@ -68,15 +85,17 @@ pub enum TraceChannel {
     Throttle,
     Brake,
     Steering,
+    Gear,
 }
 
 impl TraceChannel {
-    pub const ALL: [TraceChannel; 5] = [
+    pub const ALL: [TraceChannel; 6] = [
         TraceChannel::Speed,
         TraceChannel::Rpm,
         TraceChannel::Throttle,
         TraceChannel::Brake,
         TraceChannel::Steering,
+        TraceChannel::Gear,
     ];
 
     fn index(self) -> usize {
@@ -92,6 +111,7 @@ impl TraceChannel {
             (TraceChannel::Rpm, _) => TraceUnit::RevolutionsPerMinute,
             (TraceChannel::Throttle | TraceChannel::Brake, _) => TraceUnit::Ratio0To1,
             (TraceChannel::Steering, _) => TraceUnit::RatioMinus1To1,
+            (TraceChannel::Gear, _) => TraceUnit::Gear,
         }
     }
 }
@@ -108,6 +128,28 @@ pub enum TraceUnit {
     /// Normalized steering, -1..=1 as recorded.
     #[serde(rename = "ratio_-1_1")]
     RatioMinus1To1,
+    /// A gear number: -1 reverse, 0 neutral, 1.. forward. F1 25's raw value;
+    /// for FH6 the canonical gear, which its adapter leaves unavailable.
+    Gear,
+}
+
+/// The x axis a request asks for.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceAxis {
+    /// Session time without a lap, lap time with one.
+    #[default]
+    Time,
+    /// Lap distance. Requires a lap.
+    Distance,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceAxisKind {
+    SessionTime,
+    LapTime,
+    LapDistance,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -115,7 +157,8 @@ pub enum TraceUnit {
 pub enum TraceErrorKind {
     /// Not a RaceLab session identifier. No path was built from it.
     UnsafeSessionId,
-    /// The request itself is outside the allowlist or the bounds.
+    /// The request itself is outside the allowlist or the bounds, or asks for
+    /// a lap of a game that records none.
     InvalidRequest,
     /// No session directory, or no recording in it.
     NotFound,
@@ -189,47 +232,70 @@ pub struct F1TraceIntegrityV1 {
     pub out_of_order_dropped: u64,
 }
 
-/// The trace's time axis. Times are milliseconds from the first readable
-/// record, on the recording's monotonic clock.
+/// What part of the session the trace covers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct TraceTimeV1 {
-    /// Always `first_record`.
-    pub origin: &'static str,
-    pub unit: &'static str,
-    /// Time of the last readable record. 0 for an empty or single-record
-    /// stream.
-    pub span_ms: u64,
-    pub records: u64,
-    /// Bucket `i` covers `[i * bucket_width_ms, (i + 1) * bucket_width_ms)`.
-    pub bucket_width_ms: u64,
-    pub bucket_count: u32,
-    /// Longest interval between consecutive records.
-    pub max_interval_ms: u64,
+pub struct TraceScopeV2 {
+    /// `None` for the whole session.
+    pub lap: Option<u16>,
+    /// Records in the stream, whichever lap they belong to.
+    pub stream_records: u64,
+    /// Records inside the lap's span that carried no Lap Data reading, so
+    /// could not be attributed to it. Always 0 for a session trace.
+    pub unattributed_records: u64,
 }
 
-/// One interval with no record for longer than `GAP_THRESHOLD_MS`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct TraceGapV1 {
-    pub start_ms: u64,
-    pub end_ms: u64,
+/// The trace's x axis. Bucket `i` covers
+/// `[start + i * bucket_width, start + (i + 1) * bucket_width)`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct TraceAxisV2 {
+    pub kind: TraceAxisKind,
+    /// `ms` for both time axes, `m` for lap distance.
+    pub unit: &'static str,
+    /// `first_record` for session time, `lap_start` for lap time,
+    /// `start_finish_line` for lap distance.
+    pub origin: &'static str,
+    /// The smallest and largest x of the records in the trace. Session time
+    /// starts at 0 by construction. 0 and 0 for an empty trace.
+    pub start: f64,
+    pub end: f64,
+    pub records: u64,
+    pub bucket_width: f64,
+    pub bucket_count: u32,
+    /// Longest monotonic interval between consecutive records in the trace.
+    pub max_interval_ms: u64,
+    /// Times x went down from one record to the next. Always 0 on session
+    /// time. On a lap axis it means a flashback or reversing: the lap does
+    /// not map one-to-one onto its axis.
+    pub reversals: u64,
+}
+
+/// One interval with no record for longer than `GAP_THRESHOLD_MS`, as the
+/// axis positions of the records either side of it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct TraceGapV2 {
+    pub start: f64,
+    pub end: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct TraceGapsV1 {
+pub struct TraceGapsV2 {
     pub threshold_ms: u64,
     pub total: u64,
-    /// The first `MAX_GAPS` gaps, in time order.
-    pub stored: Vec<TraceGapV1>,
+    /// The first `MAX_GAPS` gaps, in record order.
+    pub stored: Vec<TraceGapV2>,
 }
 
 /// One channel, bucket-aligned. Every array has `bucket_count` entries.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct TraceChannelV1 {
+pub struct TraceChannelV2 {
     pub channel: TraceChannel,
     pub unit: TraceUnit,
     /// `null` where the bucket holds no sample of this channel.
     pub min: Vec<Option<f32>>,
     pub max: Vec<Option<f32>>,
+    /// The bucket's last sample in record order: a point reading for a
+    /// cursor, where `min`/`max` describe the bucket's range.
+    pub last: Vec<Option<f32>>,
     /// Records in the bucket that carried a finite value.
     pub samples: Vec<u32>,
     /// Records in the bucket that did not: the value was unavailable, or for
@@ -244,16 +310,17 @@ pub struct TraceChannelV1 {
 
 /// `get_session_trace`'s response.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct SessionTraceV1 {
+pub struct SessionTraceV2 {
     pub schema_version: u32,
     pub session_id: String,
     pub game: SessionGame,
+    pub scope: TraceScopeV2,
     pub source: TraceSourceV1,
-    pub time: TraceTimeV1,
+    pub axis: TraceAxisV2,
     /// Records per bucket, whatever they carried.
     pub bucket_records: Vec<u32>,
-    pub gaps: TraceGapsV1,
-    pub channels: Vec<TraceChannelV1>,
+    pub gaps: TraceGapsV2,
+    pub channels: Vec<TraceChannelV2>,
 }
 
 /// A validated request.
@@ -261,10 +328,17 @@ pub struct SessionTraceV1 {
 pub struct TraceRequest {
     pub channels: Vec<TraceChannel>,
     pub buckets: u32,
+    pub lap: Option<u16>,
+    pub axis: TraceAxis,
 }
 
 impl TraceRequest {
-    pub fn new(channels: Vec<TraceChannel>, buckets: Option<u32>) -> Result<Self, TraceError> {
+    pub fn new(
+        channels: Vec<TraceChannel>,
+        buckets: Option<u32>,
+        lap: Option<u16>,
+        axis: Option<TraceAxis>,
+    ) -> Result<Self, TraceError> {
         let invalid = |message: &str| TraceError::new(TraceErrorKind::InvalidRequest, message);
         if channels.is_empty() {
             return Err(invalid("At least one channel is required."));
@@ -281,40 +355,90 @@ impl TraceRequest {
         if !(1..=MAX_BUCKETS).contains(&buckets) {
             return Err(invalid("Bucket count is outside 1..=2000."));
         }
-        Ok(Self { channels, buckets })
+        if lap == Some(0) {
+            return Err(invalid("Lap numbers start at 1."));
+        }
+        let axis = axis.unwrap_or_default();
+        if axis == TraceAxis::Distance && lap.is_none() {
+            return Err(invalid("A distance axis needs a lap."));
+        }
+        Ok(Self {
+            channels,
+            buckets,
+            lap,
+            axis,
+        })
+    }
+
+    /// The M1 request: the whole session on session time.
+    pub fn session(channels: Vec<TraceChannel>, buckets: Option<u32>) -> Result<Self, TraceError> {
+        Self::new(channels, buckets, None, None)
+    }
+
+    fn axis_kind(&self) -> TraceAxisKind {
+        match (self.lap, self.axis) {
+            (None, _) => TraceAxisKind::SessionTime,
+            (Some(_), TraceAxis::Time) => TraceAxisKind::LapTime,
+            (Some(_), TraceAxis::Distance) => TraceAxisKind::LapDistance,
+        }
     }
 }
 
 // ---------------------------------------------------------------- sources
 
-/// One record reduced to what a trace may see: its time and the five
-/// allowlisted values, indexed by `TraceChannel::index`.
-type Values = [Option<f32>; 5];
+/// One record reduced to what a trace may see: its time, its Lap Data
+/// position when it has one, and the six allowlisted values, indexed by
+/// `TraceChannel::index`.
+struct Record {
+    monotonic_ms: u64,
+    lap: Option<LapPosition>,
+    values: [Option<f32>; 6],
+}
+
+#[derive(Clone, Copy)]
+struct LapPosition {
+    lap_number: u16,
+    lap_time_ms: u32,
+    lap_distance_m: f32,
+}
 
 trait TraceSource {
-    fn next_record(&mut self) -> io::Result<Option<(u64, Values)>>;
+    fn next_record(&mut self) -> io::Result<Option<Record>>;
     fn stream_complete(&self) -> bool;
     fn truncated_tail(&self) -> bool;
     fn declared_records(&self) -> Option<u64>;
 }
 
+/// FH6's canonical gear as a number. Its adapter leaves gear unavailable
+/// (the raw code's mapping is unestablished), so in practice this is `None`.
+fn gear_number(gear: Option<Gear>) -> Option<f32> {
+    match gear? {
+        Gear::Reverse => Some(-1.0),
+        Gear::Neutral => Some(0.0),
+        Gear::Forward(gear) => Some(f32::from(gear)),
+        Gear::Unknown | Gear::Unmapped(_) => None,
+    }
+}
+
 struct Fh6Source(FrameStreamReader<BufReader<File>>);
 
 impl TraceSource for Fh6Source {
-    fn next_record(&mut self) -> io::Result<Option<(u64, Values)>> {
+    fn next_record(&mut self) -> io::Result<Option<Record>> {
         // Monotonic order is enforced by the reader itself.
         Ok(self.0.next_frame_lossy()?.map(|record| {
             let frame = &record.frame;
-            (
-                record.monotonic_ms,
-                [
+            Record {
+                monotonic_ms: record.monotonic_ms,
+                lap: None,
+                values: [
                     frame.speed_mps,
                     frame.engine.rpm,
                     frame.controls.throttle,
                     frame.controls.brake,
                     frame.controls.steering,
+                    gear_number(frame.gear),
                 ],
-            )
+            }
         }))
     }
 
@@ -337,7 +461,7 @@ struct F1Source {
 }
 
 impl TraceSource for F1Source {
-    fn next_record(&mut self) -> io::Result<Option<(u64, Values)>> {
+    fn next_record(&mut self) -> io::Result<Option<Record>> {
         let Some(sample) = self.reader.next_sample_lossy()? else {
             return Ok(None);
         };
@@ -355,10 +479,19 @@ impl TraceSource for F1Source {
                 Some(t.throttle),
                 Some(t.brake),
                 Some(t.steer),
+                Some(f32::from(t.gear)),
             ],
-            None => [None; 5],
+            None => [None; 6],
         };
-        Ok(Some((sample.monotonic_ms, values)))
+        Ok(Some(Record {
+            monotonic_ms: sample.monotonic_ms,
+            lap: sample.lap.map(|lap| LapPosition {
+                lap_number: u16::from(lap.current_lap_num),
+                lap_time_ms: lap.current_lap_time_ms,
+                lap_distance_m: lap.lap_distance_m,
+            }),
+            values,
+        }))
     }
 
     fn stream_complete(&self) -> bool {
@@ -399,11 +532,65 @@ fn open_f1(directory: &Path, session_id: &str) -> io::Result<F1Source> {
     })
 }
 
+// ------------------------------------------------------------- selection
+
+/// Integer axis ticks: milliseconds on both time axes, millimetres on lap
+/// distance. Integer arithmetic keeps bucketing exact and deterministic, and
+/// keeps the session-time buckets identical to M1's.
+#[derive(Clone, Copy)]
+struct AxisSpec {
+    kind: TraceAxisKind,
+    lap: Option<u16>,
+}
+
+impl AxisSpec {
+    /// Ticks per reported unit.
+    fn scale(self) -> f64 {
+        match self.kind {
+            TraceAxisKind::LapDistance => 1000.0,
+            _ => 1.0,
+        }
+    }
+
+    fn unit(self) -> &'static str {
+        match self.kind {
+            TraceAxisKind::LapDistance => "m",
+            _ => "ms",
+        }
+    }
+
+    fn origin(self) -> &'static str {
+        match self.kind {
+            TraceAxisKind::SessionTime => "first_record",
+            TraceAxisKind::LapTime => "lap_start",
+            TraceAxisKind::LapDistance => "start_finish_line",
+        }
+    }
+
+    /// The record's position on this axis, or `None` when it is not part of
+    /// the trace.
+    fn x(self, record: &Record) -> Option<i64> {
+        let Some(lap) = self.lap else {
+            return Some(record.monotonic_ms as i64);
+        };
+        let position = record.lap.filter(|position| position.lap_number == lap)?;
+        match self.kind {
+            TraceAxisKind::LapTime => Some(i64::from(position.lap_time_ms)),
+            TraceAxisKind::LapDistance => position
+                .lap_distance_m
+                .is_finite()
+                .then(|| (f64::from(position.lap_distance_m) * 1000.0).round() as i64),
+            TraceAxisKind::SessionTime => Some(record.monotonic_ms as i64),
+        }
+    }
+}
+
 // ------------------------------------------------------------- reduction
 
 struct ChannelAccumulator {
     min: Vec<Option<f32>>,
     max: Vec<Option<f32>>,
+    last: Vec<Option<f32>>,
     samples: Vec<u32>,
     missing: Vec<u32>,
     total_non_finite: u64,
@@ -414,6 +601,7 @@ impl ChannelAccumulator {
         Self {
             min: vec![None; buckets],
             max: vec![None; buckets],
+            last: vec![None; buckets],
             samples: vec![0; buckets],
             missing: vec![0; buckets],
             total_non_finite: 0,
@@ -425,6 +613,7 @@ impl ChannelAccumulator {
             Some(value) if value.is_finite() => {
                 self.min[bucket] = Some(self.min[bucket].map_or(value, |m| m.min(value)));
                 self.max[bucket] = Some(self.max[bucket].map_or(value, |m| m.max(value)));
+                self.last[bucket] = Some(value);
                 self.samples[bucket] = self.samples[bucket].saturating_add(1);
             }
             Some(_) => {
@@ -435,8 +624,8 @@ impl ChannelAccumulator {
         }
     }
 
-    fn finish(self, channel: TraceChannel, game: SessionGame) -> TraceChannelV1 {
-        TraceChannelV1 {
+    fn finish(self, channel: TraceChannel, game: SessionGame) -> TraceChannelV2 {
+        TraceChannelV2 {
             channel,
             unit: channel.unit(game),
             total_samples: self.samples.iter().map(|&n| u64::from(n)).sum(),
@@ -444,16 +633,23 @@ impl ChannelAccumulator {
             total_non_finite: self.total_non_finite,
             min: self.min,
             max: self.max,
+            last: self.last,
             samples: self.samples,
             missing: self.missing,
         }
     }
 }
 
+/// Pass 1's findings.
+#[derive(Default)]
 struct Scan {
-    first_ms: u64,
-    last_ms: u64,
+    /// `(min, max)` of x over the trace's records.
+    range: Option<(i64, i64)>,
+    /// x of the first record; the session-time origin.
+    first_x: i64,
     records: u64,
+    stream_records: u64,
+    unattributed: u64,
 }
 
 fn read_failed(error: io::Error) -> TraceError {
@@ -471,10 +667,11 @@ fn open_failed(error: io::Error) -> TraceError {
 }
 
 struct Reduced {
-    time: TraceTimeV1,
+    scope: TraceScopeV2,
+    axis: TraceAxisV2,
     bucket_records: Vec<u32>,
-    gaps: TraceGapsV1,
-    channels: Vec<TraceChannelV1>,
+    gaps: TraceGapsV2,
+    channels: Vec<TraceChannelV2>,
     stream_complete: bool,
     truncated_tail: bool,
     declared_records: Option<u64>,
@@ -487,37 +684,58 @@ fn reduce<S: TraceSource>(
     request: &TraceRequest,
     game: SessionGame,
 ) -> Result<Reduced, TraceError> {
-    // Pass 1: the exact span, and proof that the whole stream reads.
+    let spec = AxisSpec {
+        kind: request.axis_kind(),
+        lap: request.lap,
+    };
+
+    // Pass 1: the exact range, and proof that the whole stream reads.
     let mut source = open().map_err(open_failed)?;
-    let mut scan: Option<Scan> = None;
-    while let Some((ms, _)) = source.next_record().map_err(read_failed)? {
-        match scan.as_mut() {
-            Some(scan) => {
-                scan.last_ms = ms;
+    let mut scan = Scan::default();
+    // Records without Lap Data since the last record of the lap; they count
+    // as unattributed only if the lap continues after them.
+    let mut pending_unattributed = 0_u64;
+    while let Some(record) = source.next_record().map_err(read_failed)? {
+        scan.stream_records += 1;
+        match spec.x(&record) {
+            Some(x) => {
+                scan.range = Some(match scan.range {
+                    Some((low, high)) => (low.min(x), high.max(x)),
+                    None => {
+                        scan.first_x = x;
+                        (x, x)
+                    }
+                });
                 scan.records += 1;
+                scan.unattributed += pending_unattributed;
+                pending_unattributed = 0;
             }
-            None => {
-                scan = Some(Scan {
-                    first_ms: ms,
-                    last_ms: ms,
-                    records: 1,
-                })
+            None if spec.lap.is_some() && record.lap.is_none() && scan.range.is_some() => {
+                pending_unattributed += 1;
             }
+            None => pending_unattributed = 0,
         }
     }
     drop(source);
 
-    let (first_ms, span_ms, records) = scan
-        .map(|scan| (scan.first_ms, scan.last_ms - scan.first_ms, scan.records))
-        .unwrap_or((0, 0, 0));
-    let (bucket_width_ms, bucket_count) = if records == 0 {
-        (0, 0)
+    let (low, high) = scan.range.unwrap_or((0, 0));
+    let span = (high - low) as u64;
+    let (bucket_width, bucket_count) = if scan.records == 0 {
+        (0_u64, 0_u32)
     } else {
-        // `span_ms + 1` milliseconds must fit `request.buckets` buckets.
-        let width = (span_ms + 1).div_ceil(u64::from(request.buckets)).max(1);
-        (width, (span_ms / width + 1) as u32)
+        // `span + 1` ticks must fit `request.buckets` buckets.
+        let width = (span + 1).div_ceil(u64::from(request.buckets)).max(1);
+        (width, (span / width + 1) as u32)
     };
     let buckets = bucket_count as usize;
+    // Session time is reported from the first record; lap axes as the game
+    // reports them, so two laps share one axis.
+    let origin = match spec.kind {
+        TraceAxisKind::SessionTime => scan.first_x,
+        _ => 0,
+    };
+    let scale = spec.scale();
+    let at = |x: i64| (x - origin) as f64 / scale;
 
     // Pass 2: fill the buckets.
     let mut source = open().map_err(open_failed)?;
@@ -527,13 +745,14 @@ fn reduce<S: TraceSource>(
         .iter()
         .map(|_| ChannelAccumulator::new(buckets))
         .collect();
-    let mut gaps = TraceGapsV1 {
+    let mut gaps = TraceGapsV2 {
         threshold_ms: GAP_THRESHOLD_MS,
         total: 0,
         stored: Vec::new(),
     };
-    let mut previous: Option<u64> = None;
+    let mut previous: Option<(u64, i64)> = None;
     let mut max_interval_ms = 0;
+    let mut reversals = 0;
     let mut seen = 0_u64;
     let changed = || {
         TraceError::new(
@@ -541,45 +760,59 @@ fn reduce<S: TraceSource>(
             "The recording changed while it was being read.",
         )
     };
-    while let Some((ms, values)) = source.next_record().map_err(read_failed)? {
-        let t = ms.checked_sub(first_ms).ok_or_else(changed)?;
-        if t > span_ms {
+    while let Some(record) = source.next_record().map_err(read_failed)? {
+        let Some(x) = spec.x(&record) else {
+            continue;
+        };
+        if x < low || x > high {
             return Err(changed());
         }
-        if let Some(previous) = previous {
-            let interval = t - previous;
+        let ms = record.monotonic_ms;
+        if let Some((previous_ms, previous_x)) = previous {
+            let interval = ms - previous_ms;
             max_interval_ms = max_interval_ms.max(interval);
             if interval > GAP_THRESHOLD_MS {
                 gaps.total += 1;
                 if gaps.stored.len() < MAX_GAPS {
-                    gaps.stored.push(TraceGapV1 {
-                        start_ms: previous,
-                        end_ms: t,
+                    gaps.stored.push(TraceGapV2 {
+                        start: at(previous_x),
+                        end: at(x),
                     });
                 }
             }
+            if x < previous_x {
+                reversals += 1;
+            }
         }
-        previous = Some(t);
+        previous = Some((ms, x));
         seen += 1;
-        let bucket = (t / bucket_width_ms) as usize;
+        let bucket = ((x - low) as u64 / bucket_width) as usize;
         bucket_records[bucket] = bucket_records[bucket].saturating_add(1);
         for (accumulator, channel) in accumulators.iter_mut().zip(&request.channels) {
-            accumulator.observe(bucket, values[channel.index()]);
+            accumulator.observe(bucket, record.values[channel.index()]);
         }
     }
-    if seen != records || previous.unwrap_or(0) != span_ms {
+    if seen != scan.records {
         return Err(changed());
     }
 
     Ok(Reduced {
-        time: TraceTimeV1 {
-            origin: "first_record",
-            unit: "ms",
-            span_ms,
-            records,
-            bucket_width_ms,
+        scope: TraceScopeV2 {
+            lap: request.lap,
+            stream_records: scan.stream_records,
+            unattributed_records: scan.unattributed,
+        },
+        axis: TraceAxisV2 {
+            kind: spec.kind,
+            unit: spec.unit(),
+            origin: spec.origin(),
+            start: if scan.records == 0 { 0.0 } else { at(low) },
+            end: if scan.records == 0 { 0.0 } else { at(high) },
+            records: scan.records,
+            bucket_width: bucket_width as f64 / scale,
             bucket_count,
             max_interval_ms,
+            reversals,
         },
         bucket_records,
         gaps,
@@ -608,6 +841,30 @@ fn require_completed(status: SessionStatus) -> Result<(), TraceError> {
     }
 }
 
+fn trace(
+    session_id: &str,
+    game: SessionGame,
+    source: TraceSourceV1,
+    reduced: Reduced,
+) -> SessionTraceV2 {
+    SessionTraceV2 {
+        schema_version: TRACE_SCHEMA_VERSION,
+        session_id: session_id.into(),
+        game,
+        scope: reduced.scope,
+        source: TraceSourceV1 {
+            stream_complete: reduced.stream_complete,
+            truncated_tail: reduced.truncated_tail,
+            declared_records: reduced.declared_records,
+            ..source
+        },
+        axis: reduced.axis,
+        bucket_records: reduced.bucket_records,
+        gaps: reduced.gaps,
+        channels: reduced.channels,
+    }
+}
+
 /// The trace of one completed session under `root`. `session_id` is checked
 /// before any path is built from it; nothing outside `root/<session_id>` is
 /// read, and nothing is written.
@@ -615,7 +872,7 @@ pub fn session_trace(
     root: &Path,
     session_id: &str,
     request: &TraceRequest,
-) -> Result<SessionTraceV1, TraceError> {
+) -> Result<SessionTraceV2, TraceError> {
     if !session_format::is_safe_session_id(session_id) {
         return Err(TraceError::new(
             TraceErrorKind::UnsafeSessionId,
@@ -637,29 +894,27 @@ pub fn session_trace(
     if directory.join(session_format::MANIFEST_FILE_NAME).is_file() {
         let manifest = session_format::read_manifest(&directory).map_err(unreadable)?;
         require_completed(manifest.status)?;
+        if request.lap.is_some() {
+            return Err(TraceError::new(
+                TraceErrorKind::InvalidRequest,
+                "Forza Horizon 6 recordings carry no established lap data.",
+            ));
+        }
         let game = SessionGame::Fh6;
         let reduced = reduce(|| open_fh6(&directory, session_id), request, game)?;
-        return Ok(SessionTraceV1 {
-            schema_version: TRACE_SCHEMA_VERSION,
-            session_id: session_id.into(),
-            game,
-            source: TraceSourceV1 {
-                format: "rlframes",
-                container_version: manifest.frame_format_version,
-                payload_schema_version: manifest.telemetry_frame_schema_version,
-                recorded_by_racelab_version: manifest.created_by_racelab_version,
-                nominal_sample_rate_hz: None,
-                stream_complete: reduced.stream_complete,
-                truncated_tail: reduced.truncated_tail,
-                declared_records: reduced.declared_records,
-                recorder_dropped_frames: Some(manifest.recorder_dropped_frames),
-                f1_integrity: None,
-            },
-            time: reduced.time,
-            bucket_records: reduced.bucket_records,
-            gaps: reduced.gaps,
-            channels: reduced.channels,
-        });
+        let source = TraceSourceV1 {
+            format: "rlframes",
+            container_version: manifest.frame_format_version,
+            payload_schema_version: manifest.telemetry_frame_schema_version,
+            recorded_by_racelab_version: manifest.created_by_racelab_version,
+            nominal_sample_rate_hz: None,
+            stream_complete: false,
+            truncated_tail: false,
+            declared_records: None,
+            recorder_dropped_frames: Some(manifest.recorder_dropped_frames),
+            f1_integrity: None,
+        };
+        return Ok(trace(session_id, game, source, reduced));
     }
 
     if directory.join(f1_session::SESSION_FILE_NAME).is_file() {
@@ -668,32 +923,24 @@ pub fn session_trace(
         let game = SessionGame::F1_25;
         let reduced = reduce(|| open_f1(&directory, session_id), request, game)?;
         let integrity = &file.f1_25.integrity;
-        return Ok(SessionTraceV1 {
-            schema_version: TRACE_SCHEMA_VERSION,
-            session_id: session_id.into(),
-            game,
-            source: TraceSourceV1 {
-                format: "rlf1",
-                container_version: f1_session::SAMPLE_STREAM_VERSION,
-                payload_schema_version: file.f1_25.sample_schema_version,
-                recorded_by_racelab_version: file.racelab_session.created_by_racelab_version,
-                nominal_sample_rate_hz: Some(file.f1_25.sample_rate_hz),
-                stream_complete: reduced.stream_complete,
-                truncated_tail: reduced.truncated_tail,
-                declared_records: reduced.declared_records,
-                recorder_dropped_frames: None,
-                f1_integrity: Some(F1TraceIntegrityV1 {
-                    idle_ticks: integrity.idle_ticks,
-                    late_ticks: integrity.late_ticks,
-                    telemetry_gaps: integrity.telemetry_gaps,
-                    out_of_order_dropped: integrity.out_of_order_dropped,
-                }),
-            },
-            time: reduced.time,
-            bucket_records: reduced.bucket_records,
-            gaps: reduced.gaps,
-            channels: reduced.channels,
-        });
+        let source = TraceSourceV1 {
+            format: "rlf1",
+            container_version: f1_session::SAMPLE_STREAM_VERSION,
+            payload_schema_version: file.f1_25.sample_schema_version,
+            recorded_by_racelab_version: file.racelab_session.created_by_racelab_version,
+            nominal_sample_rate_hz: Some(file.f1_25.sample_rate_hz),
+            stream_complete: false,
+            truncated_tail: false,
+            declared_records: None,
+            recorder_dropped_frames: None,
+            f1_integrity: Some(F1TraceIntegrityV1 {
+                idle_ticks: integrity.idle_ticks,
+                late_ticks: integrity.late_ticks,
+                telemetry_gaps: integrity.telemetry_gaps,
+                out_of_order_dropped: integrity.out_of_order_dropped,
+            }),
+        };
+        return Ok(trace(session_id, game, source, reduced));
     }
 
     Err(TraceError::new(

@@ -78,6 +78,16 @@ const F1_LIVE = [
   "views/live/f1/F1DynamicsTab.tsx",
   "views/live/f1/parts.tsx",
 ];
+// v2.1: Telemetry Lab, its view model, controller and hook.
+const LAB = [
+  "workspaces/TelemetryLabWorkspace.tsx",
+  "views/lab/LabSessionColumn.tsx",
+  "views/lab/LabTrackViewport.tsx",
+  "views/lab/LabCharts.tsx",
+  "views/lab/LabCompareColumn.tsx",
+  "views/lab/parts.tsx",
+];
+const LAB_DATA = ["telemetry-lab.ts", "lab-controller.ts", "hooks/use-lab.ts"];
 const PRODUCT_VIEWS = [
   ...LIVE_TABS,
   ...LIVE_COMPONENTS,
@@ -85,6 +95,7 @@ const PRODUCT_VIEWS = [
   "workspaces/Fh6LiveWorkspace.tsx",
   ...F1_LIVE,
   ...SESSIONS,
+  ...LAB,
 ];
 
 test("every Live tab, the shell and the four workspaces exist", () => {
@@ -248,6 +259,39 @@ test("main analysis refresh and the separate overlay freshness watchdog are the 
     read("hooks/use-sessions.ts"),
     /return \(\) => created\.dispose\(\);/,
   );
+});
+
+test("Telemetry Lab reads only session facts and bounded lap traces", () => {
+  for (const file of [...LAB, ...LAB_DATA]) {
+    assert.ok(ALL.includes(file), `missing ${file}`);
+    const source = code(file);
+    // Never a frame, a sample or a raw stream; only the two read commands.
+    assert.ok(
+      !/read_frames|get_frames|\bframe_stream\b|\.rlframes|\.rlf1|read_all_samples/i.test(
+        source,
+      ),
+      file,
+    );
+    for (const match of source.matchAll(/invoke(?:<[^>]*>)?\(\s*"([^"]+)"/g)) {
+      assert.ok(
+        ["get_f1_session", "get_session_trace"].includes(match[1]),
+        `${file} invokes ${match[1]}`,
+      );
+    }
+    // The Lab never reads or drives live telemetry, and starts no timer.
+    assert.ok(
+      !/\buse(Live|F1Live|Recorder|Transport|Setup)\(|liveStore|f1LiveStore|transportStore/.test(
+        source,
+      ),
+      file,
+    );
+    assert.ok(!/\bset(Timeout|Interval)\(/.test(source), file);
+  }
+  // Only the hook talks to the backend.
+  assert.match(code("hooks/use-lab.ts"), /"get_session_trace"/);
+  for (const file of [...LAB, "telemetry-lab.ts", "lab-controller.ts"]) {
+    assert.ok(!/@tauri-apps\/api/.test(code(file)), file);
+  }
 });
 
 test("Sessions never asks for frames and holds no editable setting", () => {

@@ -53,7 +53,9 @@ use session_recorder::{
 use session_recovery::{RecoveryService, RecoveryStatus};
 use session_retention::{RetentionPolicy, RetentionService, RetentionStatus, SessionProtection};
 use session_store::{RecentSessions, SessionAnalysisState};
-use session_trace::{SessionTraceV1, TraceChannel, TraceError, TraceErrorKind, TraceRequest};
+use session_trace::{
+    SessionTraceV2, TraceAxis, TraceChannel, TraceError, TraceErrorKind, TraceRequest,
+};
 use settings::{SettingsSnapshot, SettingsStore};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -186,17 +188,20 @@ async fn get_session_analysis(
     .map_err(|error| format!("Session analysis read failed: {error}"))?
 }
 
-/// A bounded, downsampled trace of five allowlisted channels of one completed
-/// session (v2.1 M1). Frames, samples and `sourceSpecific` are never returned:
-/// the backend reduces the stream to at most `MAX_BUCKETS` min/max buckets.
+/// A bounded, downsampled trace of allowlisted channels of one completed
+/// session (v2.1 M1), or of one F1 25 lap on its time or distance (M2.0).
+/// Frames, samples and `sourceSpecific` are never returned: the backend
+/// reduces the stream to at most `MAX_BUCKETS` min/max buckets.
 #[tauri::command]
 async fn get_session_trace(
     state: State<'_, Arc<SessionRecorder>>,
     session_id: String,
     channels: Vec<TraceChannel>,
     buckets: Option<u32>,
-) -> Result<SessionTraceV1, TraceError> {
-    let request = TraceRequest::new(channels, buckets)?;
+    lap: Option<u16>,
+    axis: Option<TraceAxis>,
+) -> Result<SessionTraceV2, TraceError> {
+    let request = TraceRequest::new(channels, buckets, lap, axis)?;
     let recorder = Arc::clone(state.inner());
     tauri::async_runtime::spawn_blocking(move || {
         session_trace::session_trace(recorder.root(), &session_id, &request)

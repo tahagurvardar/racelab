@@ -1129,3 +1129,26 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* v2.1: the way from an F1 25 session into Telemetry Lab. */
+.session-lab-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--ch-current);
+  border-radius: var(--r-2);
+  background: var(--ch-current-soft);
+  color: var(--text);
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+.session-lab-open:hover {
+  border-color: var(--lab-value-cool);
+}
+.session-lab-open[aria-disabled="true"] {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}

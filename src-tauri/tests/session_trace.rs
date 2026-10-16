@@ -13,18 +13,18 @@ mod scratch;
 
 use racelab_lib::{
     f1_session::{
-        self, F1SampleV1, F1SessionFileV1, FamilyStampV1, SampleStreamEnd, SampleStreamHeader,
-        SampleStreamWriter, TelemetrySampleV1, WheelsV1,
+        self, F1SampleV1, F1SessionFileV1, FamilyStampV1, LapSampleV1, SampleStreamEnd,
+        SampleStreamHeader, SampleStreamWriter, TelemetrySampleV1, WheelsV1,
     },
     session_format::{
         self, FrameStreamEnd, FrameStreamHeader, FrameStreamWriter, SessionManifestV1,
         SessionStatus, FRAME_FILE_NAME, FRAME_FORMAT_VERSION, TELEMETRY_FRAME_SCHEMA_VERSION,
     },
     session_trace::{
-        session_trace, SessionTraceV1, TraceChannel, TraceErrorKind, TraceRequest, TraceUnit,
-        GAP_THRESHOLD_MS, MAX_BUCKETS, MAX_GAPS, MAX_RESPONSE_BYTES,
+        session_trace, SessionTraceV2, TraceAxis, TraceChannel, TraceErrorKind, TraceRequest,
+        TraceUnit, GAP_THRESHOLD_MS, MAX_BUCKETS, MAX_GAPS, MAX_RESPONSE_BYTES,
     },
-    telemetry::{Controls, Engine, TelemetryFrame},
+    telemetry::{Controls, Engine, Gear, TelemetryFrame},
 };
 use scratch::Scratch;
 use std::{
@@ -110,11 +110,11 @@ const VEHICLE_SENTINEL: &str = "VEHICLE-SENTINEL-9c1d";
 const F1_UID: u64 = 4_242_424_242_424_242_424;
 
 fn all_channels() -> TraceRequest {
-    TraceRequest::new(TraceChannel::ALL.to_vec(), None).unwrap()
+    TraceRequest::session(TraceChannel::ALL.to_vec(), None).unwrap()
 }
 
 fn request(buckets: u32) -> TraceRequest {
-    TraceRequest::new(TraceChannel::ALL.to_vec(), Some(buckets)).unwrap()
+    TraceRequest::session(TraceChannel::ALL.to_vec(), Some(buckets)).unwrap()
 }
 
 type Inputs = (
@@ -434,9 +434,9 @@ fn f1_simple(root: &Path, id: &str, timed: &[(u64, Option<F1Inputs>)]) {
 }
 
 fn channel(
-    trace: &SessionTraceV1,
+    trace: &SessionTraceV2,
     which: TraceChannel,
-) -> &racelab_lib::session_trace::TraceChannelV1 {
+) -> &racelab_lib::session_trace::TraceChannelV2 {
     trace
         .channels
         .iter()
@@ -479,7 +479,14 @@ fn an_fh6_schema_two_session_traces_every_channel_in_its_recorded_unit() {
     fh6_simple(&root, "fh6-v2", &timed);
 
     let trace = session_trace(&root, "fh6-v2", &request(10)).unwrap();
-    assert_eq!(trace.schema_version, 1);
+    assert_eq!(trace.schema_version, 2);
+    // The M1 request: the whole session on session time.
+    assert_eq!(trace.scope.lap, None);
+    assert_eq!(trace.scope.stream_records, 10);
+    assert_eq!(trace.scope.unattributed_records, 0);
+    assert_eq!(trace.axis.unit, "ms");
+    assert_eq!(trace.axis.start, 0.0);
+    assert_eq!(trace.axis.reversals, 0);
     assert_eq!(trace.session_id, "fh6-v2");
     assert_eq!(
         serde_json::to_value(trace.game).unwrap(),
@@ -494,12 +501,12 @@ fn an_fh6_schema_two_session_traces_every_channel_in_its_recorded_unit() {
     assert_eq!(trace.source.nominal_sample_rate_hz, None);
     assert!(trace.source.f1_integrity.is_none());
 
-    assert_eq!(trace.time.origin, "first_record");
-    assert_eq!(trace.time.span_ms, 900);
-    assert_eq!(trace.time.records, 10);
-    assert_eq!(trace.time.bucket_width_ms, 91);
-    assert_eq!(trace.time.bucket_count, 10);
-    assert_eq!(trace.time.max_interval_ms, 100);
+    assert_eq!(trace.axis.origin, "first_record");
+    assert_eq!(trace.axis.end, 900.0);
+    assert_eq!(trace.axis.records, 10);
+    assert_eq!(trace.axis.bucket_width, 91.0);
+    assert_eq!(trace.axis.bucket_count, 10);
+    assert_eq!(trace.axis.max_interval_ms, 100);
     assert_eq!(trace.bucket_records, vec![1; 10]);
     assert_eq!(trace.gaps.total, 0);
 
@@ -526,7 +533,7 @@ fn an_fh6_schema_two_session_traces_every_channel_in_its_recorded_unit() {
     let partial = session_trace(
         &root,
         "fh6-v2",
-        &TraceRequest::new(vec![TraceChannel::Brake, TraceChannel::Speed], Some(10)).unwrap(),
+        &TraceRequest::session(vec![TraceChannel::Brake, TraceChannel::Speed], Some(10)).unwrap(),
     )
     .unwrap();
     let order: Vec<_> = partial.channels.iter().map(|c| c.channel).collect();
@@ -549,8 +556,8 @@ fn an_fh6_schema_one_session_traces_its_v1_values_without_migration() {
     let trace = session_trace(&root, "fh6-v1", &request(2)).unwrap();
     assert_eq!(trace.source.payload_schema_version, 1);
     assert!(trace.source.stream_complete);
-    assert_eq!(trace.time.records, 2);
-    assert_eq!(trace.time.span_ms, 16);
+    assert_eq!(trace.axis.records, 2);
+    assert_eq!(trace.axis.end, 16.0);
     let speed = channel(&trace, TraceChannel::Speed);
     assert_eq!(speed.min, vec![Some(12.5), None]);
     assert_eq!(speed.missing, vec![0, 1]);
@@ -589,9 +596,9 @@ fn an_f1_session_traces_car_telemetry_in_its_own_units() {
     let integrity = trace.source.f1_integrity.unwrap();
     assert_eq!((integrity.late_ticks, integrity.telemetry_gaps), (2, 1));
     assert!(trace.source.stream_complete);
-    assert_eq!(trace.time.span_ms, 300);
-    assert_eq!(trace.time.records, 4);
-    assert_eq!(trace.time.bucket_count, 4);
+    assert_eq!(trace.axis.end, 300.0);
+    assert_eq!(trace.axis.records, 4);
+    assert_eq!(trace.axis.bucket_count, 4);
 
     let speed = channel(&trace, TraceChannel::Speed);
     assert_eq!(speed.unit, TraceUnit::KilometresPerHour);
@@ -681,10 +688,10 @@ fn irregular_monotonic_timestamps_land_in_their_own_buckets() {
     fh6_simple(&root, "irr", &timed);
     let trace = session_trace(&root, "irr", &request(4)).unwrap();
     // 901 ms into 4 buckets: width 226.
-    assert_eq!(trace.time.bucket_width_ms, 226);
-    assert_eq!(trace.time.bucket_count, 4);
+    assert_eq!(trace.axis.bucket_width, 226.0);
+    assert_eq!(trace.axis.bucket_count, 4);
     assert_eq!(trace.bucket_records, vec![5, 3, 0, 1]);
-    assert_eq!(trace.time.max_interval_ms, 649);
+    assert_eq!(trace.axis.max_interval_ms, 649);
     assert_eq!(trace.gaps.total, 0);
     let speed = channel(&trace, TraceChannel::Speed);
     assert_eq!(speed.min, vec![Some(0.0), Some(250.0), None, Some(900.0)]);
@@ -706,11 +713,11 @@ fn intervals_longer_than_the_threshold_are_reported_as_gaps() {
     assert_eq!(trace.gaps.total, 1);
     assert_eq!(trace.gaps.stored.len(), 1);
     assert_eq!(
-        (trace.gaps.stored[0].start_ms, trace.gaps.stored[0].end_ms),
-        (2200, 5000)
+        (trace.gaps.stored[0].start, trace.gaps.stored[0].end),
+        (2200.0, 5000.0)
     );
     // The buckets inside the gap hold nothing and say so.
-    let bucket = |ms: u64| (ms / trace.time.bucket_width_ms) as usize;
+    let bucket = |ms: u64| (ms as f64 / trace.axis.bucket_width) as usize;
     assert_eq!(trace.bucket_records[bucket(3500)], 0);
     assert_eq!(channel(&trace, TraceChannel::Speed).min[bucket(3500)], None);
     assert_eq!(
@@ -731,8 +738,8 @@ fn intervals_longer_than_the_threshold_are_reported_as_gaps() {
     let f1 = session_trace(&root, "f1-gaps", &request(10)).unwrap();
     assert_eq!(f1.gaps.total, 1);
     assert_eq!(
-        (f1.gaps.stored[0].start_ms, f1.gaps.stored[0].end_ms),
-        (100, 4100)
+        (f1.gaps.stored[0].start, f1.gaps.stored[0].end),
+        (100.0, 4100.0)
     );
 }
 
@@ -747,7 +754,7 @@ fn gap_metadata_is_capped_and_the_rest_is_counted() {
     let trace = session_trace(&root, "cap", &all_channels()).unwrap();
     assert_eq!(trace.gaps.total, count as u64);
     assert_eq!(trace.gaps.stored.len(), MAX_GAPS);
-    assert_eq!(trace.gaps.stored[0].start_ms, 0);
+    assert_eq!(trace.gaps.stored[0].start, 0.0);
 }
 
 #[test]
@@ -766,9 +773,9 @@ fn a_single_frame_spike_survives_downsampling_in_its_own_bucket() {
         .collect();
     fh6_simple(&root, "spike", &timed);
     let trace = session_trace(&root, "spike", &request(100)).unwrap();
-    let width = trace.time.bucket_width_ms;
+    let width = trace.axis.bucket_width;
     let rpm = channel(&trace, TraceChannel::Rpm);
-    let at = |i: u64| ((i * 16) / width) as usize;
+    let at = |i: u64| ((i * 16) as f64 / width) as usize;
     assert_eq!(rpm.max[at(4_321)], Some(9_876.5));
     assert_eq!(rpm.min[at(7_777)], Some(123.25));
     let others_max = rpm
@@ -800,9 +807,9 @@ fn an_empty_recording_yields_an_empty_trace_not_an_error() {
     f1_session_dir(&root, "f1-empty", SessionStatus::Completed, &[], true);
     for id in ["fh6-empty", "f1-empty"] {
         let trace = session_trace(&root, id, &all_channels()).unwrap();
-        assert_eq!(trace.time.records, 0, "{id}");
-        assert_eq!(trace.time.span_ms, 0, "{id}");
-        assert_eq!(trace.time.bucket_count, 0, "{id}");
+        assert_eq!(trace.axis.records, 0, "{id}");
+        assert_eq!(trace.axis.end, 0.0, "{id}");
+        assert_eq!(trace.axis.bucket_count, 0, "{id}");
         assert!(trace.bucket_records.is_empty(), "{id}");
         assert!(trace.source.stream_complete, "{id}");
         for c in &trace.channels {
@@ -817,9 +824,9 @@ fn a_single_record_has_one_bucket() {
     let root = Scratch::new("trace-single");
     fh6_simple(&root, "one", &[(0, full(5.0, 6.0, 0.0, 0.0, 0.0))]);
     let trace = session_trace(&root, "one", &all_channels()).unwrap();
-    assert_eq!(trace.time.span_ms, 0);
-    assert_eq!(trace.time.bucket_width_ms, 1);
-    assert_eq!(trace.time.bucket_count, 1);
+    assert_eq!(trace.axis.end, 0.0);
+    assert_eq!(trace.axis.bucket_width, 1.0);
+    assert_eq!(trace.axis.bucket_count, 1);
     assert_eq!(channel(&trace, TraceChannel::Speed).min, vec![Some(5.0)]);
 }
 
@@ -838,8 +845,8 @@ fn a_truncated_tail_yields_the_intact_prefix_and_says_so() {
     assert!(trace.source.truncated_tail);
     assert!(!trace.source.stream_complete);
     assert_eq!(trace.source.declared_records, None);
-    assert_eq!(trace.time.records, 19);
-    assert_eq!(trace.time.span_ms, 18 * 50);
+    assert_eq!(trace.axis.records, 19);
+    assert_eq!(trace.axis.end, (18 * 50) as f64);
 
     let samples: Vec<_> = (0..20_u64)
         .map(|i| f1_sample(i, i * 100, Some((100, 1, 0.0, 0.0, 0.0))))
@@ -851,7 +858,7 @@ fn a_truncated_tail_yields_the_intact_prefix_and_says_so() {
     let trace = session_trace(&root, "f1-cut", &all_channels()).unwrap();
     assert!(trace.source.truncated_tail);
     assert!(!trace.source.stream_complete);
-    assert_eq!(trace.time.records, 19);
+    assert_eq!(trace.axis.records, 19);
 }
 
 #[test]
@@ -986,7 +993,7 @@ fn recording_and_interrupted_sessions_are_refused_for_both_games() {
 #[test]
 fn requests_outside_the_allowlist_or_the_bounds_are_refused() {
     let invalid = |channels: Vec<TraceChannel>, buckets: Option<u32>| {
-        TraceRequest::new(channels, buckets).unwrap_err().kind
+        TraceRequest::session(channels, buckets).unwrap_err().kind
     };
     assert_eq!(invalid(vec![], None), TraceErrorKind::InvalidRequest);
     assert_eq!(
@@ -1001,9 +1008,9 @@ fn requests_outside_the_allowlist_or_the_bounds_are_refused() {
         invalid(vec![TraceChannel::Rpm], Some(MAX_BUCKETS + 1)),
         TraceErrorKind::InvalidRequest
     );
-    assert!(TraceRequest::new(vec![TraceChannel::Rpm], Some(MAX_BUCKETS)).is_ok());
+    assert!(TraceRequest::session(vec![TraceChannel::Rpm], Some(MAX_BUCKETS)).is_ok());
     assert_eq!(
-        TraceRequest::new(vec![TraceChannel::Rpm], None)
+        TraceRequest::session(vec![TraceChannel::Rpm], None)
             .unwrap()
             .buckets,
         1000
@@ -1012,13 +1019,13 @@ fn requests_outside_the_allowlist_or_the_bounds_are_refused() {
     for name in [
         "position",
         "sourceSpecific",
-        "gear",
+        "fuel",
         "lap_distance",
         "SPEED",
     ] {
         assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_err());
     }
-    for name in ["speed", "rpm", "throttle", "brake", "steering"] {
+    for name in ["speed", "rpm", "throttle", "brake", "steering", "gear"] {
         assert!(serde_json::from_value::<TraceChannel>(serde_json::json!(name)).is_ok());
     }
 }
@@ -1098,8 +1105,8 @@ fn the_worst_case_response_stays_within_its_declared_size() {
     let trace = session_trace(&root, "worst", &request(MAX_BUCKETS)).unwrap();
     // Width is rounded up, so the count may fall short of the request by the
     // rounding, never exceed it.
-    assert!(trace.time.bucket_count <= MAX_BUCKETS);
-    assert!(trace.time.bucket_count >= MAX_BUCKETS - 1);
+    assert!(trace.axis.bucket_count <= MAX_BUCKETS);
+    assert!(trace.axis.bucket_count >= MAX_BUCKETS - 1);
     assert_eq!(trace.gaps.stored.len(), MAX_GAPS);
     let size = serde_json::to_vec(&trace).unwrap().len();
     assert!(size <= MAX_RESPONSE_BYTES, "{size} bytes");
@@ -1187,9 +1194,9 @@ fn peak_memory_is_bounded_independently_of_recording_length() {
         let (short_trace, short_peak) =
             peak_allocation(|| session_trace(&root, short, &max).unwrap());
         let (long_trace, long_peak) = peak_allocation(|| session_trace(&root, long, &max).unwrap());
-        assert_eq!(long_trace.time.records, records);
-        assert!(long_trace.time.bucket_count <= MAX_BUCKETS);
-        assert!(short_trace.time.bucket_count <= MAX_BUCKETS);
+        assert_eq!(long_trace.axis.records, records);
+        assert!(long_trace.axis.bucket_count <= MAX_BUCKETS);
+        assert!(short_trace.axis.bucket_count <= MAX_BUCKETS);
         assert!(long_peak <= LIMIT, "{long}: {long_peak} bytes");
         assert!(
             long_peak <= short_peak + (64 << 10),
@@ -1203,4 +1210,286 @@ fn peak_memory_is_bounded_independently_of_recording_length() {
             .unwrap();
         assert_eq!(speed.total_samples + speed.total_missing, records);
     }
+}
+
+// ------------------------------------------------------- M2.0: lap scope
+
+/// `(lap, lap time ms, lap distance m)`.
+type LapAt = (u8, u32, f32);
+
+fn lap_reading(sequence: u64, (lap, lap_time_ms, distance): LapAt) -> LapSampleV1 {
+    LapSampleV1 {
+        stamp: FamilyStampV1 {
+            overall_frame_identifier: sequence as u32,
+            session_time: 0.0,
+            age_ms: 10,
+        },
+        current_lap_num: lap,
+        current_lap_time_ms: lap_time_ms,
+        last_lap_time_ms: 0,
+        sector1_ms: 0,
+        sector2_ms: 0,
+        lap_distance_m: distance,
+        total_distance_m: distance,
+        car_position: 1,
+        sector: 0,
+        current_lap_invalid: 0,
+        pit_status: 0,
+        num_pit_stops: 0,
+        penalties_s: 0,
+        driver_status: 1,
+        result_status: 2,
+        safety_car_delta_s: 0.0,
+    }
+}
+
+/// `(monotonic ms, Lap Data, Car Telemetry)`; either family may be absent.
+type LapRow = (u64, Option<LapAt>, Option<F1Inputs>);
+
+fn f1_laps(root: &Path, id: &str, rows: &[LapRow]) {
+    let samples: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .map(|(index, &(ms, lap, telemetry))| {
+            let mut sample = f1_sample(index as u64, ms, telemetry);
+            sample.lap = lap.map(|at| lap_reading(index as u64, at));
+            sample
+        })
+        .collect();
+    f1_session_dir(root, id, SessionStatus::Completed, &samples, true);
+}
+
+fn lap_request(lap: u16, axis: TraceAxis, buckets: u32) -> TraceRequest {
+    TraceRequest::new(
+        TraceChannel::ALL.to_vec(),
+        Some(buckets),
+        Some(lap),
+        Some(axis),
+    )
+    .unwrap()
+}
+
+fn drive(speed: u16) -> Option<F1Inputs> {
+    Some((speed, 10_000, 1.0, 0.0, 0.0))
+}
+
+#[test]
+fn a_lap_trace_covers_only_that_lap_on_its_distance_or_time() {
+    let root = Scratch::new("trace-lap");
+    f1_laps(
+        &root,
+        "f1-lap",
+        &[
+            (0, Some((1, 0, -20.0)), drive(100)),
+            (100, Some((1, 100, 0.0)), drive(110)),
+            // No Lap Data: inside lap 1, but not attributed to it.
+            (200, None, drive(115)),
+            (300, Some((1, 300, 10.5)), drive(120)),
+            (400, Some((2, 0, 0.0)), drive(130)),
+            (500, Some((2, 100, 5.0)), drive(140)),
+            (600, None, drive(150)),
+        ],
+    );
+
+    let distance =
+        session_trace(&root, "f1-lap", &lap_request(1, TraceAxis::Distance, 1000)).unwrap();
+    assert_eq!(distance.scope.lap, Some(1));
+    assert_eq!(distance.scope.stream_records, 7);
+    assert_eq!(distance.scope.unattributed_records, 1);
+    let axis = serde_json::to_value(distance.axis).unwrap();
+    assert_eq!(axis["kind"], "lap_distance");
+    assert_eq!(axis["unit"], "m");
+    assert_eq!(axis["origin"], "start_finish_line");
+    // Before the line the game reports a negative distance; it is kept.
+    assert_eq!(distance.axis.start, -20.0);
+    assert_eq!(distance.axis.end, 10.5);
+    assert_eq!(distance.axis.records, 3);
+    // 30.5 m in millimetres over 1000 buckets: 31 mm wide, 984 buckets.
+    assert_eq!(distance.axis.bucket_width, 0.031);
+    assert_eq!(distance.axis.bucket_count, 984);
+    assert_eq!(distance.axis.reversals, 0);
+    let speed = channel(&distance, TraceChannel::Speed);
+    assert_eq!(speed.total_samples, 3);
+    assert_eq!(speed.last[0], Some(100.0));
+    assert_eq!(speed.last[983], Some(120.0));
+    // The unattributed 115 km/h sample is nowhere in the lap.
+    assert!(!speed.max.contains(&Some(115.0)));
+
+    let time = session_trace(&root, "f1-lap", &lap_request(1, TraceAxis::Time, 1000)).unwrap();
+    assert_eq!(serde_json::to_value(time.axis).unwrap()["kind"], "lap_time");
+    assert_eq!(time.axis.origin, "lap_start");
+    assert_eq!((time.axis.start, time.axis.end), (0.0, 300.0));
+    assert_eq!(time.axis.records, 3);
+
+    // The record after lap 2 carries no Lap Data and no lap follows it, so
+    // nothing is unattributed.
+    let lap2 = session_trace(&root, "f1-lap", &lap_request(2, TraceAxis::Distance, 10)).unwrap();
+    assert_eq!(lap2.axis.records, 2);
+    assert_eq!(lap2.scope.unattributed_records, 0);
+    assert_eq!((lap2.axis.start, lap2.axis.end), (0.0, 5.0));
+
+    // A lap that was never recorded is an empty trace, not an error.
+    let none = session_trace(&root, "f1-lap", &lap_request(9, TraceAxis::Distance, 10)).unwrap();
+    assert_eq!(none.axis.records, 0);
+    assert_eq!(none.axis.bucket_count, 0);
+}
+
+#[test]
+fn a_lap_axis_that_runs_backwards_is_reported_never_smoothed() {
+    let root = Scratch::new("trace-flashback");
+    f1_laps(
+        &root,
+        "f1-flashback",
+        &[
+            (0, Some((3, 0, 0.0)), drive(100)),
+            (100, Some((3, 1000, 100.0)), drive(110)),
+            (200, Some((3, 2000, 200.0)), drive(120)),
+            // A flashback: the game rewinds the lap.
+            (300, Some((3, 500, 50.0)), drive(105)),
+            (400, Some((3, 1500, 150.0)), drive(115)),
+        ],
+    );
+    for axis in [TraceAxis::Distance, TraceAxis::Time] {
+        let trace = session_trace(&root, "f1-flashback", &lap_request(3, axis, 100)).unwrap();
+        assert_eq!(trace.axis.reversals, 1, "{axis:?}");
+        assert_eq!(trace.axis.records, 5, "{axis:?}");
+    }
+}
+
+#[test]
+fn a_gap_on_a_lap_axis_is_placed_at_its_lap_position() {
+    let root = Scratch::new("trace-lap-gap");
+    f1_laps(
+        &root,
+        "f1-lap-gap",
+        &[
+            (0, Some((1, 0, 0.0)), drive(100)),
+            (100, Some((1, 100, 10.0)), drive(100)),
+            (
+                100 + GAP_THRESHOLD_MS + 1,
+                Some((1, 1200, 12.0)),
+                drive(100),
+            ),
+        ],
+    );
+    let trace = session_trace(
+        &root,
+        "f1-lap-gap",
+        &lap_request(1, TraceAxis::Distance, 10),
+    )
+    .unwrap();
+    assert_eq!(trace.gaps.total, 1);
+    assert_eq!(
+        (trace.gaps.stored[0].start, trace.gaps.stored[0].end),
+        (10.0, 12.0)
+    );
+    assert_eq!(trace.axis.max_interval_ms, GAP_THRESHOLD_MS + 1);
+}
+
+#[test]
+fn the_last_value_is_the_buckets_final_reading_in_record_order() {
+    let root = Scratch::new("trace-last");
+    f1_simple(
+        &root,
+        "f1-last",
+        &[
+            (0, Some((5, 1, 0.0, 0.0, 0.0))),
+            (1, Some((9, 1, 0.0, 0.0, 0.0))),
+            (2, Some((2, 1, 0.0, 0.0, 0.0))),
+            (3, None),
+        ],
+    );
+    let trace = session_trace(&root, "f1-last", &request(1)).unwrap();
+    let speed = channel(&trace, TraceChannel::Speed);
+    assert_eq!(speed.min, vec![Some(2.0)]);
+    assert_eq!(speed.max, vec![Some(9.0)]);
+    // The trailing sample without Car Telemetry does not erase the reading.
+    assert_eq!(speed.last, vec![Some(2.0)]);
+    assert_eq!(speed.missing, vec![1]);
+}
+
+#[test]
+fn gear_is_the_recorded_gear_number_and_unavailable_fh6_gear_stays_null() {
+    let root = Scratch::new("trace-gear");
+    let mut samples: Vec<_> = (0..3_u64)
+        .map(|i| f1_sample(i, i * 100, Some((100, 1, 0.0, 0.0, 0.0))))
+        .collect();
+    for (sample, gear) in samples.iter_mut().zip([-1_i8, 0, 7]) {
+        sample.telemetry.as_mut().unwrap().gear = gear;
+    }
+    f1_session_dir(&root, "f1-gear", SessionStatus::Completed, &samples, true);
+    let trace = session_trace(&root, "f1-gear", &request(3)).unwrap();
+    let gear = channel(&trace, TraceChannel::Gear);
+    assert_eq!(gear.unit, TraceUnit::Gear);
+    assert_eq!(gear.last, vec![Some(-1.0), Some(0.0), Some(7.0)]);
+
+    // FH6's adapter leaves canonical gear unavailable: missing, never 0.
+    fh6_simple(&root, "fh6-gear", &[(0, full(1.0, 1.0, 0.0, 0.0, 0.0))]);
+    let fh6 = session_trace(&root, "fh6-gear", &all_channels()).unwrap();
+    let gear = channel(&fh6, TraceChannel::Gear);
+    assert_eq!((gear.total_samples, gear.total_missing), (0, 1));
+    // A canonical gear, where one exists, maps to its number.
+    let mut frames = Vec::new();
+    for (ms, value) in [
+        (0, Gear::Reverse),
+        (10, Gear::Neutral),
+        (20, Gear::Forward(4)),
+        (30, Gear::Unmapped(11)),
+    ] {
+        let mut frame = fh6_frame(full(1.0, 1.0, 0.0, 0.0, 0.0));
+        frame.gear = Some(value);
+        frames.push((ms, frame));
+    }
+    fh6_session(&root, "fh6-gears", SessionStatus::Completed, &frames, true);
+    let fh6 = session_trace(&root, "fh6-gears", &request(4)).unwrap();
+    assert_eq!(
+        channel(&fh6, TraceChannel::Gear).last,
+        vec![Some(-1.0), Some(0.0), Some(4.0), None]
+    );
+}
+
+#[test]
+fn lap_requests_outside_their_rules_are_refused() {
+    let invalid = |lap: Option<u16>, axis: Option<TraceAxis>| {
+        TraceRequest::new(vec![TraceChannel::Speed], None, lap, axis)
+            .unwrap_err()
+            .kind
+    };
+    assert_eq!(
+        invalid(None, Some(TraceAxis::Distance)),
+        TraceErrorKind::InvalidRequest
+    );
+    assert_eq!(invalid(Some(0), None), TraceErrorKind::InvalidRequest);
+    for axis in ["time", "distance"] {
+        assert!(serde_json::from_value::<TraceAxis>(serde_json::json!(axis)).is_ok());
+    }
+    assert!(serde_json::from_value::<TraceAxis>(serde_json::json!("position")).is_err());
+
+    // FH6 records no established lap: a lap request is refused, not emptied.
+    let root = Scratch::new("trace-fh6-lap");
+    fh6_simple(&root, "fh6-lap", &[(0, full(1.0, 1.0, 0.0, 0.0, 0.0))]);
+    let error = session_trace(&root, "fh6-lap", &lap_request(1, TraceAxis::Time, 10)).unwrap_err();
+    assert_eq!(error.kind, TraceErrorKind::InvalidRequest);
+}
+
+#[test]
+fn a_session_trace_is_unchanged_by_the_lap_scope_feature() {
+    // The default request ignores Lap Data entirely: every record counts.
+    let root = Scratch::new("trace-session-compat");
+    f1_laps(
+        &root,
+        "f1-compat",
+        &[
+            (0, Some((1, 0, 0.0)), drive(100)),
+            (100, None, drive(110)),
+            (200, Some((2, 0, 0.0)), drive(120)),
+        ],
+    );
+    let trace = session_trace(&root, "f1-compat", &request(3)).unwrap();
+    assert_eq!(trace.axis.records, 3);
+    assert_eq!(trace.scope.unattributed_records, 0);
+    assert_eq!(
+        channel(&trace, TraceChannel::Speed).max,
+        vec![Some(100.0), Some(110.0), Some(120.0)]
+    );
 }

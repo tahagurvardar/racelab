@@ -348,3 +348,45 @@ test("finite transitions and entries are timed by tokens that reduced motion zer
     }
   }
 });
+
+// ---------------------------------------------------- v2.1 Telemetry Lab
+
+test("text stays AA and lap traces stay distinct on every Telemetry Lab surface", () => {
+  const surfaces = [
+    "--lab-bg",
+    "--lab-column",
+    "--lab-panel",
+    "--lab-panel-top",
+    "--lab-reference-surface",
+    "--lab-reference-top",
+    "--lab-delta-surface",
+    "--lab-chart-surface",
+    "--lab-viewport",
+  ];
+  for (const text of [
+    "--text",
+    "--text-2",
+    "--text-3",
+    "--text-unavailable",
+    "--lab-value-cool",
+    "--lab-value-warm",
+    "--lab-value-time",
+    "--warn-text",
+  ]) {
+    for (const surface of surfaces) {
+      const ratio = contrast(token(text), token(surface));
+      assert.ok(ratio >= 4.5, `${text} on ${surface} is ${ratio.toFixed(2)}:1`);
+    }
+  }
+  // Graphical objects (WCAG 1.4.11): the lap colours against their charts.
+  for (const line of ["--ch-current", "--ch-reference", "--ch-delta"]) {
+    for (const surface of surfaces) {
+      const ratio = contrast(token(line), token(surface));
+      assert.ok(ratio >= 3, `${line} on ${surface} is ${ratio.toFixed(2)}:1`);
+    }
+  }
+  // The reference gold is its own colour, never the caution amber.
+  assert.notEqual(token("--ch-reference"), token("--status-warn"));
+  assert.notEqual(token("--ch-reference"), token("--ch-rpm"));
+  assert.notEqual(token("--ch-delta"), token("--personal-best"));
+});

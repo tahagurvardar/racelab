@@ -223,6 +223,15 @@ for (const [width, height] of sizes) {
       assert.equal((await evaluate(FOCUS)).ring, true);
       await press(env.page, "Tab");
       assert.equal((await evaluate(FOCUS)).role, "option");
+      // v2.1: the session header's way into Telemetry Lab comes before the
+      // tabs, and shows its focus like every other control.
+      await press(env.page, "Tab");
+      const lab = await evaluate(FOCUS);
+      assert.equal(lab.tag, "button");
+      // While a session is not completed, its accessible name says why.
+      assert.match(lab.name, /^Open in Telemetry Lab/);
+      assert.equal(lab.ring, true);
+      assert.equal(lab.onScreen, true);
       await press(env.page, "Tab");
       assert.equal((await evaluate(FOCUS)).role, "tab");
       for (const [key, id] of [

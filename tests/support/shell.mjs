@@ -12,6 +12,7 @@ import DiagnosticsWorkspace from "../../src/workspaces/DiagnosticsWorkspace.tsx"
 import LiveWorkspace from "../../src/workspaces/LiveWorkspace.tsx";
 import SettingsWorkspace from "../../src/workspaces/SettingsWorkspace.tsx";
 import HomeWorkspace from "../../src/workspaces/HomeWorkspace.tsx";
+import TelemetryLabWorkspace from "../../src/workspaces/TelemetryLabWorkspace.tsx";
 import {
   INITIAL_F1,
   INITIAL_F1_LIVE,
@@ -313,18 +314,26 @@ export function ShellHarness() {
           onTab: (tab) => navigate({ type: "liveTab", tab }),
           onF1Tab: (tab) => navigate({ type: "f1Tab", tab }),
         })
-      : section === "sessions"
-        ? h(SessionsWorkspace, {
-            onOpenSettings: () =>
-              navigate({ type: "section", section: "settings" }),
+      : section === "sessions" && navigation.lab != null
+        ? h(TelemetryLabWorkspace, {
+            sessionId: navigation.lab,
+            onClose: () => navigate({ type: "closeLab" }),
           })
-        : section === "settings"
-          ? h(SettingsWorkspace)
-          : section === "home"
-            ? h(HomeWorkspace, {
-                onNavigate: (section) => navigate({ type: "section", section }),
-              })
-            : h(DiagnosticsWorkspace),
+        : section === "sessions"
+          ? h(SessionsWorkspace, {
+              onOpenSettings: () =>
+                navigate({ type: "section", section: "settings" }),
+              onOpenLab: (sessionId) =>
+                navigate({ type: "openLab", sessionId }),
+            })
+          : section === "settings"
+            ? h(SettingsWorkspace)
+            : section === "home"
+              ? h(HomeWorkspace, {
+                  onNavigate: (section) =>
+                    navigate({ type: "section", section }),
+                })
+              : h(DiagnosticsWorkspace),
   );
 }
 
@@ -383,6 +392,7 @@ export async function press(key, options = {}) {
         bubbles: true,
         cancelable: true,
         ctrlKey: options.ctrlKey ?? false,
+        shiftKey: options.shiftKey ?? false,
       }),
     );
   });

@@ -26,12 +26,20 @@ import { F1SessionDetail } from "./F1SessionDetail";
 /// F1 25 session has its own factual detail (`F1SessionDetail`).
 export function SessionDetail({
   controller,
+  onOpenLab,
 }: {
   controller: SessionsController;
+  onOpenLab?: (sessionId: string) => void;
 }) {
   const selected = useSessions(controller, (state) => state.selected);
   if (selected?.game === "f1_25") {
-    return <F1SessionDetail controller={controller} selected={selected} />;
+    return (
+      <F1SessionDetail
+        controller={controller}
+        selected={selected}
+        onOpenLab={onOpenLab}
+      />
+    );
   }
   return <Fh6SessionDetail controller={controller} />;
 }

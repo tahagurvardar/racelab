@@ -25,6 +25,8 @@ import F1_SNAPSHOTS from "../src-tauri/tests/fixtures/f1_25/live-snapshots.json"
 import type { F1LiveStatus } from "../src/telemetry/f1-player.ts";
 import type { F1EvidenceStatus } from "../src/telemetry/f1-evidence.ts";
 import { f1Detail, f1Recorder } from "./f1-session-fixtures.ts";
+import { markSynthetic, syntheticTrace } from "./lab-fixtures.ts";
+import type { TraceChannelId } from "../src/telemetry-lab.ts";
 import {
   DEFAULT_OVERLAY,
   type OverlayFrame,
@@ -744,6 +746,31 @@ const RESPONSES: Record<string, (args: Record<string, unknown>) => unknown> = {
     );
     if (!detail) throw new Error("F1 review session not found");
     return detail;
+  },
+  // v2.1 Telemetry Lab: SYNTHETIC laps, badged on screen (lab-fixtures.ts).
+  get_session_trace: (args) => {
+    const detail = reviewF1Sessions.find(
+      (item) => item.session.racelab_session.session_id === args.sessionId,
+    );
+    if (!detail) {
+      throw { kind: "not_found", message: "Unknown session" };
+    }
+    const lap = Number(args.lap);
+    if (!detail.laps?.laps.some((item) => item.lap_number === lap)) {
+      throw { kind: "invalid_request", message: "No such lap" };
+    }
+    markSynthetic();
+    const context =
+      detail.session.f1_25.context_latest ??
+      detail.session.f1_25.context_at_start;
+    return syntheticTrace(
+      String(args.sessionId),
+      lap,
+      args.axis === "time" ? "time" : "distance",
+      args.channels as TraceChannelId[],
+      Number(args.buckets),
+      context?.track_length_m ?? 5000,
+    );
   },
   get_storage_status: () => ({
     retention: {

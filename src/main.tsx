@@ -8,6 +8,7 @@ import "./styles/shell.css";
 import "./styles/views.css";
 import "./styles/live.css";
 import "./styles/sessions.css";
+import "./styles/lab.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

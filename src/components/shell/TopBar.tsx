@@ -51,7 +51,7 @@ function readShell() {
 /// The panel follows its trigger in the DOM and is itself a tab stop, so Tab
 /// from the trigger reaches it; Escape closes it and returns focus to the
 /// trigger; moving focus or clicking anywhere else closes it.
-export function TopBar() {
+export function TopBar({ analysis = false }: { analysis?: boolean } = {}) {
   const model = useDerived(STORES, readShell);
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -84,7 +84,25 @@ export function TopBar() {
 
   const { state, recording } = model;
   return (
-    <header className="topbar" data-state={state.kind}>
+    <header
+      className="topbar"
+      data-state={state.kind}
+      data-analysis={analysis || undefined}
+    >
+      {/* v2.1: Telemetry Lab shows a recorded session. The bar still tells
+          the live truth, but marked as live, so a connected game is never
+          read as the session under analysis. */}
+      {analysis ? (
+        <p className="topbar-analysis">
+          <span className="topbar-analysis-mark" aria-hidden="true" />
+          Analysing a recorded session
+        </p>
+      ) : null}
+      {analysis ? (
+        <span className="topbar-live-label" aria-hidden="true">
+          Live
+        </span>
+      ) : null}
       <div
         className="topbar-state"
         ref={root}

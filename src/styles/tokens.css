@@ -92,6 +92,52 @@
   --tyre-hard: #f1f4f5;
   --tyre-intermediate: #4fcb86;
   --tyre-wet: #78a9ea;
+
+  /* ------------------------------------------------ v2.1 Telemetry Lab */
+  /* Lap comparison identity, approved for v2.1: the current lap is blue, the
+     reference lap gold, the delta between them purple. Data colours only;
+     the gold is deliberately deeper than --status-warn and --ch-rpm so a
+     reference trace never reads as a caution. Current and reference are also
+     told apart by line style (solid / dotted), never by colour alone. */
+  --ch-current: #3d8fff;
+  --ch-current-soft: #1d3b66;
+  --ch-reference: #e39d22;
+  --ch-reference-soft: #5a4320;
+  --ch-delta: #c45cf2;
+  /* Lab surfaces. Scoped to `.telemetry-lab`: rounded, softly raised panels
+     after the approved reference, where the rest of RaceLab stays flat. */
+  --lab-bg: #14181d;
+  --lab-column: #181c22;
+  --lab-panel: #21252c;
+  --lab-panel-top: #262a31;
+  --lab-panel-edge: #363d47;
+  --lab-panel-highlight: #ffffff12;
+  /* Reference panels are graphite like every other panel; gold marks them
+     only at the edge, never as a fill. */
+  --lab-reference-surface: #212327;
+  --lab-reference-top: #26282c;
+  --lab-reference-edge: #6b5426;
+  --lab-reference-glow: #e39d2240;
+  --lab-delta-surface: #251f2f;
+  --lab-delta-edge: #4b3a63;
+  --lab-chart-surface: #1f2730;
+  --lab-chart-edge: #303c4a;
+  --lab-grid-line: #2b3440;
+  --lab-viewport: #0e1115;
+  --lab-viewport-glow: #1b232d;
+  --lab-viewport-grid: #1c232c;
+  --lab-viewport-grid-major: #2a3542;
+  --lab-viewport-horizon: #3f5266;
+  --lab-glass: #151a20e6;
+  --lab-gauge-track: #30353d;
+  --lab-shadow: 0 10px 24px -14px #000000cc;
+  --lab-radius: 10px;
+  --lab-radius-sm: 6px;
+  /* Lab fact values (session column), after the reference's value accents.
+     Presentation only: they mark the kind of fact, never a judgement. */
+  --lab-value-cool: #6fb0ff;
+  --lab-value-warm: #f0a35e;
+  --lab-value-time: #b59bff;
   --text-tertiary: #7e8a93; /* decoration; small content uses AA text-3 */
   --type-region: 1.125rem; /* 18 */
   --type-screen: 1.5rem; /* 24 */

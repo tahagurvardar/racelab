@@ -19,15 +19,22 @@ import {
 /// recording row — subscribes on its own.
 export default function SessionsWorkspace({
   onOpenSettings,
+  onOpenLab,
 }: {
   onOpenSettings?: () => void;
+  /// v2.1: open an F1 25 session in Telemetry Lab.
+  onOpenLab?: (sessionId: string) => void;
 }) {
   const controller = useSessionsController();
   return (
     <div className="sessions-workspace">
       <WorkspaceHeader title="Sessions" />
       {controller ? (
-        <SessionsBody controller={controller} onOpenSettings={onOpenSettings} />
+        <SessionsBody
+          controller={controller}
+          onOpenSettings={onOpenSettings}
+          onOpenLab={onOpenLab}
+        />
       ) : null}
     </div>
   );
@@ -36,9 +43,11 @@ export default function SessionsWorkspace({
 function SessionsBody({
   controller,
   onOpenSettings,
+  onOpenLab,
 }: {
   controller: SessionsController;
   onOpenSettings?: () => void;
+  onOpenLab?: (sessionId: string) => void;
 }) {
   const empty = useSessions(
     controller,
@@ -69,7 +78,7 @@ function SessionsBody({
             controller={controller}
             onOpenSettings={onOpenSettings}
           />
-          <SessionDetail controller={controller} />
+          <SessionDetail controller={controller} onOpenLab={onOpenLab} />
         </div>
       )}
     </>

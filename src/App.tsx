@@ -12,6 +12,7 @@ import DiagnosticsWorkspace from "./workspaces/DiagnosticsWorkspace";
 import LiveWorkspace from "./workspaces/LiveWorkspace";
 import SessionsWorkspace from "./workspaces/SessionsWorkspace";
 import SettingsWorkspace from "./workspaces/SettingsWorkspace";
+import TelemetryLabWorkspace from "./workspaces/TelemetryLabWorkspace";
 import HomeWorkspace from "./workspaces/HomeWorkspace";
 
 /// The application root owns every subscription and nothing else. Each owner
@@ -46,11 +47,18 @@ export default function App() {
           onF1Tab={(tab) => navigate({ type: "f1Tab", tab })}
         />
       ) : null}
-      {navigation.section === "sessions" ? (
+      {navigation.section === "sessions" && navigation.lab != null ? (
+        <TelemetryLabWorkspace
+          sessionId={navigation.lab}
+          onClose={() => navigate({ type: "closeLab" })}
+        />
+      ) : null}
+      {navigation.section === "sessions" && navigation.lab == null ? (
         <SessionsWorkspace
           onOpenSettings={() =>
             navigate({ type: "section", section: "settings" })
           }
+          onOpenLab={(sessionId) => navigate({ type: "openLab", sessionId })}
         />
       ) : null}
       {navigation.section === "settings" ? <SettingsWorkspace /> : null}

@@ -84,21 +84,34 @@ export interface NavigationState {
   /// shortcuts and a remembered tab mean the same place whichever game is
   /// active, and the shell never needs to know which game that is.
   f1Tab: F1TabId;
+  /// v2.1: the F1 25 session open in Telemetry Lab, over Sessions. Not a
+  /// sidebar section: it is entered from a session and left back to it, and
+  /// choosing any section leaves it.
+  lab: string | null;
 }
 
 export const INITIAL_NAVIGATION: NavigationState = {
   section: "live",
   liveTab: "overview",
   f1Tab: "overview",
+  lab: null,
 };
 
 export type NavigationAction =
   | { type: "section"; section: SectionId }
   | { type: "liveTab"; tab: LiveTabId }
-  | { type: "f1Tab"; tab: F1TabId };
+  | { type: "f1Tab"; tab: F1TabId }
+  | { type: "openLab"; sessionId: string }
+  | { type: "closeLab" };
 
-function atPosition(index: number): Pick<NavigationState, "liveTab" | "f1Tab"> {
-  return { liveTab: LIVE_TABS[index].id, f1Tab: F1_LIVE_TABS[index].id };
+function atPosition(
+  index: number,
+): Pick<NavigationState, "liveTab" | "f1Tab" | "lab"> {
+  return {
+    liveTab: LIVE_TABS[index].id,
+    f1Tab: F1_LIVE_TABS[index].id,
+    lab: null,
+  };
 }
 
 export function navigationReducer(
@@ -107,9 +120,9 @@ export function navigationReducer(
 ): NavigationState {
   switch (action.type) {
     case "section":
-      return state.section === action.section
+      return state.section === action.section && state.lab == null
         ? state
-        : { ...state, section: action.section };
+        : { ...state, section: action.section, lab: null };
     case "liveTab": {
       // Choosing a tab is always a request to look at Live.
       if (state.section === "live" && state.liveTab === action.tab)
@@ -122,6 +135,12 @@ export function navigationReducer(
       const index = F1_LIVE_TABS.findIndex((item) => item.id === action.tab);
       return { section: "live", ...atPosition(Math.max(0, index)) };
     }
+    case "openLab":
+      return state.section === "sessions" && state.lab === action.sessionId
+        ? state
+        : { ...state, section: "sessions", lab: action.sessionId };
+    case "closeLab":
+      return state.lab == null ? state : { ...state, lab: null };
   }
 }
 

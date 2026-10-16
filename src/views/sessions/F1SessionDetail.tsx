@@ -22,15 +22,18 @@ import { dayLabel, timeOfDay } from "../../session-workspace.ts";
 import { integer } from "../../telemetry/formatting.ts";
 import { Tabs } from "../../components/shell/Tabs";
 import { Badge, FactList, PAGE_SIZE, ShowMore } from "./parts";
+import { Icon } from "../../components/shell/Icon";
 
 /// One F1 25 session: what was recorded, as facts. Summary, Laps, Events and
 /// Data — never FH6's analysis concepts, never a rating.
 export function F1SessionDetail({
   controller,
   selected,
+  onOpenLab,
 }: {
   controller: SessionsController;
   selected: SelectedSession;
+  onOpenLab?: (sessionId: string) => void;
 }) {
   const tab = useSessions(controller, (state) => state.f1Tab);
   const recordingId = useF1Recorder((state) =>
@@ -88,6 +91,12 @@ export function F1SessionDetail({
               : `${dayLabel(started, Date.now())} · ${timeOfDay(started)}`}
           </h2>
           <Badge badge={f1StatusBadge(detail.session, recordingId)} />
+          {onOpenLab ? (
+            <OpenInLab
+              status={envelope.status}
+              onOpen={() => onOpenLab(selected.id)}
+            />
+          ) : null}
         </div>
         <FactList
           className="inline"
@@ -178,6 +187,35 @@ function Groups({ groups }: { groups: ReturnType<typeof f1SummaryFacts> }) {
         </section>
       ))}
     </div>
+  );
+}
+
+/// v2.1: the way into Telemetry Lab. Completed sessions only — the lab reads
+/// a finished recording — and a session that is not says why.
+function OpenInLab({
+  status,
+  onOpen,
+}: {
+  status: Detail["session"]["racelab_session"]["status"];
+  onOpen: () => void;
+}) {
+  const ready = status === "completed";
+  const reason = ready
+    ? null
+    : status === "interrupted"
+      ? ": available for completed sessions only"
+      : ": available once this session is saved";
+  return (
+    <button
+      type="button"
+      className="session-lab-open"
+      aria-disabled={ready ? undefined : true}
+      onClick={ready ? onOpen : undefined}
+    >
+      <Icon name="chart" />
+      Open in Telemetry Lab
+      {reason ? <span className="visually-hidden">{reason}</span> : null}
+    </button>
   );
 }
 

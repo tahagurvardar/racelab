@@ -1,0 +1,101 @@
+[
+  {
+    "width": 1920,
+    "height": 1080,
+    "entry": "sessions-f1-entry-1920x1080.png",
+    "lab": "telemetry-lab-1920x1080.png",
+    "errors": [],
+    "documentWidth": 1920,
+    "rail": "56px 1864px",
+    "synthetic": true,
+    "session": {
+      "left": 56,
+      "width": 363,
+      "height": 1032
+    },
+    "center": {
+      "left": 419,
+      "width": 941,
+      "height": 1032
+    },
+    "compare": {
+      "left": 1361,
+      "width": 559,
+      "height": 1032
+    },
+    "viewport": {
+      "left": 439,
+      "width": 891,
+      "height": 518
+    },
+    "speed": "259",
+    "cursor": "2.18 km",
+    "title": "lab-title"
+  },
+  {
+    "width": 1280,
+    "height": 720,
+    "entry": "sessions-f1-entry-1280x720.png",
+    "lab": "telemetry-lab-1280x720.png",
+    "errors": [],
+    "documentWidth": 1280,
+    "rail": "56px 1224px",
+    "synthetic": true,
+    "session": {
+      "left": 56,
+      "width": 257,
+      "height": 672
+    },
+    "center": {
+      "left": 313,
+      "width": 636,
+      "height": 672
+    },
+    "compare": {
+      "left": 950,
+      "width": 330,
+      "height": 672
+    },
+    "viewport": {
+      "left": 333,
+      "width": 586,
+      "height": 346
+    },
+    "speed": "259",
+    "cursor": "2.18 km",
+    "title": "lab-title"
+  },
+  {
+    "width": 960,
+    "height": 640,
+    "entry": "sessions-f1-entry-960x640.png",
+    "lab": "telemetry-lab-960x640.png",
+    "errors": [],
+    "documentWidth": 960,
+    "rail": "56px 904px",
+    "synthetic": true,
+    "session": {
+      "left": 56,
+      "width": 894,
+      "height": 649
+    },
+    "center": {
+      "left": 56,
+      "width": 894,
+      "height": 2117
+    },
+    "compare": {
+      "left": 56,
+      "width": 894,
+      "height": 1060
+    },
+    "viewport": {
+      "left": 76,
+      "width": 854,
+      "height": 307
+    },
+    "speed": "259",
+    "cursor": "2.18 km",
+    "title": "lab-title"
+  }
+]

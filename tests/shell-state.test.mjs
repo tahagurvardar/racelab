@@ -377,6 +377,7 @@ test("navigation starts on Live › Overview and remembers the Live tab", () => 
     section: "live",
     liveTab: "overview",
     f1Tab: "overview",
+    lab: null,
   });
   let state = navigationReducer(INITIAL_NAVIGATION, {
     type: "liveTab",
@@ -390,21 +391,60 @@ test("navigation starts on Live › Overview and remembers the Live tab", () => 
     section: "live",
     liveTab: "chassis",
     f1Tab: "tyres",
+    lab: null,
   });
   // Choosing a tab from anywhere opens Live.
   state = navigationReducer(
-    { section: "diagnostics", liveTab: "overview", f1Tab: "overview" },
+    {
+      section: "diagnostics",
+      liveTab: "overview",
+      f1Tab: "overview",
+      lab: null,
+    },
     { type: "liveTab", tab: "dynamics" },
   );
   assert.deepEqual(state, {
     section: "live",
     liveTab: "dynamics",
     f1Tab: "dynamics",
+    lab: null,
   });
   // A no-op keeps the same object.
   assert.equal(
     navigationReducer(state, { type: "section", section: "live" }),
     state,
+  );
+});
+
+test("Telemetry Lab opens over Sessions and any section leaves it", () => {
+  let state = navigationReducer(INITIAL_NAVIGATION, {
+    type: "openLab",
+    sessionId: "f1-a",
+  });
+  assert.equal(state.section, "sessions");
+  assert.equal(state.lab, "f1-a");
+  // Opening the same session again is a no-op.
+  assert.equal(
+    navigationReducer(state, { type: "openLab", sessionId: "f1-a" }),
+    state,
+  );
+  // Back to the session it came from.
+  const closed = navigationReducer(state, { type: "closeLab" });
+  assert.deepEqual(closed, { ...state, lab: null });
+  assert.equal(navigationReducer(closed, { type: "closeLab" }), closed);
+  // Choosing Sessions in the sidebar while in the Lab returns to Sessions.
+  assert.equal(
+    navigationReducer(state, { type: "section", section: "sessions" }).lab,
+    null,
+  );
+  // Any other section, or a Live tab, leaves the Lab too.
+  assert.equal(
+    navigationReducer(state, { type: "section", section: "settings" }).lab,
+    null,
+  );
+  assert.equal(
+    navigationReducer(state, { type: "liveTab", tab: "overview" }).lab,
+    null,
   );
 });
 

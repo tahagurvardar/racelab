@@ -61,33 +61,38 @@ export function AppShell({
   const workspace = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (workspace.current) workspace.current.scrollTop = 0;
-  }, [navigation.section, navigation.liveTab]);
+  }, [navigation.section, navigation.liveTab, navigation.lab]);
+  // v2.1: Telemetry Lab takes the full window width, so the sidebar folds
+  // to its 56 px rail while the Lab is open.
+  const lab = navigation.section === "sessions" && navigation.lab != null;
 
   // A section shortcut pressed with focus inside the workspace removes the
   // focused control with the section it belonged to, and the browser drops
   // focus to the page. Put it on the new workspace's title instead, so the
   // next Tab continues from there. Not on first render: launching the app
   // moves no focus.
-  const shownSection = useRef(navigation.section);
+  // Entering or leaving Telemetry Lab is the same kind of change.
+  const view = lab ? "lab" : navigation.section;
+  const shownView = useRef(view);
   useLayoutEffect(() => {
-    if (shownSection.current === navigation.section) return;
-    shownSection.current = navigation.section;
+    if (shownView.current === view) return;
+    shownView.current = view;
     const active = document.activeElement;
     if (active == null || active === document.body || !active.isConnected) {
       workspace.current
         ?.querySelector<HTMLElement>(".workspace-view h1")
         ?.focus({ preventScroll: true });
     }
-  }, [navigation.section]);
+  }, [view]);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-lab={lab || undefined}>
       <Sidebar
         active={navigation.section}
         onSelect={(section) => onNavigate({ type: "section", section })}
       />
       <div className="app-main">
-        <TopBar />
+        <TopBar analysis={lab} />
         <main className="workspace" ref={workspace}>
           <div className="workspace-inner">
             <AlertSlot />
@@ -97,14 +102,16 @@ export function AppShell({
                 remount could duplicate. */}
             <div
               className="workspace-view"
-              key={navigation.section}
+              key={view}
               data-density={
-                navigation.section === "home" ||
-                navigation.section === "settings"
-                  ? "comfort"
-                  : navigation.section === "live"
-                    ? "operational"
-                    : "engineering"
+                lab
+                  ? "lab"
+                  : navigation.section === "home" ||
+                      navigation.section === "settings"
+                    ? "comfort"
+                    : navigation.section === "live"
+                      ? "operational"
+                      : "engineering"
               }
             >
               {children}
